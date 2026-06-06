@@ -33,6 +33,7 @@ export interface AdminDestination extends AuditColumns {
   seoTitle?: string;
   seoDescription?: string;
   status: Status;
+  isDomestic: boolean;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -169,12 +169,46 @@ function repo<T extends { id: string }>(
 /*  Repositories                                                               */
 /* -------------------------------------------------------------------------- */
 
-export const destinationsApi = repo<AdminDestination>("destinations", [
-  "name",
-  "country",
-  "state",
-  "city",
-]);
+export const destinationsApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminDestination>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const country = query.filter?.country;
+    if (typeof country === "string") params.set("country", country);
+    const res = await fetch(`/api/admin/destinations?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminDestination>>;
+  },
+  all: async (): Promise<ApiResponse<AdminDestination[]>> => {
+    const res = await fetch(`/api/admin/destinations?page=1&pageSize=1000`);
+    const json = await res.json();
+    return { success: json.success, message: json.message, data: json.data.items };
+  },
+  get: async (id: string): Promise<ApiResponse<AdminDestination | null>> => {
+    const res = await fetch(`/api/admin/destinations/${id}`);
+    return (await res.json()) as ApiResponse<AdminDestination | null>;
+  },
+  create: async (payload: Omit<AdminDestination, "id" | "createdDate" | "updatedDate">): Promise<ApiResponse<AdminDestination>> => {
+    const res = await fetch(`/api/admin/destinations`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminDestination>;
+  },
+  update: async (id: string, payload: Partial<AdminDestination>): Promise<ApiResponse<AdminDestination | null>> => {
+    const res = await fetch(`/api/admin/destinations/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminDestination | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/destinations/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminDestination | null>> => {
+    const res = await fetch(`/api/admin/destinations/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminDestination | null>;
+  },
+  seed: (_rows: AdminDestination[]) => {
+    // no-op for server-backed API
+  },
+};
 
 export const packagesApi = repo<AdminPackage>("packages", [
   "name",

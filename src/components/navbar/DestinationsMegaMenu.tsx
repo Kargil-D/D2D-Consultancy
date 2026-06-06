@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUpRight, ChevronDown, MapPin } from "lucide-react";
 import {
@@ -39,6 +40,26 @@ export default function DestinationsMegaMenu({
   onFocus,
   onBlur,
 }: DestinationsMegaMenuProps) {
+  const [menuColumns, setMenuColumns] = useState<DestinationMenuColumn[]>(DESTINATIONS_MENU);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch("/api/destinations/menu")
+      .then((res) => res.ok ? res.json() : null)
+      .then((payload) => {
+        if (!isMounted || !payload?.success) return;
+        setMenuColumns(payload.data as DestinationMenuColumn[]);
+      })
+      .catch(() => {
+        // Keep fallback static menu if API fails.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div
       className="relative"
@@ -85,7 +106,7 @@ export default function DestinationsMegaMenu({
               <div className="pointer-events-none absolute inset-x-0 -top-16 h-32 bg-gradient-to-b from-cyan-50/80 via-white/0 to-transparent" />
 
               <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
-                {DESTINATIONS_MENU.map((column) => (
+                {menuColumns.map((column) => (
                   <Column key={column.title} column={column} />
                 ))}
               </div>
@@ -185,9 +206,29 @@ interface DestinationsMegaMenuMobileProps {
 export function DestinationsMegaMenuMobile({
   onNavigate,
 }: DestinationsMegaMenuMobileProps) {
+  const [menuColumns, setMenuColumns] = useState<DestinationMenuColumn[]>(DESTINATIONS_MENU);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch("/api/destinations/menu")
+      .then((res) => res.ok ? res.json() : null)
+      .then((payload) => {
+        if (!isMounted || !payload?.success) return;
+        setMenuColumns(payload.data as DestinationMenuColumn[]);
+      })
+      .catch(() => {
+        // Keep fallback static menu if API fails.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="space-y-3">
-      {DESTINATIONS_MENU.map((column) => (
+      {menuColumns.map((column) => (
         <MobileColumn
           key={column.title}
           column={column}

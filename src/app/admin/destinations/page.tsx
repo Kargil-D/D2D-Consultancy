@@ -34,6 +34,7 @@ const emptyForm = (): Partial<AdminDestination> => ({
   seoTitle: "",
   seoDescription: "",
   status: "Active",
+  isDomestic: false,
 });
 
 export default function DestinationsAdminPage() {
@@ -52,18 +53,25 @@ export default function DestinationsAdminPage() {
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const res = await destinationsApi.list({
-      search,
-      page,
-      pageSize: PAGE_SIZE,
-      filter: country ? { country } : {},
-    });
-    setLoading(false);
-    if (res.success) {
-      setRows(res.data.items);
-      setTotal(res.data.total);
+    try {
+      const res = await destinationsApi.list({
+        search,
+        page,
+        pageSize: PAGE_SIZE,
+        filter: country ? { country } : {},
+      });
+      if (res.success) {
+        setRows(res.data.items);
+        setTotal(res.data.total);
+      } else {
+        notify(res.message || "Unable to load destinations", "error");
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to load destinations", "error");
+    } finally {
+      setLoading(false);
     }
-  }, [search, page, country]);
+  }, [search, page, country, notify]);
 
   useEffect(() => {
     reload();
@@ -74,22 +82,40 @@ export default function DestinationsAdminPage() {
   const openCreate = () => setDrawer({ open: true, form: emptyForm() });
   const openEdit = (row: AdminDestination) => setDrawer({ open: true, form: { ...row } });
 
+  const canSave = !!drawer.form.name && !!drawer.form.country;
+
   const save = async () => {
     const f = drawer.form;
     if (!f.name || !f.country) return notify("Name and country are required", "error");
     const payload: Partial<AdminDestination> = {
       ...f,
       slug: f.slug?.trim() || toSlug(f.name),
+      shortDescription: f.shortDescription ?? "",
+      fullDescription: f.fullDescription ?? "",
+      status: f.status ?? "Active",
+      displayOrder: f.displayOrder ?? 0,
+      isDomestic: f.isDomestic ?? false,
     };
-    if (f.id) {
-      const res = await destinationsApi.update(f.id, payload);
-      if (res.success) notify("Destination updated");
-    } else {
-      const res = await destinationsApi.create(payload as Omit<AdminDestination, "id">);
-      if (res.success) notify("Destination created");
+
+    try {
+      if (f.id) {
+        const res = await destinationsApi.update(f.id, payload);
+        if (!res.success) {
+          return notify(res.message || "Unable to update destination", "error");
+        }
+        notify("Destination updated", "success");
+      } else {
+        const res = await destinationsApi.create(payload as Omit<AdminDestination, "id">);
+        if (!res.success) {
+          return notify(res.message || "Unable to create destination", "error");
+        }
+        notify("Destination created", "success");
+      }
+      setDrawer({ open: false, form: emptyForm() });
+      reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
     }
-    setDrawer({ open: false, form: emptyForm() });
-    reload();
   };
 
   const remove = async () => {
@@ -225,7 +251,10 @@ export default function DestinationsAdminPage() {
             <button onClick={() => setDrawer({ open: false, form: emptyForm() })} className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100">
               Cancel
             </button>
-            <button onClick={save} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+            <button
+              onClick={save}
+              disabled={!canSave}
+              className={`px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 ${!canSave ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""}`}>
               {drawer.form.id ? "Update" : "Create"}
             </button>
           </>
@@ -261,12 +290,24 @@ function DestinationFormBody({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Field label="Destination Name" required>
           <input className={inputCls} value={form.name ?? ""} onChange={(e) => onChange({ name: e.target.value })} placeholder="Bali" />
+          {!form.name && <div className="text-rose-600 text-sm mt-1">Name is required</div>}
         </Field>
         <Field label="Slug URL" hint="Auto-generated from name if blank">
           <input className={inputCls} value={form.slug ?? ""} onChange={(e) => onChange({ slug: e.target.value })} placeholder="bali" />
         </Field>
         <Field label="Country" required>
           <input className={inputCls} value={form.country ?? ""} onChange={(e) => onChange({ country: e.target.value })} placeholder="Indonesia" />
+          {!form.country && <div className="text-rose-600 text-sm mt-1">Country is required</div>}
+        </Field>
+        <Field label="Destination Type" hint="This determines whether the menu item appears under Domestic or International">
+          <select
+            className={selectCls}
+            value={form.isDomestic ? "Domestic" : "International"}
+            onChange={(e) => onChange({ isDomestic: e.target.value === "Domestic" })}
+          >
+            <option value="Domestic">Domestic</option>
+            <option value="International">International</option>
+          </select>
         </Field>
         <Field label="State / Region">
           <input className={inputCls} value={form.state ?? ""} onChange={(e) => onChange({ state: e.target.value })} />

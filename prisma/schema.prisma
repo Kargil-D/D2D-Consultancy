@@ -1,0 +1,47 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Admin enums
+enum Status {
+  Active
+  Inactive
+}
+
+model Destination {
+  id              String   @id @default(uuid())
+  name            String
+  country         String
+  state           String?
+  city            String?
+  slug            String   @unique
+  shortDescription String
+  fullDescription String
+  thumbnailImage  String?
+  bannerImage     String?
+  isPopular       Boolean  @default(false)
+  displayOrder    Int      @default(0)
+  seoTitle        String?
+  seoDescription  String?
+  status          Status   @default(Active)
+  isDomestic      Boolean  @default(false)
+
+  // Audit
+  createdBy       String?
+  createdDate     DateTime @default(now())
+  updatedBy       String?
+  updatedDate     DateTime @updatedAt
+  isDeleted       Boolean  @default(false)
+
+  @@map("destinations")
+}
