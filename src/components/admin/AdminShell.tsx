@@ -17,7 +17,7 @@ import { ToastProvider } from "@/components/admin/ui/Toast";
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/admin/destinations", label: "Destinations", icon: MapPinned },
-  { href: "/admin/packages", label: "Packages", icon: Package },
+  { href: "/admin/packages", label: "Campaigns", icon: Package },
   { href: "/admin/itineraries", label: "Itineraries", icon: CalendarRange },
   { href: "/admin/hero", label: "Hero Section", icon: Sparkles },
   { href: "/admin/reviews", label: "Reviews", icon: Star },

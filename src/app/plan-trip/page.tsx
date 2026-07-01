@@ -72,7 +72,7 @@ const STEP_TITLES = [
   },
   {
     title: "Almost there â€” your contact details",
-    subtitle: "We'll share the perfect packages with you on email.",
+    subtitle: "We'll share the perfect campaigns with you on email.",
   },
 ] as const;
 
@@ -402,7 +402,7 @@ function PlanTripContent() {
                   </>
                 ) : (
                   <>
-                    Find Packages
+                    Find Campaigns
                     <Send className="w-4 h-4" />
                   </>
                 )}

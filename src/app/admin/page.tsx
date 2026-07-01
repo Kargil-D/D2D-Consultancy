@@ -82,7 +82,7 @@ export default function AdminDashboardPage() {
       color: "from-cyan-500 to-teal-500",
     },
     {
-      label: "Packages",
+      label: "Campaigns",
       value: stats.packages,
       icon: Package,
       href: "/admin/packages-master",
@@ -124,7 +124,7 @@ export default function AdminDashboardPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Welcome back, Admin</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Manage destinations, packages, and dynamic site content from one place.
+          Manage destinations, campaigns, and dynamic site content from one place.
         </p>
       </div>
 
@@ -152,8 +152,8 @@ export default function AdminDashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card
-          title="Recent Packages"
-          empty="No packages yet."
+          title="Recent Campaigns"
+          empty="No campaigns yet."
           rows={stats.recentPackages.map((p) => ({
             title: p.name,
             subtitle: `${p.days}D / ${p.nights}N · ?${p.startingPrice.toLocaleString("en-IN")}`,

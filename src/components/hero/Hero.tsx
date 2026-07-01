@@ -69,7 +69,7 @@ export default function Hero() {
           transition={{ duration: 0.7, delay: 0.2 }}
           className="mt-6 max-w-2xl mx-auto text-base sm:text-lg md:text-xl text-slate-200/90 leading-relaxed"
         >
-          Customized domestic and international tour packages designed by
+          Customized domestic and international tour campaigns designed by
           travel experts who understand exactly what makes a journey
           unforgettable.
         </motion.p>

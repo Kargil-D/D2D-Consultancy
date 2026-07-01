@@ -14,7 +14,7 @@ import Logo from "@/components/common/Logo";
 
 const quickLinks = [
   { label: "Destinations", href: "#destinations" },
-  { label: "Packages", href: "#packages" },
+  { label: "Campaigns", href: "#packages" },
   { label: "Honeymoon", href: "#honeymoon" },
   { label: "Group Tours", href: "#group-tours" },
   { label: "About Us", href: "#about" },

@@ -17,7 +17,7 @@ const defaults = (): Partial<AdminHeroConfig> => ({
   backgroundVideo: "",
   ctaPrimaryText: "Plan Trip",
   ctaPrimaryLink: "/plan-trip",
-  ctaSecondaryText: "Browse Packages",
+  ctaSecondaryText: "Browse Campaigns",
   ctaSecondaryLink: "/#packages",
   searchDropdownDestinationIds: [],
   featuredCampaignIds: [],
@@ -153,7 +153,7 @@ export default function HeroAdminPage() {
 
         <Section title="Featured Hero Campaigns">
           <p className="text-xs text-slate-500 mb-3">Order controls display order in the hero campaigns rail.</p>
-          {packages.length === 0 && <p className="text-sm text-slate-500">Add packages first.</p>}
+          {packages.length === 0 && <p className="text-sm text-slate-500">Add campaigns first.</p>}
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {packages.map((p) => {
               const active = form.featuredCampaignIds?.includes(p.id);

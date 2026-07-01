@@ -201,17 +201,17 @@ export default function PackagesMasterPage() {
   ];
 
   return (
-    <AdminShell title="Packages Master">
-      <Breadcrumb items={[{ label: "Packages Master" }]} />
+    <AdminShell title="Campaigns Master">
+      <Breadcrumb items={[{ label: "Campaigns Master" }]} />
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Packages / Campaigns</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Campaigns</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Drives the Packages landing page, Hero campaigns and View-Details redirects.
+            Drives the campaigns landing page, hero campaigns, and view-details redirects.
           </p>
         </div>
         <button onClick={openCreate} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm">
-          <Plus className="w-4 h-4" /> Add Package
+          <Plus className="w-4 h-4" /> Add Campaign
         </button>
       </div>
 
@@ -225,7 +225,7 @@ export default function PackagesMasterPage() {
           setPage(1);
           setSearch(v);
         }}
-        searchPlaceholder="Search packages…"
+        searchPlaceholder="Search campaigns…"
         toolbar={
           <>
             <select value={destFilter} onChange={(e) => { setPage(1); setDestFilter(e.target.value); }} className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white">
@@ -245,7 +245,7 @@ export default function PackagesMasterPage() {
 
       <Drawer
         open={drawer.open}
-        title={drawer.form.id ? "Edit Package" : "New Package"}
+        title={drawer.form.id ? "Edit Campaign" : "New Campaign"}
         onClose={() => setDrawer({ open: false, form: emptyForm() })}
         width="xl"
         footer={
@@ -262,8 +262,8 @@ export default function PackagesMasterPage() {
 
       <ConfirmModal
         open={confirm.open}
-        title="Delete package?"
-        message="This will remove the package from all listings."
+        title="Delete campaign?"
+        message="This will remove the campaign from all listings."
         confirmText="Delete"
         onCancel={() => setConfirm({ open: false, id: null })}
         onConfirm={remove}

@@ -23,7 +23,7 @@ interface PackagesMegaMenuProps {
 }
 
 /**
- * Premium "Packages" mega-menu used by the desktop navbar.
+ * Premium "Campaigns" mega-menu used by the desktop navbar.
  *
  * Mirrors the look & feel of DestinationsMegaMenu: glassy popover,
  * two columns (By Theme + By Destination), each item is a small image
@@ -58,7 +58,7 @@ export default function PackagesMegaMenu({
             : "text-white/90 hover:text-white"
         }`}
       >
-        Packages
+        Campaigns
         <ChevronDown
           className={`h-4 w-4 transition-transform duration-300 ${
             open ? "rotate-180" : "rotate-0"
@@ -75,7 +75,7 @@ export default function PackagesMegaMenu({
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
             role="menu"
-            aria-label="Packages"
+            aria-label="Campaigns"
             className={`absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 ${popupWidthClass}`}
           >
             {/* Pointer */}
@@ -100,7 +100,7 @@ export default function PackagesMegaMenu({
                   href="/#packages"
                   className="inline-flex items-center gap-1 font-semibold text-cyan-600 transition-colors hover:text-cyan-700"
                 >
-                  View all packages
+                  View all campaigns
                   <ArrowUpRight className="h-4 w-4" />
                 </Link>
               </div>

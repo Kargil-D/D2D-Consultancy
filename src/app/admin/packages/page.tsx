@@ -5,16 +5,16 @@ import AdminShell from "@/components/admin/AdminShell";
 import { getAllItineraries } from "@/services/itineraryService";
 import { formatINR } from "@/utils/format";
 
-export const metadata = { title: "Packages - Admin ï¿½ D2D Holidays" };
+export const metadata = { title: "Campaigns - Admin ï¿½ D2D Holidays" };
 
 export default function AdminPackagesPage() {
   const items = getAllItineraries();
 
   return (
-    <AdminShell title="Packages">
+    <AdminShell title="Campaigns">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">All Packages</h1>
+          <h1 className="text-2xl font-bold text-slate-900">All Campaigns</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             Manage itineraries that show up across the site. Edits write to{" "}
             <code className="text-xs">content/itineraries/*.md</code>.
@@ -25,7 +25,7 @@ export default function AdminPackagesPage() {
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
-          Create Package
+          Create Campaign
         </Link>
       </div>
 
@@ -45,7 +45,7 @@ export default function AdminPackagesPage() {
             {items.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
-                  No packages yet. Create your first one.
+                  No campaigns yet. Create your first one.
                 </td>
               </tr>
             )}
