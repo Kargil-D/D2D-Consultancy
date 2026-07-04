@@ -25,6 +25,9 @@ export const CampaignCreateSchema = z.object({
   seoDescription: z.string().optional().nullable(),
   status: z.enum(["Active", "Inactive"]).optional(),
   gallery: z.array(z.string()).optional(),
+  bookedByName: z.string().optional().nullable(),
+  bookedByCity: z.string().optional().nullable(),
+  bookedByAgo: z.string().optional().nullable(),
 });
 
 export const CampaignUpdateSchema = CampaignCreateSchema.partial();

@@ -42,6 +42,9 @@ const emptyForm = (): Partial<AdminPackage> => ({
   seoDescription: "",
   status: "Active",
   gallery: [],
+  bookedByName: "",
+  bookedByCity: "",
+  bookedByAgo: "",
 });
 
 export default function CampaignForm({ id }: CampaignFormProps) {
@@ -235,6 +238,18 @@ export default function CampaignForm({ id }: CampaignFormProps) {
             <input type="checkbox" checked={!!form.isHeroCampaign} onChange={(e) => onChange({ isHeroCampaign: e.target.checked })} className="w-4 h-4 rounded" />
             Show in Hero Campaigns
           </label>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Field label="Booked By Name" hint="Shown in the Recently Booked rail">
+            <input className={inputCls} value={form.bookedByName ?? ""} onChange={(e) => onChange({ bookedByName: e.target.value })} placeholder="Aditi" />
+          </Field>
+          <Field label="Booked By City">
+            <input className={inputCls} value={form.bookedByCity ?? ""} onChange={(e) => onChange({ bookedByCity: e.target.value })} placeholder="Mumbai" />
+          </Field>
+          <Field label="Booked Ago">
+            <input className={inputCls} value={form.bookedByAgo ?? ""} onChange={(e) => onChange({ bookedByAgo: e.target.value })} placeholder="12m ago" />
+          </Field>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

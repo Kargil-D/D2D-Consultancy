@@ -67,6 +67,9 @@ export interface AdminPackage extends AuditColumns {
   seoDescription?: string;
   status: Status;
   gallery: string[];
+  bookedByName?: string;
+  bookedByCity?: string;
+  bookedByAgo?: string;
 }
 
 /* -------------------------------------------------------------------------- */

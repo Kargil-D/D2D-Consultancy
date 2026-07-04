@@ -75,6 +75,9 @@ model Campaign {
   seoDescription      String?
   status              Status      @default(Active)
   gallery             String[]    @default([])
+  bookedByName        String?
+  bookedByCity        String?
+  bookedByAgo         String?
 
   createdBy   String?
   createdDate DateTime @default(now())

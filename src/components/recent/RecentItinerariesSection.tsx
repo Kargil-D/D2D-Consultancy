@@ -1,93 +1,68 @@
-import { RECENT_ITINERARIES } from "@/data/recentItineraries";
-import { getAllItineraries } from "@/services/itineraryService";
+import { listCampaigns, type CampaignWithDestination } from "@/services/campaignService";
 import RecentItinerariesRail, {
   type RecentItineraryCard,
+  type ItineraryAudience,
+  type PriceBucket,
 } from "./RecentItinerariesRail";
 
-/** Destinations whose itinerary pages are fully published. */
-const ACTIVE_DESTINATIONS = new Set(["Maldives", "Thailand"]);
+const DEFAULT_IMAGE =
+  "https://images.pexels.com/photos/1007657/pexels-photo-1007657.jpeg?auto=compress&cs=tinysrgb&w=600";
 
-/**
- * Server wrapper that loads the latest itineraries written through the
- * admin module (markdown files in `content/itineraries/`) and merges them
- * with the static seed list. Itineraries whose destination is in
- * {@link ACTIVE_DESTINATIONS} get a live "View Details" link to
- * `/itinerary/[id]`; everything else falls back to a disabled CTA so the
- * rail keeps its variety.
- */
-export default function RecentItinerariesSection() {
-  const liveItineraries = getAllItineraries();
-  const liveIds = new Set(liveItineraries.map((i) => i.id));
+const AUDIENCE_BY_TRAVEL_TYPE: Record<string, ItineraryAudience> = {
+  Family: "FAMILY",
+  Honeymoon: "COUPLE",
+  Adventure: "FRIENDS",
+  Group: "FRIENDS",
+  Solo: "SOLO",
+};
 
-  const fromAdmin: RecentItineraryCard[] = liveItineraries.map((i) => ({
-    id: i.id,
-    title: i.title,
-    destination: i.destination ?? i.primaryLocation,
-    primaryLocation: i.primaryLocation,
-    extraStops: i.extraStops ?? 0,
-    audience: i.audience,
-    price: i.price,
-    nights: i.nights,
-    image: i.image,
-    bookedBy: i.bookedBy,
-    bucket: i.bucket,
-    active: ACTIVE_DESTINATIONS.has(i.destination ?? ""),
-  }));
+function priceBucket(price: number): PriceBucket {
+  if (price < 50000) return "Under 50K";
+  if (price < 150000) return "50K to 1.5L";
+  if (price < 250000) return "1.5L to 2.5L";
+  return "Luxury";
+}
 
-  const fromSeed: RecentItineraryCard[] = RECENT_ITINERARIES.filter(
-    (i) => !liveIds.has(i.id),
-  ).map((i) => {
-    const destination = inferDestination(i.title, i.primaryLocation);
-    return {
-      id: i.id,
-      title: i.title,
-      destination,
-      primaryLocation: i.primaryLocation,
-      extraStops: i.extraStops,
-      audience: i.audience,
-      price: i.price,
-      nights: i.nights,
-      image: i.image,
-      bookedBy: i.bookedBy,
-      bucket: i.bucket,
-      active: ACTIVE_DESTINATIONS.has(destination),
-    };
-  });
-
-  const items = [...fromAdmin, ...fromSeed];
-
-  return <RecentItinerariesRail items={items} />;
+function campaignToCard(c: CampaignWithDestination): RecentItineraryCard {
+  const price = c.offerPrice || c.startingPrice;
+  return {
+    id: c.id,
+    title: c.name,
+    destination: c.destination.name,
+    primaryLocation: `${c.destination.name} (${c.nights}N)`,
+    extraStops: 0,
+    audience: AUDIENCE_BY_TRAVEL_TYPE[c.travelTypes[0]] ?? "FAMILY",
+    price,
+    nights: c.nights,
+    image: c.thumbnail || c.coverBanner || DEFAULT_IMAGE,
+    bookedBy: {
+      name: c.bookedByName || "A traveler",
+      city: c.bookedByCity || c.destination.name,
+      ago: c.bookedByAgo || "recently",
+    },
+    bucket: priceBucket(price),
+    active: true,
+    href: c.viewDetailsRedirect || `/packages/${c.slug}`,
+  };
 }
 
 /**
- * Best-effort destination inference for legacy seed entries that don't
- * carry a `destination` field. Falls back to the primary location label.
+ * Server wrapper that loads Campaigns flagged `isRecentlyViewed` from
+ * Postgres (managed at `/admin/packages-master`) and renders them in the
+ * Recently Booked rail. No static/markdown content — this section shows
+ * only real campaign records.
  */
-function inferDestination(title: string, primaryLocation: string): string {
-  const hay = `${title} ${primaryLocation}`.toLowerCase();
-  const map: Record<string, string> = {
-    maldives: "Maldives",
-    krabi: "Thailand",
-    phuket: "Thailand",
-    bangkok: "Thailand",
-    pattaya: "Thailand",
-    thailand: "Thailand",
-    bali: "Bali",
-    singapore: "Singapore",
-    vietnam: "Vietnam",
-    hanoi: "Vietnam",
-    danang: "Vietnam",
-    "da nang": "Vietnam",
-    italy: "Italy",
-    rome: "Italy",
-    switzerland: "Switzerland",
-    zurich: "Switzerland",
-    kerala: "Kerala",
-    munnar: "Kerala",
-    alleppey: "Kerala",
-  };
-  for (const key of Object.keys(map)) {
-    if (hay.includes(key)) return map[key];
+export default async function RecentItinerariesSection() {
+  let items: RecentItineraryCard[] = [];
+  try {
+    const dbCampaigns = await listCampaigns({
+      pageSize: 20,
+      filter: { isRecentlyViewed: true, status: "Active" },
+    });
+    items = dbCampaigns.items.map(campaignToCard);
+  } catch (error) {
+    console.error("[RecentItinerariesSection] Failed to load campaigns", error);
   }
-  return primaryLocation;
+
+  return <RecentItinerariesRail items={items} />;
 }

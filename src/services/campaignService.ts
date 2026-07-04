@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import type { Paginated } from "@/types/admin";
-import type { Prisma, Campaign as CampaignModel } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
+
+export type CampaignWithDestination = Prisma.CampaignGetPayload<{
+  include: { destination: true };
+}>;
 
 export interface ListQuery {
   search?: string;
@@ -9,7 +13,7 @@ export interface ListQuery {
   filter?: Prisma.CampaignWhereInput;
 }
 
-export async function listCampaigns(query: ListQuery = {}): Promise<Paginated<CampaignModel>> {
+export async function listCampaigns(query: ListQuery = {}): Promise<Paginated<CampaignWithDestination>> {
   const { search = "", page = 1, pageSize = 10, filter = {} } = query;
 
   const where: Prisma.CampaignWhereInput = { isDeleted: false, ...filter };
@@ -25,6 +29,7 @@ export async function listCampaigns(query: ListQuery = {}): Promise<Paginated<Ca
   const total = await prisma.campaign.count({ where });
   const items = await prisma.campaign.findMany({
     where,
+    include: { destination: true },
     orderBy: { createdDate: "desc" },
     skip: (page - 1) * pageSize,
     take: pageSize,

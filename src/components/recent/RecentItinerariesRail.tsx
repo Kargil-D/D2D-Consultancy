@@ -27,6 +27,8 @@ export interface RecentItineraryCard {
   bucket: PriceBucket;
   /** When true the "View Details" CTA links to /itinerary/{id}. */
   active: boolean;
+  /** Overrides the default `/itinerary/{id}` link (e.g. for campaign-sourced cards). */
+  href?: string;
 }
 
 interface RecentItinerariesRailProps {
@@ -296,7 +298,7 @@ function ItineraryCard({
           </div>
           {itin.active ? (
             <Link
-              href={`/itinerary/${itin.id}`}
+              href={itin.href ?? `/itinerary/${itin.id}`}
               className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition-all hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-500/40"
             >
               View Details
