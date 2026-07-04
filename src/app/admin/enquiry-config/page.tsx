@@ -124,7 +124,7 @@ export default function EnquiryConfigAdminPage() {
 
   return (
     <AdminShell title="Enquiry Configuration">
-      <Breadcrumb items={[{ label: "Enquiry Configuration" }]} />
+      <Breadcrumb items={[{ label: "PM", href: "/admin/pm" }, { label: "Enquiry Configuration" }]} />
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Enquiry Configuration</h1>

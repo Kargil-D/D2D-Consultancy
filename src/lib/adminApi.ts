@@ -210,11 +210,46 @@ export const destinationsApi = {
   },
 };
 
-export const packagesApi = repo<AdminPackage>("packages", [
-  "name",
-  "packageType",
-  "shortDescription",
-]);
+export const packagesApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminPackage>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const destinationId = query.filter?.destinationId;
+    if (typeof destinationId === "string") params.set("destinationId", destinationId);
+    const res = await fetch(`/api/admin/campaigns?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminPackage>>;
+  },
+  all: async (): Promise<ApiResponse<AdminPackage[]>> => {
+    const res = await fetch(`/api/admin/campaigns?page=1&pageSize=1000`);
+    const json = await res.json();
+    return { success: json.success, message: json.message, data: json.data.items };
+  },
+  get: async (id: string): Promise<ApiResponse<AdminPackage | null>> => {
+    const res = await fetch(`/api/admin/campaigns/${id}`);
+    return (await res.json()) as ApiResponse<AdminPackage | null>;
+  },
+  create: async (payload: Omit<AdminPackage, "id" | "createdDate" | "updatedDate">): Promise<ApiResponse<AdminPackage>> => {
+    const res = await fetch(`/api/admin/campaigns`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminPackage>;
+  },
+  update: async (id: string, payload: Partial<AdminPackage>): Promise<ApiResponse<AdminPackage | null>> => {
+    const res = await fetch(`/api/admin/campaigns/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminPackage | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/campaigns/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminPackage | null>> => {
+    const res = await fetch(`/api/admin/campaigns/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminPackage | null>;
+  },
+  seed: (_rows: AdminPackage[]) => {
+    // no-op for server-backed API
+  },
+};
 
 export const itinerariesApi = repo<AdminItinerary>("itineraries", [
   "title",

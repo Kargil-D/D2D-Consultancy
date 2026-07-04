@@ -104,7 +104,7 @@ export default function Navbar() {
               );
             }
 
-            if (label === "packages") {
+            if (label === "campaigns") {
               return (
                 <li key={link.href}>
                   <PackagesMegaMenu
@@ -192,7 +192,7 @@ export default function Navbar() {
                     </li>
                   );
                 }
-                if (label === "packages") {
+                if (label === "campaigns") {
                   return (
                     <li key={link.href}>
                       <PackagesMegaMenuMobile

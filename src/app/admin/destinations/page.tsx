@@ -2,40 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Plus, Edit, Trash2, Eye } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DataTable, { type Column } from "@/components/admin/ui/DataTable";
 import Pagination from "@/components/admin/ui/Pagination";
-import Drawer from "@/components/admin/ui/Drawer";
 import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import StatusToggle, { StatusBadge } from "@/components/admin/ui/StatusToggle";
-import ImageUpload from "@/components/admin/ui/ImageUpload";
-import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
 import { destinationsApi } from "@/lib/adminApi";
-import type { AdminDestination, Status } from "@/types/admin";
-import { toSlug } from "@/utils/slug";
+import type { AdminDestination } from "@/types/admin";
 
 const PAGE_SIZE = 10;
-
-const emptyForm = (): Partial<AdminDestination> => ({
-  name: "",
-  country: "",
-  state: "",
-  city: "",
-  slug: "",
-  shortDescription: "",
-  fullDescription: "",
-  thumbnailImage: "",
-  bannerImage: "",
-  isPopular: false,
-  displayOrder: 0,
-  seoTitle: "",
-  seoDescription: "",
-  status: "Active",
-  isDomestic: false,
-});
 
 export default function DestinationsAdminPage() {
   const { notify } = useToast();
@@ -44,10 +23,6 @@ export default function DestinationsAdminPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState("");
-  const [drawer, setDrawer] = useState<{ open: boolean; form: Partial<AdminDestination> }>({
-    open: false,
-    form: emptyForm(),
-  });
   const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
   const [loading, setLoading] = useState(false);
 
@@ -78,45 +53,6 @@ export default function DestinationsAdminPage() {
   }, [reload]);
 
   const countries = Array.from(new Set(rows.map((r) => r.country))).sort();
-
-  const openCreate = () => setDrawer({ open: true, form: emptyForm() });
-  const openEdit = (row: AdminDestination) => setDrawer({ open: true, form: { ...row } });
-
-  const canSave = !!drawer.form.name && !!drawer.form.country;
-
-  const save = async () => {
-    const f = drawer.form;
-    if (!f.name || !f.country) return notify("Name and country are required", "error");
-    const payload: Partial<AdminDestination> = {
-      ...f,
-      slug: f.slug?.trim() || toSlug(f.name),
-      shortDescription: f.shortDescription ?? "",
-      fullDescription: f.fullDescription ?? "",
-      status: f.status ?? "Active",
-      displayOrder: f.displayOrder ?? 0,
-      isDomestic: f.isDomestic ?? false,
-    };
-
-    try {
-      if (f.id) {
-        const res = await destinationsApi.update(f.id, payload);
-        if (!res.success) {
-          return notify(res.message || "Unable to update destination", "error");
-        }
-        notify("Destination updated", "success");
-      } else {
-        const res = await destinationsApi.create(payload as Omit<AdminDestination, "id">);
-        if (!res.success) {
-          return notify(res.message || "Unable to create destination", "error");
-        }
-        notify("Destination created", "success");
-      }
-      setDrawer({ open: false, form: emptyForm() });
-      reload();
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Unexpected error", "error");
-    }
-  };
 
   const remove = async () => {
     if (!confirm.id) return;
@@ -173,9 +109,9 @@ export default function DestinationsAdminPage() {
       className: "text-right",
       render: (r) => (
         <div className="flex items-center justify-end gap-1">
-          <button onClick={() => openEdit(r)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Edit">
+          <Link href={`/admin/destinations/${r.id}/edit`} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Edit">
             <Edit className="w-4 h-4" />
-          </button>
+          </Link>
           <a
             href={`/destinations/${r.slug}`}
             target="_blank"
@@ -194,7 +130,7 @@ export default function DestinationsAdminPage() {
 
   return (
     <AdminShell title="Destinations">
-      <Breadcrumb items={[{ label: "Destinations" }]} />
+      <Breadcrumb items={[{ label: "PM", href: "/admin/pm" }, { label: "Destinations" }]} />
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Destinations</h1>
@@ -202,12 +138,12 @@ export default function DestinationsAdminPage() {
             Drives the hero search dropdown, destination pages and the menu mega-grid.
           </p>
         </div>
-        <button
-          onClick={openCreate}
+        <Link
+          href="/admin/destinations/new"
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm"
         >
           <Plus className="w-4 h-4" /> Add Destination
-        </button>
+        </Link>
       </div>
 
       <DataTable<AdminDestination>
@@ -241,31 +177,6 @@ export default function DestinationsAdminPage() {
       />
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
 
-      <Drawer
-        open={drawer.open}
-        title={drawer.form.id ? "Edit Destination" : "New Destination"}
-        onClose={() => setDrawer({ open: false, form: emptyForm() })}
-        width="xl"
-        footer={
-          <>
-            <button onClick={() => setDrawer({ open: false, form: emptyForm() })} className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100">
-              Cancel
-            </button>
-            <button
-              onClick={save}
-              disabled={!canSave}
-              className={`px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 ${!canSave ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""}`}>
-              {drawer.form.id ? "Update" : "Create"}
-            </button>
-          </>
-        }
-      >
-        <DestinationFormBody
-          form={drawer.form}
-          onChange={(next) => setDrawer((d) => ({ ...d, form: { ...d.form, ...next } }))}
-        />
-      </Drawer>
-
       <ConfirmModal
         open={confirm.open}
         title="Delete destination?"
@@ -275,93 +186,5 @@ export default function DestinationsAdminPage() {
         onConfirm={remove}
       />
     </AdminShell>
-  );
-}
-
-function DestinationFormBody({
-  form,
-  onChange,
-}: {
-  form: Partial<AdminDestination>;
-  onChange: (next: Partial<AdminDestination>) => void;
-}) {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Destination Name" required>
-          <input className={inputCls} value={form.name ?? ""} onChange={(e) => onChange({ name: e.target.value })} placeholder="Bali" />
-          {!form.name && <div className="text-rose-600 text-sm mt-1">Name is required</div>}
-        </Field>
-        <Field label="Slug URL" hint="Auto-generated from name if blank">
-          <input className={inputCls} value={form.slug ?? ""} onChange={(e) => onChange({ slug: e.target.value })} placeholder="bali" />
-        </Field>
-        <Field label="Country" required>
-          <input className={inputCls} value={form.country ?? ""} onChange={(e) => onChange({ country: e.target.value })} placeholder="Indonesia" />
-          {!form.country && <div className="text-rose-600 text-sm mt-1">Country is required</div>}
-        </Field>
-        <Field label="Destination Type" hint="This determines whether the menu item appears under Domestic or International">
-          <select
-            className={selectCls}
-            value={form.isDomestic ? "Domestic" : "International"}
-            onChange={(e) => onChange({ isDomestic: e.target.value === "Domestic" })}
-          >
-            <option value="Domestic">Domestic</option>
-            <option value="International">International</option>
-          </select>
-        </Field>
-        <Field label="State / Region">
-          <input className={inputCls} value={form.state ?? ""} onChange={(e) => onChange({ state: e.target.value })} />
-        </Field>
-        <Field label="City">
-          <input className={inputCls} value={form.city ?? ""} onChange={(e) => onChange({ city: e.target.value })} />
-        </Field>
-        <Field label="Display Order">
-          <input type="number" className={inputCls} value={form.displayOrder ?? 0} onChange={(e) => onChange({ displayOrder: Number(e.target.value) })} />
-        </Field>
-      </div>
-
-      <Field label="Short Description">
-        <input className={inputCls} value={form.shortDescription ?? ""} onChange={(e) => onChange({ shortDescription: e.target.value })} placeholder="Island of paradise" />
-      </Field>
-      <Field label="Full Description">
-        <textarea className={textareaCls} value={form.fullDescription ?? ""} onChange={(e) => onChange({ fullDescription: e.target.value })} />
-      </Field>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="Thumbnail Image">
-          <ImageUpload value={form.thumbnailImage} onChange={(url) => onChange({ thumbnailImage: url })} aspect="4/3" />
-        </Field>
-        <Field label="Banner Image">
-          <ImageUpload value={form.bannerImage} onChange={(url) => onChange({ bannerImage: url })} aspect="16/9" />
-        </Field>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="SEO Title">
-          <input className={inputCls} value={form.seoTitle ?? ""} onChange={(e) => onChange({ seoTitle: e.target.value })} />
-        </Field>
-        <Field label="SEO Description">
-          <input className={inputCls} value={form.seoDescription ?? ""} onChange={(e) => onChange({ seoDescription: e.target.value })} />
-        </Field>
-      </div>
-
-      <div className="flex items-center gap-6">
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={!!form.isPopular}
-            onChange={(e) => onChange({ isPopular: e.target.checked })}
-            className="w-4 h-4 rounded"
-          />
-          Mark as popular destination
-        </label>
-        <Field label="Status" className="!mb-0">
-          <select className={selectCls} value={form.status ?? "Active"} onChange={(e) => onChange({ status: e.target.value as Status })}>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </select>
-        </Field>
-      </div>
-    </div>
   );
 }

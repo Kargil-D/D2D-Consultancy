@@ -156,7 +156,7 @@ export default function ItinerariesAdminPage() {
 
   return (
     <AdminShell title="Itineraries">
-      <Breadcrumb items={[{ label: "Itineraries" }]} />
+      <Breadcrumb items={[{ label: "PM", href: "/admin/pm" }, { label: "Itineraries" }]} />
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Itineraries</h1>

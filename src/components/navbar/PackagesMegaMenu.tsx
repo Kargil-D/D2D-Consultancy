@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUpRight, ChevronDown, Sparkles } from "lucide-react";
 import {
@@ -8,6 +9,30 @@ import {
   type PackageMenuColumn,
   type PackageMenuItem,
 } from "@/data/packagesMenu";
+
+function useCampaignsMenu() {
+  const [menuColumns, setMenuColumns] = useState<PackageMenuColumn[]>(PACKAGES_MENU);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch("/api/campaigns/menu")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (!isMounted || !payload?.success) return;
+        setMenuColumns(payload.data as PackageMenuColumn[]);
+      })
+      .catch(() => {
+        // Keep fallback static menu if API fails.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return menuColumns;
+}
 
 interface PackagesMegaMenuProps {
   /** Whether the dropdown is open (desktop hover state). */
@@ -37,7 +62,8 @@ export default function PackagesMegaMenu({
   onFocus,
   onBlur,
 }: PackagesMegaMenuProps) {
-  const singleColumn = PACKAGES_MENU.length === 1;
+  const menuColumns = useCampaignsMenu();
+  const singleColumn = menuColumns.length === 1;
   const popupWidthClass = singleColumn ? "w-[min(72vw,420px)]" : "w-[min(92vw,620px)]";
   const gridColsClass = singleColumn ? "md:grid-cols-1" : "md:grid-cols-2";
   return (
@@ -86,7 +112,7 @@ export default function PackagesMegaMenu({
               <div className="pointer-events-none absolute inset-x-0 -top-16 h-32 bg-gradient-to-b from-cyan-50/80 via-white/0 to-transparent" />
 
               <div className={`relative grid grid-cols-1 gap-4 ${gridColsClass} md:gap-5`}>
-                {PACKAGES_MENU.map((column) => (
+                {menuColumns.map((column) => (
                   <Column key={column.title} column={column} />
                 ))}
               </div>
@@ -178,9 +204,10 @@ interface PackagesMegaMenuMobileProps {
 export function PackagesMegaMenuMobile({
   onNavigate,
 }: PackagesMegaMenuMobileProps) {
+  const menuColumns = useCampaignsMenu();
   return (
     <div className="space-y-3">
-      {PACKAGES_MENU.map((column) => (
+      {menuColumns.map((column) => (
         <MobileColumn
           key={column.title}
           column={column}

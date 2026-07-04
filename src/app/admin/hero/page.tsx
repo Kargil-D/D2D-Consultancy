@@ -76,7 +76,7 @@ export default function HeroAdminPage() {
 
   return (
     <AdminShell title="Hero Section">
-      <Breadcrumb items={[{ label: "Hero Section" }]} />
+      <Breadcrumb items={[{ label: "PM", href: "/admin/pm" }, { label: "Hero Section" }]} />
 
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>

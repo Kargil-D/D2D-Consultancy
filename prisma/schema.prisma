@@ -43,5 +43,45 @@ model Destination {
   updatedDate     DateTime @updatedAt
   isDeleted       Boolean  @default(false)
 
+  campaigns       Campaign[]
+
   @@map("destinations")
+}
+
+model Campaign {
+  id                  String      @id @default(uuid())
+  name                String
+  destinationId       String
+  destination         Destination @relation(fields: [destinationId], references: [id], onDelete: Restrict)
+  packageType         String      @default("Standard")
+  days                Int         @default(0)
+  nights              Int         @default(0)
+  startingPrice       Int         @default(0)
+  offerPrice          Int?
+  thumbnail           String?
+  coverBanner         String?
+  shortDescription    String      @default("")
+  highlights          String[]    @default([])
+  inclusions          String[]    @default([])
+  exclusions          String[]    @default([])
+  bestTimeToVisit     String?
+  travelTypes         String[]    @default([])
+  isFeatured          Boolean     @default(false)
+  isRecentlyViewed    Boolean     @default(false)
+  isHeroCampaign      Boolean     @default(false)
+  viewDetailsRedirect String?
+  slug                String      @unique
+  seoTitle            String?
+  seoDescription      String?
+  status              Status      @default(Active)
+  gallery             String[]    @default([])
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  @@index([destinationId])
+  @@map("campaigns")
 }

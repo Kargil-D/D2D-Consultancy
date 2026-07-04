@@ -137,7 +137,7 @@ export default function ReviewsAdminPage() {
 
   return (
     <AdminShell title="Reviews">
-      <Breadcrumb items={[{ label: "Reviews" }]} />
+      <Breadcrumb items={[{ label: "PM", href: "/admin/pm" }, { label: "Reviews" }]} />
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Customer Reviews</h1>
