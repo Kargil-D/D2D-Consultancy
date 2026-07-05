@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
 import TagInput from "@/components/admin/ui/TagInput";
 import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
-import { destinationsApi, packagesApi } from "@/lib/adminApi";
-import type { AdminDestination, AdminPackage, Status, TravelType } from "@/types/admin";
+import { destinationsApi, packagesApi, itinerariesApi, hotelsApi, transfersApi } from "@/lib/adminApi";
+import type { AdminDestination, AdminHotel, AdminItinerary, AdminPackage, AdminTransfer, Status, TravelType } from "@/types/admin";
 import { toSlug } from "@/utils/slug";
+import ItineraryDaysEditor from "@/components/admin/itinerary/ItineraryDaysEditor";
+import HotelStaysEditor from "@/components/admin/hotel/HotelStaysEditor";
+import TransferStopsEditor from "@/components/admin/transfer/TransferStopsEditor";
+import ActivityListEditor from "@/components/admin/activity/ActivityListEditor";
 
 interface CampaignFormProps {
   id?: string;
@@ -45,6 +50,13 @@ const emptyForm = (): Partial<AdminPackage> => ({
   bookedByName: "",
   bookedByCity: "",
   bookedByAgo: "",
+  activities: [],
+  inclusionsText: "",
+  exclusionsText: "",
+  packageCost: 0,
+  platformFee: 0,
+  gstPercent: 5,
+  marginPrice: 0,
 });
 
 export default function CampaignForm({ id }: CampaignFormProps) {
@@ -54,6 +66,20 @@ export default function CampaignForm({ id }: CampaignFormProps) {
   const [destinations, setDestinations] = useState<AdminDestination[]>([]);
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
+
+  const [itineraryOpen, setItineraryOpen] = useState(true);
+  const [itinerary, setItinerary] = useState<Partial<AdminItinerary> | null>(null);
+  const [itinerarySaving, setItinerarySaving] = useState(false);
+
+  const [hotelOpen, setHotelOpen] = useState(true);
+  const [hotelPlan, setHotelPlan] = useState<Partial<AdminHotel> | null>(null);
+  const [hotelSaving, setHotelSaving] = useState(false);
+
+  const [transferOpen, setTransferOpen] = useState(true);
+  const [transferPlan, setTransferPlan] = useState<Partial<AdminTransfer> | null>(null);
+  const [transferSaving, setTransferSaving] = useState(false);
+
+  const [activitiesOpen, setActivitiesOpen] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -67,6 +93,19 @@ export default function CampaignForm({ id }: CampaignFormProps) {
         } else {
           notify(res.message || "Unable to load campaign", "error");
         }
+
+        const itList = await itinerariesApi.list({ filter: { packageId: id }, pageSize: 1 });
+        const existing = itList.success ? itList.data.items[0] : undefined;
+        setItinerary(existing ?? { packageId: id, title: "", overview: "", days: [], status: "Active", isPublished: false });
+
+        const hotelList = await hotelsApi.list({ filter: { packageId: id }, pageSize: 1 });
+        const existingHotels = hotelList.success ? hotelList.data.items[0] : undefined;
+        setHotelPlan(existingHotels ?? { packageId: id, hotels: [], status: "Active" });
+
+        const transferList = await transfersApi.list({ filter: { packageId: id }, pageSize: 1 });
+        const existingTransfers = transferList.success ? transferList.data.items[0] : undefined;
+        setTransferPlan(existingTransfers ?? { packageId: id, transfers: [], status: "Active" });
+
         setLoading(false);
       }
     })();
@@ -82,12 +121,16 @@ export default function CampaignForm({ id }: CampaignFormProps) {
 
   const canSave = !!form.name && !!form.destinationId;
 
+  const priceSubtotal = (form.packageCost ?? 0) + (form.platformFee ?? 0) + (form.marginPrice ?? 0);
+  const priceGst = Math.round((priceSubtotal * (form.gstPercent ?? 0)) / 100);
+  const priceGrandTotal = priceSubtotal + priceGst;
+
   const save = async () => {
     if (!form.name || !form.destinationId) return notify("Name and destination are required", "error");
     const payload: Partial<AdminPackage> = {
       ...form,
       slug: form.slug?.trim() || toSlug(form.name),
-      viewDetailsRedirect: form.viewDetailsRedirect?.trim() || `/packages/${form.slug || toSlug(form.name)}`,
+      viewDetailsRedirect: form.viewDetailsRedirect?.trim() || `/campaigns/${form.slug || toSlug(form.name)}`,
     };
 
     setSaving(true);
@@ -106,6 +149,75 @@ export default function CampaignForm({ id }: CampaignFormProps) {
       notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveItinerary = async () => {
+    if (!id || !itinerary) return;
+    setItinerarySaving(true);
+    try {
+      const payload = { ...itinerary, packageId: id, totalDays: itinerary.days?.length ?? 0 };
+      if (itinerary.id) {
+        const res = await itinerariesApi.update(itinerary.id, payload);
+        if (!res.success || !res.data) return notify(res.message || "Unable to update itinerary", "error");
+        setItinerary(res.data);
+        notify("Itinerary updated", "success");
+      } else {
+        const res = await itinerariesApi.create(payload as Omit<AdminItinerary, "id">);
+        if (!res.success) return notify(res.message || "Unable to create itinerary", "error");
+        setItinerary(res.data);
+        notify("Itinerary created", "success");
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
+    } finally {
+      setItinerarySaving(false);
+    }
+  };
+
+  const saveHotelPlan = async () => {
+    if (!id || !hotelPlan) return;
+    setHotelSaving(true);
+    try {
+      const payload = { ...hotelPlan, packageId: id };
+      if (hotelPlan.id) {
+        const res = await hotelsApi.update(hotelPlan.id, payload);
+        if (!res.success || !res.data) return notify(res.message || "Unable to update hotels", "error");
+        setHotelPlan(res.data);
+        notify("Hotels updated", "success");
+      } else {
+        const res = await hotelsApi.create(payload as Omit<AdminHotel, "id">);
+        if (!res.success) return notify(res.message || "Unable to create hotels", "error");
+        setHotelPlan(res.data);
+        notify("Hotels created", "success");
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
+    } finally {
+      setHotelSaving(false);
+    }
+  };
+
+  const saveTransferPlan = async () => {
+    if (!id || !transferPlan) return;
+    setTransferSaving(true);
+    try {
+      const payload = { ...transferPlan, packageId: id };
+      if (transferPlan.id) {
+        const res = await transfersApi.update(transferPlan.id, payload);
+        if (!res.success || !res.data) return notify(res.message || "Unable to update transfers", "error");
+        setTransferPlan(res.data);
+        notify("Transfers updated", "success");
+      } else {
+        const res = await transfersApi.create(payload as Omit<AdminTransfer, "id">);
+        if (!res.success) return notify(res.message || "Unable to create transfers", "error");
+        setTransferPlan(res.data);
+        notify("Transfers created", "success");
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
+    } finally {
+      setTransferSaving(false);
     }
   };
 
@@ -175,7 +287,7 @@ export default function CampaignForm({ id }: CampaignFormProps) {
           <Field label="Best Time to Visit">
             <input className={inputCls} value={form.bestTimeToVisit ?? ""} onChange={(e) => onChange({ bestTimeToVisit: e.target.value })} />
           </Field>
-          <Field label="View Details Redirect" hint="Defaults to /packages/{slug}">
+          <Field label="View Details Redirect" hint="Defaults to /campaigns/{slug}">
             <input className={inputCls} value={form.viewDetailsRedirect ?? ""} onChange={(e) => onChange({ viewDetailsRedirect: e.target.value })} />
           </Field>
         </div>
@@ -267,6 +379,221 @@ export default function CampaignForm({ id }: CampaignFormProps) {
             <option value="Inactive">Inactive</option>
           </select>
         </Field>
+
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setItineraryOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+          >
+            <span className="text-sm font-semibold text-slate-900">Itinerary</span>
+            {itineraryOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+          </button>
+          {itineraryOpen && (
+            <div className="p-4 space-y-4">
+              {!id ? (
+                <p className="text-sm text-slate-500">Save the campaign first to add a day-by-day itinerary.</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-slate-500">
+                      Day-by-day plan for this campaign.{" "}
+                      <Link href="/admin/itineraries" className="text-blue-600 hover:underline">
+                        Manage inclusions, terms, FAQs & gallery →
+                      </Link>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={saveItinerary}
+                      disabled={itinerarySaving}
+                      className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors ${
+                        itinerarySaving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
+                      }`}
+                    >
+                      {itinerary?.id ? "Update Itinerary" : "Save Itinerary"}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Field label="Itinerary Title">
+                      <input
+                        className={inputCls}
+                        value={itinerary?.title ?? ""}
+                        onChange={(e) => setItinerary((it) => ({ ...it, title: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Overview">
+                      <input
+                        className={inputCls}
+                        value={itinerary?.overview ?? ""}
+                        onChange={(e) => setItinerary((it) => ({ ...it, overview: e.target.value }))}
+                      />
+                    </Field>
+                  </div>
+                  <ItineraryDaysEditor
+                    days={itinerary?.days ?? []}
+                    onChange={(days) => setItinerary((it) => ({ ...it, days }))}
+                    compact
+                  />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setHotelOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+          >
+            <span className="text-sm font-semibold text-slate-900">Hotel</span>
+            {hotelOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+          </button>
+          {hotelOpen && (
+            <div className="p-4 space-y-4">
+              {!id ? (
+                <p className="text-sm text-slate-500">Save the campaign first to add hotels.</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-slate-500">
+                      Hotel stays for this campaign.{" "}
+                      <Link href="/admin/hotels" className="text-blue-600 hover:underline">
+                        Manage all hotel plans →
+                      </Link>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={saveHotelPlan}
+                      disabled={hotelSaving}
+                      className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors ${
+                        hotelSaving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
+                      }`}
+                    >
+                      {hotelPlan?.id ? "Update Hotel" : "Save Hotel"}
+                    </button>
+                  </div>
+                  <HotelStaysEditor
+                    hotels={hotelPlan?.hotels ?? []}
+                    onChange={(hotels) => setHotelPlan((h) => ({ ...h, hotels }))}
+                  />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setTransferOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+          >
+            <span className="text-sm font-semibold text-slate-900">Transfer</span>
+            {transferOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+          </button>
+          {transferOpen && (
+            <div className="p-4 space-y-4">
+              {!id ? (
+                <p className="text-sm text-slate-500">Save the campaign first to add transfers.</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-slate-500">
+                      Transfer legs for this campaign.{" "}
+                      <Link href="/admin/transfers" className="text-blue-600 hover:underline">
+                        Manage all transfer plans →
+                      </Link>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={saveTransferPlan}
+                      disabled={transferSaving}
+                      className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors ${
+                        transferSaving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
+                      }`}
+                    >
+                      {transferPlan?.id ? "Update Transfer" : "Save Transfer"}
+                    </button>
+                  </div>
+                  <TransferStopsEditor
+                    transfers={transferPlan?.transfers ?? []}
+                    onChange={(transfers) => setTransferPlan((t) => ({ ...t, transfers }))}
+                  />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setActivitiesOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
+          >
+            <span className="text-sm font-semibold text-slate-900">Activities</span>
+            {activitiesOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+          </button>
+          {activitiesOpen && (
+            <div className="p-4">
+              <ActivityListEditor
+                activities={form.activities ?? []}
+                onChange={(activities) => onChange({ activities })}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <span className="text-sm font-semibold text-slate-900">Inclusions & Exclusions</span>
+          </div>
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Inclusions">
+              <textarea
+                className={`${textareaCls} min-h-[120px]`}
+                value={form.inclusionsText ?? ""}
+                onChange={(e) => onChange({ inclusionsText: e.target.value })}
+                placeholder="Accommodation, daily breakfast, airport transfers…"
+              />
+            </Field>
+            <Field label="Exclusions">
+              <textarea
+                className={`${textareaCls} min-h-[120px]`}
+                value={form.exclusionsText ?? ""}
+                onChange={(e) => onChange({ exclusionsText: e.target.value })}
+                placeholder="Airfare, visa fees, personal expenses…"
+              />
+            </Field>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <span className="text-sm font-semibold text-slate-900">Price Details</span>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Package Cost (₹)">
+                <input type="number" className={inputCls} value={form.packageCost ?? 0} onChange={(e) => onChange({ packageCost: Number(e.target.value) })} />
+              </Field>
+              <Field label="Planning Platform Fee (₹)">
+                <input type="number" className={inputCls} value={form.platformFee ?? 0} onChange={(e) => onChange({ platformFee: Number(e.target.value) })} />
+              </Field>
+              <Field label="GST (%)">
+                <input type="number" step={0.5} className={inputCls} value={form.gstPercent ?? 0} onChange={(e) => onChange({ gstPercent: Number(e.target.value) })} />
+              </Field>
+              <Field label="Margin Price (₹)">
+                <input type="number" className={inputCls} value={form.marginPrice ?? 0} onChange={(e) => onChange({ marginPrice: Number(e.target.value) })} />
+              </Field>
+            </div>
+            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 flex items-center justify-between">
+              <span className="text-sm font-bold text-slate-900">Grand Total</span>
+              <span className="text-lg font-bold text-slate-900">₹{priceGrandTotal.toLocaleString("en-IN")}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

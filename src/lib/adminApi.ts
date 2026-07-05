@@ -13,9 +13,12 @@ import type {
   AdminDestination,
   AdminEnquiryConfig,
   AdminHeroConfig,
+  AdminHotel,
   AdminItinerary,
   AdminPackage,
   AdminReview,
+  AdminTransfer,
+  AdminTransferType,
   ApiResponse,
   Paginated,
 } from "@/types/admin";
@@ -251,10 +254,138 @@ export const packagesApi = {
   },
 };
 
-export const itinerariesApi = repo<AdminItinerary>("itineraries", [
-  "title",
-  "overview",
-]);
+export const itinerariesApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminItinerary>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const packageId = query.filter?.packageId;
+    if (typeof packageId === "string") params.set("packageId", packageId);
+    const res = await fetch(`/api/admin/itineraries?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminItinerary>>;
+  },
+  all: async (): Promise<ApiResponse<AdminItinerary[]>> => {
+    const res = await fetch(`/api/admin/itineraries?page=1&pageSize=1000`);
+    const json = await res.json();
+    return { success: json.success, message: json.message, data: json.data.items };
+  },
+  get: async (id: string): Promise<ApiResponse<AdminItinerary | null>> => {
+    const res = await fetch(`/api/admin/itineraries/${id}`);
+    return (await res.json()) as ApiResponse<AdminItinerary | null>;
+  },
+  create: async (payload: Omit<AdminItinerary, "id" | "createdDate" | "updatedDate">): Promise<ApiResponse<AdminItinerary>> => {
+    const res = await fetch(`/api/admin/itineraries`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminItinerary>;
+  },
+  update: async (id: string, payload: Partial<AdminItinerary>): Promise<ApiResponse<AdminItinerary | null>> => {
+    const res = await fetch(`/api/admin/itineraries/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminItinerary | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/itineraries/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminItinerary | null>> => {
+    const res = await fetch(`/api/admin/itineraries/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminItinerary | null>;
+  },
+};
+
+export const hotelsApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminHotel>>> => {
+    const params = new URLSearchParams();
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const packageId = query.filter?.packageId;
+    if (typeof packageId === "string") params.set("packageId", packageId);
+    const res = await fetch(`/api/admin/hotels?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminHotel>>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminHotel | null>> => {
+    const res = await fetch(`/api/admin/hotels/${id}`);
+    return (await res.json()) as ApiResponse<AdminHotel | null>;
+  },
+  create: async (payload: Omit<AdminHotel, "id" | "createdDate" | "updatedDate">): Promise<ApiResponse<AdminHotel>> => {
+    const res = await fetch(`/api/admin/hotels`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminHotel>;
+  },
+  update: async (id: string, payload: Partial<AdminHotel>): Promise<ApiResponse<AdminHotel | null>> => {
+    const res = await fetch(`/api/admin/hotels/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminHotel | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/hotels/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminHotel | null>> => {
+    const res = await fetch(`/api/admin/hotels/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminHotel | null>;
+  },
+};
+
+export const transfersApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminTransfer>>> => {
+    const params = new URLSearchParams();
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const packageId = query.filter?.packageId;
+    if (typeof packageId === "string") params.set("packageId", packageId);
+    const res = await fetch(`/api/admin/transfers?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminTransfer>>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminTransfer | null>> => {
+    const res = await fetch(`/api/admin/transfers/${id}`);
+    return (await res.json()) as ApiResponse<AdminTransfer | null>;
+  },
+  create: async (payload: Omit<AdminTransfer, "id" | "createdDate" | "updatedDate">): Promise<ApiResponse<AdminTransfer>> => {
+    const res = await fetch(`/api/admin/transfers`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminTransfer>;
+  },
+  update: async (id: string, payload: Partial<AdminTransfer>): Promise<ApiResponse<AdminTransfer | null>> => {
+    const res = await fetch(`/api/admin/transfers/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminTransfer | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/transfers/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminTransfer | null>> => {
+    const res = await fetch(`/api/admin/transfers/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminTransfer | null>;
+  },
+};
+
+export const transferTypesApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminTransferType>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const res = await fetch(`/api/admin/transfer-types?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminTransferType>>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminTransferType | null>> => {
+    const res = await fetch(`/api/admin/transfer-types/${id}`);
+    return (await res.json()) as ApiResponse<AdminTransferType | null>;
+  },
+  create: async (payload: Omit<AdminTransferType, "id" | "createdDate" | "updatedDate">): Promise<ApiResponse<AdminTransferType>> => {
+    const res = await fetch(`/api/admin/transfer-types`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminTransferType>;
+  },
+  update: async (id: string, payload: Partial<AdminTransferType>): Promise<ApiResponse<AdminTransferType | null>> => {
+    const res = await fetch(`/api/admin/transfer-types/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminTransferType | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/transfer-types/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminTransferType | null>> => {
+    const res = await fetch(`/api/admin/transfer-types/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminTransferType | null>;
+  },
+};
 
 export const heroApi = repo<AdminHeroConfig>("hero", ["bannerText", "subtitle"]);
 

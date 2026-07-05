@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+const ActivityDetailSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  icon: z.string().optional(),
+});
+
 export const CampaignCreateSchema = z.object({
   name: z.string().min(1),
   destinationId: z.string().min(1),
@@ -28,6 +34,13 @@ export const CampaignCreateSchema = z.object({
   bookedByName: z.string().optional().nullable(),
   bookedByCity: z.string().optional().nullable(),
   bookedByAgo: z.string().optional().nullable(),
+  activities: z.array(ActivityDetailSchema).optional(),
+  inclusionsText: z.string().optional(),
+  exclusionsText: z.string().optional(),
+  packageCost: z.number().optional(),
+  platformFee: z.number().optional(),
+  gstPercent: z.number().optional(),
+  marginPrice: z.number().optional(),
 });
 
 export const CampaignUpdateSchema = CampaignCreateSchema.partial();

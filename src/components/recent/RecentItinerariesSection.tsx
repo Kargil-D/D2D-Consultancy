@@ -42,7 +42,7 @@ function campaignToCard(c: CampaignWithDestination): RecentItineraryCard {
     },
     bucket: priceBucket(price),
     active: true,
-    href: c.viewDetailsRedirect || `/packages/${c.slug}`,
+    href: c.viewDetailsRedirect || `/campaigns/${c.slug}`,
   };
 }
 

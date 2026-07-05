@@ -42,6 +42,10 @@ export async function getCampaign(id: string) {
   return prisma.campaign.findUnique({ where: { id } });
 }
 
+export async function getCampaignBySlug(slug: string) {
+  return prisma.campaign.findUnique({ where: { slug }, include: { destination: true } });
+}
+
 export async function createCampaign(payload: Prisma.CampaignUncheckedCreateInput) {
   return prisma.campaign.create({ data: payload });
 }

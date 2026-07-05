@@ -41,6 +41,12 @@ export interface AdminDestination extends AuditColumns {
 /* -------------------------------------------------------------------------- */
 export type TravelType = "Family" | "Honeymoon" | "Adventure" | "Group" | "Solo";
 
+export interface ActivityDetail {
+  id: string;
+  title: string;
+  icon?: string;
+}
+
 export interface AdminPackage extends AuditColumns {
   id: string;
   name: string;
@@ -70,6 +76,13 @@ export interface AdminPackage extends AuditColumns {
   bookedByName?: string;
   bookedByCity?: string;
   bookedByAgo?: string;
+  activities: ActivityDetail[];
+  inclusionsText: string;
+  exclusionsText: string;
+  packageCost: number;
+  platformFee: number;
+  gstPercent: number;
+  marginPrice: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -107,6 +120,48 @@ export interface AdminItinerary extends AuditColumns {
   ctaRedirect: string;
   status: Status;
   isPublished: boolean;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Hotel Master                                                               */
+/* -------------------------------------------------------------------------- */
+export interface HotelStayDetail {
+  id: string;
+  name: string;
+  images?: string[];
+  roomType: string;
+  description: string;
+}
+
+export interface AdminHotel extends AuditColumns {
+  id: string;
+  packageId: string;
+  hotels: HotelStayDetail[];
+  status: Status;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Transfer Master                                                            */
+/* -------------------------------------------------------------------------- */
+export interface TransferStopDetail {
+  id: string;
+  from: string;
+  to: string;
+  transferTypeId?: string;
+}
+
+export interface AdminTransfer extends AuditColumns {
+  id: string;
+  packageId: string;
+  transfers: TransferStopDetail[];
+  status: Status;
+}
+
+/** Standalone transfer type reference list (e.g. "Speedboat", "Private Car") — not linked to a package. */
+export interface AdminTransferType extends AuditColumns {
+  id: string;
+  name: string;
+  status: Status;
 }
 
 /* -------------------------------------------------------------------------- */

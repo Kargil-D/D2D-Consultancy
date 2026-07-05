@@ -78,6 +78,13 @@ model Campaign {
   bookedByName        String?
   bookedByCity        String?
   bookedByAgo         String?
+  activities          Json        @default("[]")
+  inclusionsText      String      @default("")
+  exclusionsText      String      @default("")
+  packageCost         Int         @default(0)
+  platformFee         Int         @default(0)
+  gstPercent          Float       @default(5)
+  marginPrice         Int         @default(0)
 
   createdBy   String?
   createdDate DateTime @default(now())
@@ -85,6 +92,89 @@ model Campaign {
   updatedDate DateTime @updatedAt
   isDeleted   Boolean  @default(false)
 
+  itineraries Itinerary[]
+  hotels      Hotel[]
+  transfers   Transfer[]
+
   @@index([destinationId])
   @@map("campaigns")
+}
+
+model Itinerary {
+  id                 String   @id @default(uuid())
+  packageId          String
+  campaign           Campaign @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  title              String   @default("")
+  overview           String   @default("")
+  totalDays          Int      @default(0)
+  days               Json     @default("[]")
+  packageIncludes    String[] @default([])
+  packageExcludes    String[] @default([])
+  termsAndConditions String   @default("")
+  cancellationPolicy String   @default("")
+  faqs               Json     @default("[]")
+  galleryImages      String[] @default([])
+  mapLocation        String?
+  customerNotes      String?
+  ctaButtonText      String   @default("Send Enquiry")
+  ctaRedirect        String   @default("/plan-trip")
+  status             Status   @default(Active)
+  isPublished        Boolean  @default(false)
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  @@index([packageId])
+  @@map("itineraries")
+}
+
+model Hotel {
+  id        String   @id @default(uuid())
+  packageId String
+  campaign  Campaign @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  hotels    Json     @default("[]")
+  status    Status   @default(Active)
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  @@index([packageId])
+  @@map("hotels")
+}
+
+model Transfer {
+  id        String   @id @default(uuid())
+  packageId String
+  campaign  Campaign @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  transfers Json     @default("[]")
+  status    Status   @default(Active)
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  @@index([packageId])
+  @@map("transfers")
+}
+
+model TransferType {
+  id     String @id @default(uuid())
+  name   String
+  status Status @default(Active)
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  @@map("transfer_types")
 }

@@ -38,6 +38,7 @@ export default function TagInput({
               add();
             }
           }}
+          onBlur={add}
           placeholder={placeholder}
           className={inputCls}
         />
