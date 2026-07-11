@@ -81,9 +81,6 @@ export default function Hero() {
           className="mt-10"
         >
           <DestinationSearch />
-          <p className="mt-4 text-xs sm:text-sm text-slate-300/80">
-            Popular: Maldives Ã‚Â· Bali Ã‚Â· Dubai Ã‚Â· Switzerland Ã‚Â· Thailand
-          </p>
         </motion.div>
 
         {/* Stat strip */}

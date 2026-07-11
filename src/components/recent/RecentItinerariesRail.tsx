@@ -93,11 +93,9 @@ export default function RecentItinerariesRail({
           <div className="shrink-0 lg:w-[260px] xl:w-[300px]">
             <div className="lg:sticky lg:top-24">
               <h2 className="relative inline-block text-2xl font-extrabold uppercase leading-[1.05] tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
-                Recently
+                Latest
                 <br className="hidden lg:block" />
-                {" "}Booked
-                <br className="hidden lg:block" />
-                {" "}Itineraries
+                {" "}Adventures
               </h2>
 
               <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/80 px-4 py-2 text-sm font-semibold text-emerald-700">

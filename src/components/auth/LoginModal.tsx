@@ -72,7 +72,7 @@ export default function LoginModal({
 
             {/* Mobile-only mini brand footer */}
             <div className="lg:hidden border-t border-slate-100 px-6 py-3 text-center text-[11px] uppercase tracking-widest text-slate-400">
-              D2D Holidays — Doorstep to Dreamland
+              D2D Holidays — Drive to Destination
             </div>
           </div>
         </div>

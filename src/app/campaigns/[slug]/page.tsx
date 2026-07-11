@@ -17,6 +17,7 @@ import { findTransferByPackageId } from "@/services/campaignTransferService";
 import { listTransferTypes } from "@/services/transferTypeService";
 import TravelerStories from "@/components/itinerary/TravelerStories";
 import CampaignDayAccordion from "@/components/campaigns/CampaignDayAccordion";
+import CampaignHotelGallery from "@/components/campaigns/CampaignHotelGallery";
 import type { ActivityDetail, HotelStayDetail, ItineraryDayDetail, TransferStopDetail } from "@/types/admin";
 
 interface PageProps { params: Promise<{ slug: string }>; }
@@ -174,29 +175,20 @@ export default async function CampaignDetailPage({ params }: PageProps) {
                   </span>
                 </div>
                 <div className="space-y-5">
-                  {hotels.map((h) => {
-                    const gallery = h.images ?? [];
-                    return (
-                      <div key={h.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md shadow-slate-900/5">
-                        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.6fr]">
-                          <div className="relative aspect-[4/3] lg:aspect-auto lg:min-h-[240px] bg-slate-100">
-                            {gallery[0] ? (
-                              <Image src={gallery[0]} alt={h.name} fill sizes="(min-width: 1024px) 40vw, 100vw" className="object-cover" unoptimized />
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Bed className="w-8 h-8" /></div>
-                            )}
+                  {hotels.map((h) => (
+                    <div key={h.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md shadow-slate-900/5">
+                      <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.6fr]">
+                        <CampaignHotelGallery images={h.images ?? []} alt={h.name} />
+                        <div className="p-5 lg:p-6 flex flex-col gap-2">
+                          <h4 className="text-lg font-bold text-slate-900 leading-tight">{h.name}</h4>
+                          <div className="flex items-center gap-2 text-sm text-slate-700">
+                            <Bed className="w-4 h-4 text-blue-600" /><span className="font-medium">{h.roomType}</span>
                           </div>
-                          <div className="p-5 lg:p-6 flex flex-col gap-2">
-                            <h4 className="text-lg font-bold text-slate-900 leading-tight">{h.name}</h4>
-                            <div className="flex items-center gap-2 text-sm text-slate-700">
-                              <Bed className="w-4 h-4 text-blue-600" /><span className="font-medium">{h.roomType}</span>
-                            </div>
-                            {h.description && <p className="text-sm text-slate-600 mt-1">{h.description}</p>}
-                          </div>
+                          {h.description && <p className="text-sm text-slate-600 mt-1">{h.description}</p>}
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </section>
             )}
@@ -290,16 +282,11 @@ export default async function CampaignDetailPage({ params }: PageProps) {
                 <>
                   <div className="space-y-2.5 text-sm">
                     <div className="flex justify-between text-slate-600">
-                      <span>Package Cost</span><span className="font-semibold text-slate-900">{formatINR(campaign.packageCost)}</span>
+                      <span>Package Cost</span><span className="font-semibold text-slate-900">{formatINR(campaign.packageCost + campaign.marginPrice)}</span>
                     </div>
                     <div className="flex justify-between text-slate-600">
                       <span>Planning Platform fee</span><span className="font-semibold text-slate-900">{formatINR(campaign.platformFee)}</span>
                     </div>
-                    {campaign.marginPrice > 0 && (
-                      <div className="flex justify-between text-slate-600">
-                        <span>Margin</span><span className="font-semibold text-slate-900">{formatINR(campaign.marginPrice)}</span>
-                      </div>
-                    )}
                     <div className="my-2 border-t border-dashed border-slate-200" />
                     <div className="flex justify-between text-slate-600">
                       <span>Subtotal</span><span className="font-semibold text-slate-900">{formatINR(subtotal)}</span>
@@ -320,13 +307,7 @@ export default async function CampaignDetailPage({ params }: PageProps) {
                   <div className="text-2xl font-bold text-slate-900">{formatINR(price)}</div>
                 </div>
               )}
-              <Link
-                href={`/plan-trip?destination=${encodeURIComponent(campaign.destination.name)}&package=${encodeURIComponent(campaign.name)}`}
-                className="mt-5 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-              >
-                Book Now
-              </Link>
-              <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-emerald-600 font-medium">
+              <div className="mt-5 flex items-center justify-center gap-1.5 text-xs text-emerald-600 font-medium">
                 <CheckCircle2 className="w-3.5 h-3.5" />Best Price Guaranteed
               </div>
             </div>

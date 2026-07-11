@@ -19,17 +19,20 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "D2D Holidays - Doorstep to Dreamland",
+  title: "D2D Holidays - Drive to Destination",
   description:
-    "D2D Holidays - doorstep-to-dreamland travel experiences. Customized domestic and international tour packages designed by expert vacation consultants.",
+    "D2D Holidays - drive-to-destination travel experiences. Customized domestic and international tour packages designed by expert vacation consultants.",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${poppins.variable} ${inter.variable} antialiased`}>
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={`${poppins.variable} ${inter.variable} antialiased`}
+        suppressHydrationWarning
+      >
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

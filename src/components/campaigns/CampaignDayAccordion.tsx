@@ -9,6 +9,10 @@ interface CampaignDayAccordionProps {
   days: ItineraryDayDetail[];
 }
 
+function descriptionToLines(text: string): string[] {
+  return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+}
+
 /**
  * Day-wise itinerary accordion for the DB-backed campaign detail page.
  * First day is open by default; click any other day header to expand it
@@ -22,7 +26,7 @@ export default function CampaignDayAccordion({ days }: CampaignDayAccordionProps
     <div className="space-y-3">
       {days.map((day, i) => {
         const isOpen = i === openIndex;
-        const hasTags = day.activities?.length > 0 || day.mealsIncluded?.length > 0 || !!day.stayDetails || !!day.transportDetails;
+        const descriptionLines = descriptionToLines(day.description || "");
         return (
           <div
             key={day.id}
@@ -63,22 +67,14 @@ export default function CampaignDayAccordion({ days }: CampaignDayAccordionProps
                   className="overflow-hidden"
                 >
                   <div className="px-5 pb-5 pt-2 border-t border-blue-100/60 bg-white">
-                    {day.description && <p className="text-sm text-slate-700">{day.description}</p>}
-                    {hasTags && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {day.activities?.map((a) => (
-                          <span key={a} className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">{a}</span>
+                    {descriptionLines.length > 0 && (
+                      <ul className="space-y-2">
+                        {descriptionLines.map((line, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
+                            <span className="w-1.5 h-1.5 mt-1.5 rounded-full bg-slate-400 flex-shrink-0" />{line}
+                          </li>
                         ))}
-                        {day.mealsIncluded?.map((m) => (
-                          <span key={m} className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">{m}</span>
-                        ))}
-                        {day.stayDetails && (
-                          <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">{day.stayDetails}</span>
-                        )}
-                        {day.transportDetails && (
-                          <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">{day.transportDetails}</span>
-                        )}
-                      </div>
+                      </ul>
                     )}
                   </div>
                 </motion.div>

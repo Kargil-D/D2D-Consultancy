@@ -23,7 +23,7 @@ const SIZE_PX: Record<NonNullable<LogoProps["size"]>, number> = {
  *
  * Concept: two location pins (your doorstep ? your dreamland) linked by a
  * dashed flight arc with a plane in flight ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a literal visualization of
- * "Doorstep to Dreamland" travel.
+ * "Drive to Destination" travel.
  */
 export default function Logo({
   size = "md",
@@ -93,7 +93,7 @@ export default function Logo({
           <span
             className={`mt-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] ${sloganColor}`}
           >
-            Doorstep to Dreamland
+            Drive to Destination
           </span>
         </span>
       )}
