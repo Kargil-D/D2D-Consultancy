@@ -1,36 +1,10 @@
 import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import { buildTransport, senderAddress } from "@/lib/mailer";
 import type { EnquiryPayload } from "@/types/enquiry";
 
 export const runtime = "nodejs"; // Nodemailer needs the Node runtime
 
 const RECIPIENT = "davidsalamon2202@gmail.com";
-
-/**
- * Server-side enquiry email endpoint.
- * Uses Gmail SMTP via Nodemailer with credentials kept in .env.local.
- *
- * Required env vars:
- *   EMAIL_USER  e.g. kargilbhuvana@gmail.com
- *   EMAIL_PASS  Google App Password (NOT the account password)
- *
- * Generate an App Password at https://myaccount.google.com/apppasswords
- * (requires 2-Step Verification on the sending account).
- */
-function buildTransport() {
-  const user = process.env.EMAIL_USER;
-  const pass = process.env.EMAIL_PASS;
-  if (!user || !pass) {
-    throw new Error(
-      "EMAIL_USER / EMAIL_PASS env vars are missing. " +
-        "Add them to .env.local (see .env.local.example).",
-    );
-  }
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: { user, pass },
-  });
-}
 
 function isValid(p: Partial<EnquiryPayload>): p is EnquiryPayload {
   return Boolean(
@@ -103,7 +77,7 @@ export async function POST(req: Request) {
     const transport = buildTransport();
 
     await transport.sendMail({
-      from: `"D2D Holidays" <${process.env.EMAIL_USER}>`,
+      from: senderAddress(),
       to: RECIPIENT,
       replyTo: payload.customerEmail,
       subject: "New Travel Enquiry Received",

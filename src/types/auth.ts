@@ -14,17 +14,8 @@ export interface LoginPayload {
   rememberMe?: boolean;
 }
 
-export interface AuthResponse {
-  token: string;
-  refreshToken: string;
-  user: User;
-  expiresIn: number;
-}
-
 export interface AuthState {
   user: User | null;
-  token: string | null;
-  refreshToken: string | null;
   loading: boolean;
   error: string | null;
 }

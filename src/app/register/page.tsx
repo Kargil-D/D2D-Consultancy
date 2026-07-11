@@ -14,6 +14,7 @@ import {
 import InputField from "@/components/auth/InputField";
 import PasswordField from "@/components/auth/PasswordField";
 import AnimatedBackground from "@/components/auth/AnimatedBackground";
+import { registerApi } from "@/services/authService";
 
 interface FieldErrors {
   name?: string;
@@ -32,9 +33,11 @@ function validate(
   if (!name.trim()) errors.name = "Full name is required.";
   if (!email.trim()) errors.email = "Email is required.";
   else if (!/^\S+@\S+\.\S+$/.test(email)) errors.email = "Enter a valid email.";
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
   if (!password) errors.password = "Password is required.";
-  else if (password.length < 6)
-    errors.password = "Password must be at least 6 characters.";
+  else if (!passwordRegex.test(password))
+    errors.password =
+      "Min 8 characters, with an uppercase letter, a lowercase letter, a digit, and a symbol.";
   if (confirm !== password) errors.confirm = "Passwords do not match.";
   return errors;
 }
@@ -63,12 +66,13 @@ export default function RegisterPage() {
     }
     try {
       setLoading(true);
-      // Mocked registration — wire to /api/auth/register later.
-      await new Promise((r) => setTimeout(r, 900));
+      const [firstName, ...rest] = name.trim().split(/\s+/);
+      const lastName = rest.join(" ") || firstName;
+      await registerApi({ firstName, lastName, email, password, confirmPassword: confirm });
       setSuccess(true);
-      setTimeout(() => router.push("/"), 1100);
-    } catch {
-      setApiError("Something went wrong. Please try again.");
+      setTimeout(() => router.push(`/verify-email?email=${encodeURIComponent(email)}`), 1100);
+    } catch (err) {
+      setApiError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -115,7 +119,7 @@ export default function RegisterPage() {
                     className="flex items-start gap-2 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm"
                   >
                     <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span>Account created! Redirecting…</span>
+                    <span>Account created! Check your email for a verification code…</span>
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -18,6 +18,77 @@ enum Status {
   Inactive
 }
 
+enum OtpPurpose {
+  Registration
+  ForgotPassword
+}
+
+model Role {
+  id   String @id @default(uuid())
+  name String @unique // Admin | Employee | Customer
+
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("roles")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  firstName       String
+  lastName        String
+  email           String    @unique
+  phoneNumber     String?
+  passwordHash    String
+  roleId          String
+  role            Role      @relation(fields: [roleId], references: [id])
+  isEmailVerified Boolean   @default(false)
+  isActive        Boolean   @default(false)
+  lastLogin       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  emailOtps     EmailOtp[]
+  refreshTokens RefreshToken[]
+
+  @@index([roleId])
+  @@map("users")
+}
+
+model EmailOtp {
+  id        String     @id @default(uuid())
+  userId    String?
+  user      User?      @relation(fields: [userId], references: [id])
+  email     String
+  otpHash   String
+  purpose   OtpPurpose
+  attempts  Int        @default(0)
+  expiresAt DateTime
+  isUsed    Boolean    @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose])
+  @@map("email_otps")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
 model Destination {
   id              String   @id @default(uuid())
   name            String
