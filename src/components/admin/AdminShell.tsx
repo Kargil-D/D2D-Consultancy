@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import Logo from "@/components/common/Logo";
 import { ToastProvider } from "@/components/admin/ui/Toast";
 
@@ -24,9 +25,10 @@ export default function AdminShell({ children, title }: AdminShellProps) {
             <div className="flex items-center gap-4">
               <Link
                 href="/"
-                className="text-xs font-medium text-white/70 hover:text-white"
+                className="inline-flex items-center gap-1 text-xs font-medium text-white/70 hover:text-white"
               >
-                View site ?
+                View site
+                <ExternalLink className="w-3 h-3" />
               </Link>
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold">
                 A

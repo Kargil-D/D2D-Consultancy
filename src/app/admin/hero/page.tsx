@@ -8,7 +8,7 @@ import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/F
 import { useToast } from "@/components/admin/ui/Toast";
 import { destinationsApi, heroApi, packagesApi } from "@/lib/adminApi";
 import type { AdminDestination, AdminHeroConfig, AdminPackage, Status } from "@/types/admin";
-import { Save } from "lucide-react";
+import { ChevronDown, ChevronUp, Save } from "lucide-react";
 
 const defaults = (): Partial<AdminHeroConfig> => ({
   bannerText: "Plan Your Dream Vacation",
@@ -167,8 +167,12 @@ export default function HeroAdminPage() {
                   </label>
                   {active && (
                     <div className="flex gap-1">
-                      <button type="button" onClick={() => moveCampaign(p.id, -1)} className="text-xs px-2 py-0.5 rounded bg-white border border-slate-200">?</button>
-                      <button type="button" onClick={() => moveCampaign(p.id, 1)} className="text-xs px-2 py-0.5 rounded bg-white border border-slate-200">?</button>
+                      <button type="button" onClick={() => moveCampaign(p.id, -1)} className="p-0.5 rounded bg-white border border-slate-200" aria-label="Move up">
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button type="button" onClick={() => moveCampaign(p.id, 1)} className="p-0.5 rounded bg-white border border-slate-200" aria-label="Move down">
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   )}
                 </div>

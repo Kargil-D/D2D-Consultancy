@@ -1,10 +1,43 @@
 import { NextResponse } from "next/server";
 import { buildTransport, senderAddress } from "@/lib/mailer";
+import { findDestinationByNameOrSlug } from "@/services/destinationService";
+import { createLead } from "@/services/leadService";
+import { toSlug } from "@/utils/slug";
 import type { EnquiryPayload } from "@/types/enquiry";
 
 export const runtime = "nodejs"; // Nodemailer needs the Node runtime
 
 const RECIPIENT = "davidsalamon2202@gmail.com";
+
+/**
+ * Best-effort: also persist the enquiry as a Lead (source Website) so it shows
+ * up in /admin/leads. Never allowed to affect the email response — a Lead
+ * write failure (or an unmatched free-text destination) just gets logged.
+ */
+async function createLeadFromEnquiry(p: EnquiryPayload) {
+  try {
+    const destination =
+      (await findDestinationByNameOrSlug(toSlug(p.destination))) ??
+      (await findDestinationByNameOrSlug(p.destination));
+    if (!destination) {
+      console.warn(`[/api/send-enquiry] No matching destination for "${p.destination}", skipping Lead creation`);
+      return;
+    }
+    await createLead({
+      customerName: p.customerName,
+      mobile: p.customerPhone,
+      email: p.customerEmail,
+      destinationId: destination.id,
+      travelDate: p.departureDate ? new Date(p.departureDate) : undefined,
+      source: "Website",
+      adults: p.adultsCount,
+      children: p.childrenCount,
+      remarks: `Traveller type: ${p.travellerType}; duration: ${p.duration} days; departure city: ${p.departureCity}${p.language ? `; preferred language: ${p.language}` : ""}`,
+    });
+  } catch (err) {
+    console.error("[/api/send-enquiry] Lead creation failed", err);
+  }
+}
 
 function isValid(p: Partial<EnquiryPayload>): p is EnquiryPayload {
   return Boolean(
@@ -84,6 +117,8 @@ export async function POST(req: Request) {
       text: plainTextBody(payload),
       html: htmlBody(payload),
     });
+
+    await createLeadFromEnquiry(payload);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

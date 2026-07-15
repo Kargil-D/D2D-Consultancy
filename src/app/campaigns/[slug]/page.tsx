@@ -79,10 +79,12 @@ export default async function CampaignDetailPage({ params }: PageProps) {
   const exclusionLines = textToLines(campaign.exclusionsText || "");
 
   const price = campaign.offerPrice || campaign.startingPrice;
-  const subtotal = campaign.packageCost + campaign.platformFee + campaign.marginPrice;
+  const subtotal =
+    campaign.packageCost + campaign.platformFee + campaign.marginPrice + campaign.insurancePrice;
   const gstAmount = Math.round((subtotal * campaign.gstPercent) / 100);
   const grandTotal = subtotal + gstAmount;
-  const hasPricingBreakdown = campaign.packageCost > 0 || campaign.platformFee > 0 || campaign.marginPrice > 0;
+  const hasPricingBreakdown =
+    campaign.packageCost > 0 || campaign.platformFee > 0 || campaign.marginPrice > 0 || campaign.insurancePrice > 0;
 
   const heroImage = campaign.coverBanner || campaign.thumbnail || "";
 
@@ -287,6 +289,11 @@ export default async function CampaignDetailPage({ params }: PageProps) {
                     <div className="flex justify-between text-slate-600">
                       <span>Planning Platform fee</span><span className="font-semibold text-slate-900">{formatINR(campaign.platformFee)}</span>
                     </div>
+                    {campaign.insurancePrice > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Insurance</span><span className="font-semibold text-slate-900">{formatINR(campaign.insurancePrice)}</span>
+                      </div>
+                    )}
                     <div className="my-2 border-t border-dashed border-slate-200" />
                     <div className="flex justify-between text-slate-600">
                       <span>Subtotal</span><span className="font-semibold text-slate-900">{formatINR(subtotal)}</span>

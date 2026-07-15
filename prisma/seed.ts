@@ -9,7 +9,7 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg(process.env.DATABASE_URL),
 });
 
-const ROLES = ["Admin", "Employee", "Customer"] as const;
+const ROLES = ["Admin", "Employee", "Customer", "Sales"] as const;
 
 async function main() {
   for (const name of ROLES) {

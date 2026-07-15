@@ -15,11 +15,14 @@ import type {
   AdminHeroConfig,
   AdminHotel,
   AdminItinerary,
+  AdminLead,
   AdminPackage,
   AdminReview,
+  AdminSalesUser,
   AdminTransfer,
   AdminTransferType,
   ApiResponse,
+  LeadStatus,
   Paginated,
 } from "@/types/admin";
 
@@ -210,6 +213,48 @@ export const destinationsApi = {
   },
   seed: (_rows: AdminDestination[]) => {
     // no-op for server-backed API
+  },
+};
+
+export const leadsApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminLead>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const { source, status, assignedToId } = query.filter ?? {};
+    if (typeof source === "string") params.set("source", source);
+    if (typeof status === "string") params.set("status", status);
+    if (typeof assignedToId === "string") params.set("assignedToId", assignedToId);
+    const res = await fetch(`/api/admin/leads?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminLead>>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminLead | null>> => {
+    const res = await fetch(`/api/admin/leads/${id}`);
+    return (await res.json()) as ApiResponse<AdminLead | null>;
+  },
+  create: async (payload: Partial<AdminLead>): Promise<ApiResponse<AdminLead>> => {
+    const res = await fetch(`/api/admin/leads`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminLead>;
+  },
+  update: async (id: string, payload: Partial<AdminLead>): Promise<ApiResponse<AdminLead | null>> => {
+    const res = await fetch(`/api/admin/leads/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminLead | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/leads/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  updateStatus: async (id: string, status: LeadStatus): Promise<ApiResponse<AdminLead | null>> => {
+    const res = await fetch(`/api/admin/leads/${id}/status`, { method: "POST", body: JSON.stringify({ status }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminLead | null>;
+  },
+};
+
+export const salesUsersApi = {
+  list: async (role: string = "Sales"): Promise<ApiResponse<AdminSalesUser[]>> => {
+    const res = await fetch(`/api/admin/users?role=${encodeURIComponent(role)}`);
+    return (await res.json()) as ApiResponse<AdminSalesUser[]>;
   },
 };
 

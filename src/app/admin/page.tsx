@@ -2,7 +2,7 @@
 
 import {
   Boxes,
-  TrendingUp,
+  Users,
   CalendarCheck,
   Headphones,
   Wallet,
@@ -16,7 +16,7 @@ import DepartmentTiles from "@/components/admin/DepartmentTiles";
 
 const HOME_TILES = [
   { label: "PM", icon: Boxes, href: "/admin/pm" },
-  { label: "Sales", icon: TrendingUp },
+  { label: "Sales", icon: Users, href: "/admin/sales" },
   { label: "Bookings", icon: CalendarCheck },
   { label: "CX", icon: Headphones },
   { label: "Finance", icon: Wallet },

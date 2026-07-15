@@ -113,7 +113,14 @@ export default function ReviewsAdminPage() {
     { key: "reviewDate", label: "Date", render: (r) => r.reviewDate },
     {
       key: "featured", label: "Featured",
-      render: (r) => r.isFeatured ? <span className="text-xs font-semibold text-amber-700">? Yes</span> : "—",
+      render: (r) =>
+        r.isFeatured ? (
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
+            <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Yes
+          </span>
+        ) : (
+          "—"
+        ),
     },
     {
       key: "status", label: "Status",

@@ -41,7 +41,7 @@ export async function sendOtpEmail(to: string, otp: string, purpose: OtpPurpose)
 
 export async function sendWelcomeEmail(to: string, firstName: string) {
   const transport = buildTransport();
-  const subject = "Welcome to D2D Holidays!";
+  const subject = "Welcome to Drive to Destination Holidays!";
   await transport.sendMail({
     from: senderAddress(),
     to,

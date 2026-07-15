@@ -98,9 +98,9 @@ export default function PackagesMasterPage() {
       label: "Price",
       render: (r) => (
         <div>
-          <div className="text-sm font-semibold text-slate-900">?{(r.offerPrice || r.startingPrice).toLocaleString("en-IN")}</div>
+          <div className="text-sm font-semibold text-slate-900">INR {(r.offerPrice || r.startingPrice).toLocaleString("en-IN")}</div>
           {(r.offerPrice ?? 0) > 0 && r.startingPrice > (r.offerPrice ?? 0) && (
-            <div className="text-xs text-slate-400 line-through">?{r.startingPrice.toLocaleString("en-IN")}</div>
+            <div className="text-xs text-slate-400 line-through">INR {r.startingPrice.toLocaleString("en-IN")}</div>
           )}
         </div>
       ),

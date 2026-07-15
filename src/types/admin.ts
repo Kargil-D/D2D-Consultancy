@@ -83,6 +83,7 @@ export interface AdminPackage extends AuditColumns {
   platformFee: number;
   gstPercent: number;
   marginPrice: number;
+  insurancePrice: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -211,6 +212,47 @@ export interface AdminEnquiryConfig extends AuditColumns {
   maxTravelers: number;
   autoTagPackage: boolean;
   status: Status;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Lead Management                                                            */
+/* -------------------------------------------------------------------------- */
+export type LeadSource = "Website" | "MetaAds" | "GoogleAds" | "SEO" | "WhatsApp" | "Referral" | "Manual";
+export type LeadStatus = "New" | "Contacted" | "FollowUp" | "QuotationSent" | "PaymentPending" | "Won" | "Lost";
+
+export interface AdminLeadActivity {
+  id: string;
+  leadId: string;
+  message: string;
+  createdDate: string;
+}
+
+export interface AdminLead {
+  id: string;
+  seq: number;
+  customerName: string;
+  mobile: string;
+  email?: string | null;
+  destinationId: string;
+  destination?: AdminDestination;
+  travelDate?: string | null;
+  source: LeadSource;
+  adults?: number | null;
+  children?: number | null;
+  assignedToId?: string | null;
+  assignedTo?: AdminSalesUser | null;
+  remarks?: string | null;
+  status: LeadStatus;
+  activities?: AdminLeadActivity[];
+  createdDate: string;
+  updatedDate: string;
+}
+
+export interface AdminSalesUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
 }
 
 /* -------------------------------------------------------------------------- */

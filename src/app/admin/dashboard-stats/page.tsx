@@ -156,7 +156,7 @@ export default function AdminDashboardStatsPage() {
           empty="No campaigns yet."
           rows={stats.recentPackages.map((p) => ({
             title: p.name,
-            subtitle: `${p.days}D / ${p.nights}N · ?${p.startingPrice.toLocaleString("en-IN")}`,
+            subtitle: `${p.days}D / ${p.nights}N · INR ${p.startingPrice.toLocaleString("en-IN")}`,
           }))}
         />
         <Card

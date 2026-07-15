@@ -52,3 +52,11 @@ export function updateLastLogin(id: string) {
 export function updatePasswordHash(id: string, passwordHash: string) {
   return prisma.user.update({ where: { id }, data: { passwordHash } });
 }
+
+export function listUsersByRole(roleName: string) {
+  return prisma.user.findMany({
+    where: { role: { name: roleName }, isActive: true },
+    select: { id: true, firstName: true, lastName: true, email: true },
+    orderBy: { firstName: "asc" },
+  });
+}

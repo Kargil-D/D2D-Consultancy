@@ -90,7 +90,7 @@ export default function DestinationsAdminPage() {
     {
       key: "isPopular",
       label: "Popular",
-      render: (r) => (r.isPopular ? "? Yes" : "—"),
+      render: (r) => (r.isPopular ? "Yes" : "—"),
     },
     { key: "displayOrder", label: "Order", render: (r) => r.displayOrder },
     {

@@ -57,6 +57,7 @@ const emptyForm = (): Partial<AdminPackage> => ({
   platformFee: 0,
   gstPercent: 5,
   marginPrice: 0,
+  insurancePrice: 0,
 });
 
 export default function CampaignForm({ id }: CampaignFormProps) {
@@ -121,7 +122,8 @@ export default function CampaignForm({ id }: CampaignFormProps) {
 
   const canSave = !!form.name && !!form.destinationId;
 
-  const priceSubtotal = (form.packageCost ?? 0) + (form.platformFee ?? 0) + (form.marginPrice ?? 0);
+  const priceSubtotal =
+    (form.packageCost ?? 0) + (form.platformFee ?? 0) + (form.marginPrice ?? 0) + (form.insurancePrice ?? 0);
   const priceGst = Math.round((priceSubtotal * (form.gstPercent ?? 0)) / 100);
   const priceGrandTotal = priceSubtotal + priceGst;
 
@@ -278,10 +280,10 @@ export default function CampaignForm({ id }: CampaignFormProps) {
           <Field label="Nights">
             <input type="number" className={inputCls} value={form.nights ?? 0} onChange={(e) => onChange({ nights: Number(e.target.value) })} />
           </Field>
-          <Field label="Starting Price (₹)">
+          <Field label="Starting Price (INR)">
             <input type="number" className={inputCls} value={form.startingPrice ?? 0} onChange={(e) => onChange({ startingPrice: Number(e.target.value) })} />
           </Field>
-          <Field label="Offer Price (₹)">
+          <Field label="Offer Price (INR)">
             <input type="number" className={inputCls} value={form.offerPrice ?? 0} onChange={(e) => onChange({ offerPrice: Number(e.target.value) })} />
           </Field>
           <Field label="Best Time to Visit">
@@ -575,22 +577,25 @@ export default function CampaignForm({ id }: CampaignFormProps) {
           </div>
           <div className="p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Package Cost (₹)">
+              <Field label="Package Cost (INR)">
                 <input type="number" className={inputCls} value={form.packageCost ?? 0} onChange={(e) => onChange({ packageCost: Number(e.target.value) })} />
               </Field>
-              <Field label="Planning Platform Fee (₹)">
+              <Field label="Planning Platform Fee (INR)">
                 <input type="number" className={inputCls} value={form.platformFee ?? 0} onChange={(e) => onChange({ platformFee: Number(e.target.value) })} />
               </Field>
               <Field label="GST (%)">
                 <input type="number" step={0.5} className={inputCls} value={form.gstPercent ?? 0} onChange={(e) => onChange({ gstPercent: Number(e.target.value) })} />
               </Field>
-              <Field label="Margin Price (₹)">
+              <Field label="Margin Price (INR)">
                 <input type="number" className={inputCls} value={form.marginPrice ?? 0} onChange={(e) => onChange({ marginPrice: Number(e.target.value) })} />
+              </Field>
+              <Field label="Insurance (INR)">
+                <input type="number" className={inputCls} value={form.insurancePrice ?? 0} onChange={(e) => onChange({ insurancePrice: Number(e.target.value) })} />
               </Field>
             </div>
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 flex items-center justify-between">
               <span className="text-sm font-bold text-slate-900">Grand Total</span>
-              <span className="text-lg font-bold text-slate-900">₹{priceGrandTotal.toLocaleString("en-IN")}</span>
+              <span className="text-lg font-bold text-slate-900">INR {priceGrandTotal.toLocaleString("en-IN")}</span>
             </div>
           </div>
         </div>

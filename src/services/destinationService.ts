@@ -38,6 +38,16 @@ export async function getDestination(id: string) {
   return prisma.destination.findUnique({ where: { id } });
 }
 
+/** Best-effort lookup for free-text destination names (e.g. from the public enquiry form). */
+export async function findDestinationByNameOrSlug(nameOrSlug: string) {
+  return prisma.destination.findFirst({
+    where: {
+      isDeleted: false,
+      OR: [{ slug: nameOrSlug }, { name: { equals: nameOrSlug, mode: "insensitive" } }],
+    },
+  });
+}
+
 export async function createDestination(payload: Prisma.DestinationCreateInput) {
   return prisma.destination.create({ data: payload });
 }
