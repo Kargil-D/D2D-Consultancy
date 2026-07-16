@@ -54,6 +54,35 @@ export async function sendWelcomeEmail(to: string, firstName: string) {
   });
 }
 
+export async function sendQuotationEmail(
+  to: string,
+  opts: { quoteCode: string; customerName: string; destinationName: string; sellingPrice: number; shareUrl?: string; pdfBuffer: Buffer },
+) {
+  const transport = buildTransport();
+  const subject = `Your D2D Holidays Quote ${opts.quoteCode} — ${opts.destinationName}`;
+  const priceText = new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    currencyDisplay: "code",
+    maximumFractionDigits: 0,
+  }).format(opts.sellingPrice);
+
+  await transport.sendMail({
+    from: senderAddress(),
+    to,
+    subject,
+    text: `Hi ${opts.customerName}, your quote ${opts.quoteCode} for ${opts.destinationName} is ready. Total price: ${priceText}.`,
+    html: wrapper(
+      subject,
+      `<p>Hi ${opts.customerName},</p>
+       <p>Your travel quotation for <strong>${opts.destinationName}</strong> is ready.</p>
+       <p style="font-size:20px;font-weight:700;color:#0f766e;">${priceText}</p>
+       <p>The full quote is attached as a PDF.${opts.shareUrl ? ` You can also view it online: <a href="${opts.shareUrl}">${opts.shareUrl}</a>` : ""}</p>`,
+    ),
+    attachments: [{ filename: `${opts.quoteCode}.pdf`, content: opts.pdfBuffer, contentType: "application/pdf" }],
+  });
+}
+
 export async function sendPasswordResetConfirmationEmail(to: string) {
   const transport = buildTransport();
   const subject = "Your password was changed";

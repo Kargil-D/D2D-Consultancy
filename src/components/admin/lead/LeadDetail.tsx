@@ -2,32 +2,37 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Mail, MapPin, Phone, Users, CalendarDays, Edit, XCircle } from "lucide-react";
+import { Mail, MapPin, Phone, Users, CalendarDays, Edit, XCircle, Eye } from "lucide-react";
 import { useToast } from "@/components/admin/ui/Toast";
 import LeadStatusStepper from "@/components/admin/lead/LeadStatusStepper";
 import { LeadStatusBadge } from "@/components/admin/lead/LeadStatusBadge";
-import { leadsApi } from "@/lib/adminApi";
-import type { AdminLead, LeadStatus } from "@/types/admin";
+import { leadsApi, quotationsApi } from "@/lib/adminApi";
+import type { AdminLead, AdminQuotation, LeadStatus } from "@/types/admin";
 
 interface LeadDetailProps {
   id: string;
 }
 
 const leadCode = (seq: number) => `LD-${seq.toString().padStart(4, "0")}`;
+const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
+const formatINR = (v: number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
 
 export default function LeadDetail({ id }: LeadDetailProps) {
   const { notify } = useToast();
   const [lead, setLead] = useState<AdminLead | null>(null);
+  const [quotations, setQuotations] = useState<AdminQuotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
   const reload = useCallback(async () => {
-    const res = await leadsApi.get(id);
-    if (res.success) {
-      setLead(res.data);
+    const [leadRes, quotesRes] = await Promise.all([leadsApi.get(id), quotationsApi.list({ leadId: id, pageSize: 50 })]);
+    if (leadRes.success) {
+      setLead(leadRes.data);
     } else {
-      notify(res.message || "Unable to load lead", "error");
+      notify(leadRes.message || "Unable to load lead", "error");
     }
+    if (quotesRes.success) setQuotations(quotesRes.data.items);
     setLoading(false);
   }, [id, notify]);
 
@@ -148,16 +153,51 @@ export default function LeadDetail({ id }: LeadDetailProps) {
       <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h3 className="text-sm font-bold text-slate-900">Quotations for this Lead</h3>
-          <button
-            type="button"
-            disabled
-            title="Coming soon"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-200 text-slate-500 text-sm font-semibold cursor-not-allowed"
+          <Link
+            href={`/admin/quotations/new?leadId=${id}`}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
           >
             Create Quotation
-          </button>
+          </Link>
         </div>
-        <div className="p-10 text-center text-sm text-slate-500">No quotations yet.</div>
+        {quotations.length === 0 ? (
+          <div className="p-10 text-center text-sm text-slate-500">No quotations yet.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
+                <th className="px-6 py-2">Quote ID</th>
+                <th className="px-6 py-2">Destination</th>
+                <th className="px-6 py-2">Selling Price</th>
+                <th className="px-6 py-2">Status</th>
+                <th className="px-6 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {quotations.map((q) => {
+                const totalCost = q.items.reduce((sum, i) => sum + i.qty * i.cost, 0);
+                const sellingPrice = totalCost + Math.round(totalCost * (q.marginPercent / 100));
+                return (
+                  <tr key={q.id} className="border-b border-slate-50">
+                    <td className="px-6 py-3 font-mono text-xs font-semibold text-slate-700">{quoteCode(q.seq)}</td>
+                    <td className="px-6 py-3">{q.destination?.name ?? "—"}</td>
+                    <td className="px-6 py-3 font-semibold text-slate-900">{formatINR(sellingPrice)}</td>
+                    <td className="px-6 py-3">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                        {q.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <Link href={`/admin/quotations/${q.id}/edit`} className="inline-flex p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Open">
+                        <Eye className="w-4 h-4" />
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

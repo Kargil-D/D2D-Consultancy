@@ -117,6 +117,7 @@ model Destination {
 
   campaigns       Campaign[]
   leads           Lead[]
+  quotations      Quotation[]
 
   @@map("destinations")
 }
@@ -169,6 +170,7 @@ model Campaign {
   itineraries Itinerary[]
   hotels      Hotel[]
   transfers   Transfer[]
+  quotations  Quotation[]
 
   @@index([destinationId])
   @@map("campaigns")
@@ -294,7 +296,8 @@ model Lead {
   updatedDate DateTime @updatedAt
   isDeleted   Boolean  @default(false)
 
-  activities LeadActivity[]
+  activities  LeadActivity[]
+  quotations  Quotation[]
 
   @@index([destinationId])
   @@index([assignedToId])
@@ -311,4 +314,59 @@ model LeadActivity {
 
   @@index([leadId])
   @@map("lead_activities")
+}
+
+enum QuotationStatus {
+  Draft
+  Sent
+  Accepted
+  Rejected
+  Expired
+}
+
+enum QuotationComponent {
+  Hotel
+  Transfer
+  Activity
+  Visa
+  Insurance
+  Flight
+}
+
+model Quotation {
+  id            String          @id @default(uuid())
+  seq           Int             @unique @default(autoincrement())
+  leadId        String
+  lead          Lead            @relation(fields: [leadId], references: [id])
+  destinationId String
+  destination   Destination     @relation(fields: [destinationId], references: [id])
+  campaignId    String?
+  campaign      Campaign?       @relation(fields: [campaignId], references: [id])
+  marginPercent Float           @default(0)
+  status        QuotationStatus @default(Draft)
+  shareToken    String?         @unique
+
+  createdDate DateTime @default(now())
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  items QuotationItem[]
+
+  @@index([leadId])
+  @@index([destinationId])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String             @id @default(uuid())
+  quotationId String
+  quotation   Quotation          @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  component   QuotationComponent
+  detail      String             @default("")
+  qty         Int                @default(1)
+  cost        Int                @default(0)
+  sortOrder   Int                @default(0)
+
+  @@index([quotationId])
+  @@map("quotation_items")
 }

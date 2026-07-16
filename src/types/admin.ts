@@ -256,6 +256,38 @@ export interface AdminSalesUser {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Quotation Builder                                                          */
+/* -------------------------------------------------------------------------- */
+export type QuotationComponentType = "Hotel" | "Transfer" | "Activity" | "Visa" | "Insurance" | "Flight";
+export type QuotationStatus = "Draft" | "Sent" | "Accepted" | "Rejected" | "Expired";
+
+export interface AdminQuotationItem {
+  id?: string;
+  component: QuotationComponentType;
+  detail: string;
+  qty: number;
+  cost: number;
+  sortOrder?: number;
+}
+
+export interface AdminQuotation {
+  id: string;
+  seq: number;
+  leadId: string;
+  lead?: AdminLead;
+  destinationId: string;
+  destination?: AdminDestination;
+  campaignId?: string | null;
+  campaign?: AdminPackage | null;
+  marginPercent: number;
+  status: QuotationStatus;
+  shareToken?: string | null;
+  items: AdminQuotationItem[];
+  createdDate: string;
+  updatedDate: string;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Standard API response shape                                                */
 /* -------------------------------------------------------------------------- */
 export interface ApiResponse<T> {

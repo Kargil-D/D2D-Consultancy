@@ -17,6 +17,7 @@ import type {
   AdminItinerary,
   AdminLead,
   AdminPackage,
+  AdminQuotation,
   AdminReview,
   AdminSalesUser,
   AdminTransfer,
@@ -255,6 +256,49 @@ export const salesUsersApi = {
   list: async (role: string = "Sales"): Promise<ApiResponse<AdminSalesUser[]>> => {
     const res = await fetch(`/api/admin/users?role=${encodeURIComponent(role)}`);
     return (await res.json()) as ApiResponse<AdminSalesUser[]>;
+  },
+};
+
+export const quotationsApi = {
+  list: async (
+    query: { search?: string; leadId?: string; status?: string; page?: number; pageSize?: number } = {},
+  ): Promise<ApiResponse<Paginated<AdminQuotation>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", query.search);
+    if (query.leadId) params.set("leadId", query.leadId);
+    if (query.status) params.set("status", query.status);
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const res = await fetch(`/api/admin/quotations?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminQuotation>>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminQuotation | null>> => {
+    const res = await fetch(`/api/admin/quotations/${id}`);
+    return (await res.json()) as ApiResponse<AdminQuotation | null>;
+  },
+  create: async (payload: Partial<AdminQuotation>): Promise<ApiResponse<AdminQuotation>> => {
+    const res = await fetch(`/api/admin/quotations`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminQuotation>;
+  },
+  update: async (id: string, payload: Partial<AdminQuotation>): Promise<ApiResponse<AdminQuotation | null>> => {
+    const res = await fetch(`/api/admin/quotations/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminQuotation | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/quotations/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  duplicate: async (id: string): Promise<ApiResponse<AdminQuotation>> => {
+    const res = await fetch(`/api/admin/quotations/${id}/duplicate`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminQuotation>;
+  },
+  generateShareLink: async (id: string): Promise<ApiResponse<{ token: string; url: string }>> => {
+    const res = await fetch(`/api/admin/quotations/${id}/share`, { method: "POST" });
+    return (await res.json()) as ApiResponse<{ token: string; url: string }>;
+  },
+  sendEmail: async (id: string): Promise<ApiResponse<AdminQuotation | null>> => {
+    const res = await fetch(`/api/admin/quotations/${id}/send-email`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminQuotation | null>;
   },
 };
 
