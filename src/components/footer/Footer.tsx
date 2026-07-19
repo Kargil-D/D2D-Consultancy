@@ -14,7 +14,7 @@ import Logo from "@/components/common/Logo";
 const support = [
   { label: "Contact Us", href: "/contact-us" },
   { label: "Privacy Policy", href: "/privacy-policy" },
-  { label: "Terms of Service", href: "/terms-of-service" },
+  { label: "Terms of Conditions", href: "/terms-of-service" },
   { label: "Cancellation Policy", href: "/cancellation-policy" },
 ];
 
@@ -110,9 +110,16 @@ export default function Footer() {
             <ul className="mt-5 space-y-4 text-sm">
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
-                <span className="text-slate-400">
-                  C86, Sterling Bispark, Fort Station Road, Thillai Nagar, Trichy 620018
-                </span>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                    "Drive To Destination Holidays, 4th Floor, Sterling Bispark, C86, Fort Station Rd, Thillai Nagar, Tennur, Tiruchirappalli, Tamil Nadu 620018",
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-400 hover:text-cyan-300 transition-colors"
+                >
+                  4th Floor, Sterling Bispark, C86, Fort Station Rd, Thillai Nagar, Tennur, Tiruchirappalli, Tamil Nadu 620018
+                </a>
               </li>
               <li className="flex items-start gap-3">
                 <Phone className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />

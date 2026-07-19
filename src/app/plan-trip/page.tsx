@@ -71,7 +71,7 @@ const STEP_TITLES = [
     subtitle: "Pick a future date that works for you.",
   },
   {
-    title: "Almost there â€” your contact details",
+    title: "Almost there — your contact details",
     subtitle: "We'll share the perfect campaigns with you on email.",
   },
 ] as const;
@@ -79,6 +79,11 @@ const STEP_TITLES = [
 function PlanTripContent() {
   const params = useSearchParams();
   const destination = params.get("destination") ?? "your dream destination";
+  // Only accept a same-origin relative path (guards against an open-redirect
+  // via a crafted ?returnTo= value) — set when arriving from a specific
+  // campaign's "Unlock Details", so we can return there after the lead is captured.
+  const returnToParam = params.get("returnTo");
+  const returnTo = returnToParam && returnToParam.startsWith("/") && !returnToParam.startsWith("//") ? returnToParam : null;
 
   const [state, setState] = useState<PlannerState>({
     destination,
@@ -135,6 +140,9 @@ function PlanTripContent() {
       travellerCount: traveller === "family" ? 2 : rule.default,
       childrenCount: traveller === "family" ? 0 : null,
     }));
+    // Couple/Solo have a fixed count (nothing further to pick) — advance right away.
+    // Family/Friends still need a count picked, so they keep the Next button.
+    if (rule.locked) setStep((s) => s + 1);
   };
 
   const completed = validity.map((v, i) => v && i < step) as boolean[];
@@ -179,10 +187,12 @@ function PlanTripContent() {
         return;
       }
       setSuccess(true);
-      // Brief success screen, then redirect to the destination landing page.
+      // Brief success screen, then redirect — back to the specific campaign
+      // the lead came from (returnTo), or the generic destination landing
+      // page for search-originated enquiries with no specific campaign.
       // Use window.location for a guaranteed full navigation (router.push can
       // get stuck behind the success modal in some edge cases).
-      const targetUrl = `/destinations/${toSlug(state.destination)}`;
+      const targetUrl = returnTo || `/destinations/${toSlug(state.destination)}`;
       console.info("[planner] redirecting to", targetUrl);
       setTimeout(() => {
         window.location.href = targetUrl;
@@ -333,29 +343,41 @@ function PlanTripContent() {
               {step === 1 && (
                 <DurationSelector
                   value={state.duration}
-                  onChange={(duration) =>
-                    setState((s) => ({ ...s, duration }))
-                  }
+                  onChange={(duration) => {
+                    setState((s) => ({ ...s, duration }));
+                    // "custom"/"custom-N" comes from the still-being-typed day
+                    // count — only advance once a preset is picked outright.
+                    if (duration !== "custom" && !duration.startsWith("custom-")) {
+                      setStep((s) => s + 1);
+                    }
+                  }}
                 />
               )}
               {step === 2 && (
                 <DepartureCitySelector
                   value={state.city}
-                  onChange={(city) => setState((s) => ({ ...s, city }))}
+                  onChange={(city) => {
+                    setState((s) => ({ ...s, city }));
+                    setStep((s) => s + 1);
+                  }}
                 />
               )}
               {step === 3 && (
                 <LanguageSelector
                   value={state.language}
-                  onChange={(language) =>
-                    setState((s) => ({ ...s, language }))
-                  }
+                  onChange={(language) => {
+                    setState((s) => ({ ...s, language }));
+                    setStep((s) => s + 1);
+                  }}
                 />
               )}
               {step === 4 && (
                 <DepartureDatePicker
                   value={state.date}
-                  onChange={(date) => setState((s) => ({ ...s, date }))}
+                  onChange={(date) => {
+                    setState((s) => ({ ...s, date }));
+                    setStep((s) => s + 1);
+                  }}
                 />
               )}
               {step === 5 && (
@@ -402,7 +424,7 @@ function PlanTripContent() {
                   </>
                 ) : (
                   <>
-                    Find Campaigns
+                    {returnTo ? "Confirm" : "Find Campaigns"}
                     <Send className="w-4 h-4" />
                   </>
                 )}
@@ -517,10 +539,10 @@ function PlannerSummary({ state }: { state: PlannerState }) {
   const travellersValue =
     traveller && state.travellerCount != null
       ? state.traveller === "family"
-        ? `${traveller.title} Â· ${state.travellerCount}A${
+        ? `${traveller.title} · ${state.travellerCount}A${
             state.childrenCount ? ` + ${state.childrenCount}C` : ""
           }`
-        : `${traveller.title} Â· ${state.travellerCount} pax`
+        : `${traveller.title} · ${state.travellerCount} pax`
       : traveller?.title;
 
   // For custom durations, prefer the explicit day count entered by the user.
@@ -564,7 +586,7 @@ function PlannerSummary({ state }: { state: PlannerState }) {
                 {label}
               </div>
               <div className="text-sm font-semibold truncate">
-                {value || "Ã¢â‚¬â€"}
+                {value || "—"}
               </div>
             </div>
           </div>

@@ -1,10 +1,23 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import LoginForm from "@/components/auth/LoginForm";
+import { useAuth } from "@/contexts/AuthContext";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { isAuthenticated, loading } = useAuth();
+  const redirect = searchParams.get("redirect") || "/";
+
+  // If a silent token refresh already re-authenticated this session (see
+  // AuthContext.refreshUser), skip the form entirely and go straight there.
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      router.replace(redirect);
+    }
+  }, [loading, isAuthenticated, redirect, router]);
 
   return (
     <div>
@@ -19,10 +32,18 @@ export default function LoginPage() {
       </p>
 
       <LoginForm
-        onSuccess={() => router.push("/")}
+        onSuccess={() => router.push(redirect)}
         onForgotPassword={() => router.push("/forgot-password")}
         onRegister={() => router.push("/register")}
       />
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageContent />
+    </Suspense>
   );
 }

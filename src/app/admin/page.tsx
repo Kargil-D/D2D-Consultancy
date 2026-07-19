@@ -17,7 +17,7 @@ import DepartmentTiles from "@/components/admin/DepartmentTiles";
 const HOME_TILES = [
   { label: "PM", icon: Boxes, href: "/admin/pm" },
   { label: "Sales", icon: Users, href: "/admin/sales" },
-  { label: "Bookings", icon: CalendarCheck },
+  { label: "Bookings", icon: CalendarCheck, href: "/admin/bookings" },
   { label: "CX", icon: Headphones },
   { label: "Finance", icon: Wallet },
   { label: "Roster", icon: ClipboardList },

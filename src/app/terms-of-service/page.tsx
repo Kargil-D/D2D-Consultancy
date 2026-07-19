@@ -199,7 +199,7 @@ export default function TermsOfServicePage() {
           <h1 className="mt-6 text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-tight tracking-tight">
             Terms of{" "}
             <span className="bg-gradient-to-r from-cyan-300 via-teal-300 to-emerald-300 bg-clip-text text-transparent">
-              Service
+              Conditions
             </span>
           </h1>
 

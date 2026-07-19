@@ -55,7 +55,7 @@ export default function LoginModal({
                     id="login-modal-title"
                     className="mt-3 text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight"
                   >
-                    Welcome back ??
+                    Welcome back
                   </h1>
                   <p className="mt-1.5 text-sm text-slate-500">
                     Sign in to access your saved trips, quotes and bookings.

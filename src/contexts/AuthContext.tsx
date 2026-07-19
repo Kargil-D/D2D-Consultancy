@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import type { AuthState, LoginPayload } from "@/types/auth";
-import { loginApi, logoutApi, meApi, socialLoginApi } from "@/services/authService";
+import { loginApi, logoutApi, meApi, refreshSessionApi, socialLoginApi } from "@/services/authService";
 
 const REMEMBER_KEY = "d2d.auth.remember";
 
@@ -43,9 +43,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async () => {
     try {
       const { user } = await meApi();
-      setState((s) => ({ ...s, user }));
+      setState((s) => ({ ...s, user, loading: false }));
     } catch {
-      setState((s) => ({ ...s, user: null }));
+      // Access token may simply be expired (15 min TTL) — the refresh token
+      // lives for 7 days, so try to rotate it before giving up on the session.
+      try {
+        await refreshSessionApi();
+        const { user } = await meApi();
+        setState((s) => ({ ...s, user, loading: false }));
+      } catch {
+        setState((s) => ({ ...s, user: null, loading: false }));
+      }
     }
   }, []);
 
@@ -53,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // login/verify-email/refresh) — hydrate `user` by asking the server who's
   // currently authenticated instead of reading anything from localStorage.
   useEffect(() => {
+    setState((s) => ({ ...s, loading: true }));
     refreshUser();
 
     if (typeof window !== "undefined") {

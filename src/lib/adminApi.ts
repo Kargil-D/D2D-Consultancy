@@ -10,6 +10,7 @@
  */
 
 import type {
+  AdminBooking,
   AdminDestination,
   AdminEnquiryConfig,
   AdminHeroConfig,
@@ -299,6 +300,56 @@ export const quotationsApi = {
   sendEmail: async (id: string): Promise<ApiResponse<AdminQuotation | null>> => {
     const res = await fetch(`/api/admin/quotations/${id}/send-email`, { method: "POST" });
     return (await res.json()) as ApiResponse<AdminQuotation | null>;
+  },
+};
+
+export const bookingsApi = {
+  list: async (
+    query: { search?: string; leadId?: string; status?: string; page?: number; pageSize?: number } = {},
+  ): Promise<ApiResponse<Paginated<AdminBooking>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", query.search);
+    if (query.leadId) params.set("leadId", query.leadId);
+    if (query.status) params.set("status", query.status);
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const res = await fetch(`/api/admin/bookings?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminBooking>>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}`);
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  create: async (payload: Partial<AdminBooking>): Promise<ApiResponse<AdminBooking>> => {
+    const res = await fetch(`/api/admin/bookings`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking>;
+  },
+  update: async (id: string, payload: Partial<AdminBooking>): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/bookings/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  updateStatus: async (id: string, status: string): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/status`, { method: "POST", body: JSON.stringify({ status }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  updateDmc: async (
+    id: string,
+    payload: { dmcName?: string | null; dmcEmailSentDate?: string | null; dmcResponse?: string | null; dmcRemarks?: string | null },
+  ): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/dmc`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  uploadDocument: async (id: string, type: string, url: string): Promise<ApiResponse<unknown>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/documents`, { method: "POST", body: JSON.stringify({ type, url }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<unknown>;
+  },
+  saveComponents: async (id: string, components: unknown[]): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/components`, { method: "PUT", body: JSON.stringify({ components }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
   },
 };
 

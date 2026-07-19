@@ -51,9 +51,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  emailOtps     EmailOtp[]
-  refreshTokens RefreshToken[]
-  assignedLeads Lead[]
+  emailOtps             EmailOtp[]
+  refreshTokens         RefreshToken[]
+  assignedLeads         Lead[]
+  bookingsAsExecutive   Booking[]      @relation("BookingExecutive")
+  bookingsAsSupport     Booking[]      @relation("CustomerSupport")
 
   @@index([roleId])
   @@map("users")
@@ -118,6 +120,7 @@ model Destination {
   campaigns       Campaign[]
   leads           Lead[]
   quotations      Quotation[]
+  bookings        Booking[]
 
   @@map("destinations")
 }
@@ -298,6 +301,7 @@ model Lead {
 
   activities  LeadActivity[]
   quotations  Quotation[]
+  bookings    Booking[]
 
   @@index([destinationId])
   @@index([assignedToId])
@@ -350,7 +354,8 @@ model Quotation {
   updatedDate DateTime @updatedAt
   isDeleted   Boolean  @default(false)
 
-  items QuotationItem[]
+  items    QuotationItem[]
+  bookings Booking[]
 
   @@index([leadId])
   @@index([destinationId])
@@ -369,4 +374,95 @@ model QuotationItem {
 
   @@index([quotationId])
   @@map("quotation_items")
+}
+
+enum BookingStatus {
+  Assigned
+  DmcSent
+  AwaitingConfirmation
+  Confirmed
+  VoucherGenerated
+  Booked
+}
+
+enum BookingComponentType {
+  Hotel
+  Transfer
+  Activity
+  Visa
+}
+
+enum BookingComponentStatus {
+  Pending
+  Confirmed
+  Cancelled
+  Approved
+  Rejected
+}
+
+enum BookingDocumentType {
+  Passport
+  Visa
+  FlightTicket
+  Insurance
+}
+
+model Booking {
+  id                 String        @id @default(uuid())
+  seq                Int           @unique @default(autoincrement())
+  leadId             String
+  lead               Lead          @relation(fields: [leadId], references: [id])
+  quotationId        String?
+  quotation          Quotation?    @relation(fields: [quotationId], references: [id])
+  destinationId      String
+  destination        Destination   @relation(fields: [destinationId], references: [id])
+  travelDate         DateTime?
+  bookingExecutiveId String?
+  bookingExecutive   User?         @relation("BookingExecutive", fields: [bookingExecutiveId], references: [id])
+  customerSupportId  String?
+  customerSupport    User?         @relation("CustomerSupport", fields: [customerSupportId], references: [id])
+  totalAmount        Int           @default(0)
+  status             BookingStatus @default(Assigned)
+  remarks            String?
+  dmcName            String?
+  dmcEmailSentDate   DateTime?
+  dmcResponse        String?
+  dmcRemarks         String?
+
+  createdDate DateTime @default(now())
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  documents  BookingDocument[]
+  components BookingComponent[]
+
+  @@index([leadId])
+  @@index([bookingExecutiveId])
+  @@index([customerSupportId])
+  @@map("bookings")
+}
+
+model BookingDocument {
+  id           String              @id @default(uuid())
+  bookingId    String
+  booking      Booking             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  type         BookingDocumentType
+  url          String
+  uploadedDate DateTime            @default(now())
+
+  @@unique([bookingId, type])
+  @@map("booking_documents")
+}
+
+model BookingComponent {
+  id        String                 @id @default(uuid())
+  bookingId String
+  booking   Booking                @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  component BookingComponentType
+  detail    String                 @default("")
+  status    BookingComponentStatus @default(Pending)
+  sortOrder Int                    @default(0)
+
+  @@index([bookingId])
+  @@map("booking_components")
 }

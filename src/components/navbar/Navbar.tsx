@@ -3,10 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LogIn, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Menu, X, LogIn, LogOut, Sparkles } from "lucide-react";
 import Button from "@/components/common/Button";
 import Logo from "@/components/common/Logo";
 import LoginModal from "@/components/auth/LoginModal";
+import UserMenu from "@/components/navbar/UserMenu";
+import { useAuth } from "@/contexts/AuthContext";
 import { NAV_LINKS } from "@/data/navigation";
 import DestinationsMegaMenu, {
   DestinationsMegaMenuMobile,
@@ -24,6 +27,13 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const { isAuthenticated, loading, logout } = useAuth();
+  const router = useRouter();
+
+  const mobileLogout = () => {
+    logout();
+    router.push("/");
+  };
 
   // Generic hover helper: opens immediately, closes with a small grace
   // window so moving the cursor from trigger -> popover does not snap shut.
@@ -119,10 +129,14 @@ export default function Navbar() {
               );
             }
 
+            const isPage = link.href.startsWith("/");
+
             return (
               <li key={link.href}>
                 <a
                   href={link.href}
+                  target={isPage ? "_blank" : undefined}
+                  rel={isPage ? "noopener noreferrer" : undefined}
                   className={`relative px-4 py-2 text-sm font-medium transition-colors group ${
                     scrolled
                       ? "text-slate-700 hover:text-cyan-600"
@@ -139,15 +153,21 @@ export default function Navbar() {
 
         {/* Desktop actions */}
         <div className="hidden lg:flex items-center gap-3">
-          <Button
-            variant={scrolled ? "outline" : "ghost"}
-            size="sm"
-            aria-label="Login"
-            onClick={() => setLoginOpen(true)}
-          >
-            <LogIn className="w-4 h-4" />
-            Login
-          </Button>
+          {loading ? (
+            <div className={`h-8 w-24 rounded-full animate-pulse ${scrolled ? "bg-slate-200" : "bg-white/15"}`} />
+          ) : isAuthenticated ? (
+            <UserMenu scrolled={scrolled} />
+          ) : (
+            <Button
+              variant={scrolled ? "outline" : "ghost"}
+              size="sm"
+              aria-label="Login"
+              onClick={() => setLoginOpen(true)}
+            >
+              <LogIn className="w-4 h-4" />
+              Login
+            </Button>
+          )}
           <Button variant="primary" size="sm">
             <Sparkles className="w-4 h-4" />
             Plan My Trip
@@ -201,11 +221,14 @@ export default function Navbar() {
                     </li>
                   );
                 }
+                const isPage = link.href.startsWith("/");
                 return (
                   <li key={link.href}>
                     <a
                       onClick={() => setOpen(false)}
                       href={link.href}
+                      target={isPage ? "_blank" : undefined}
+                      rel={isPage ? "noopener noreferrer" : undefined}
                       className="block px-4 py-3 rounded-lg text-slate-700 font-medium hover:bg-cyan-50 hover:text-cyan-600 transition-colors"
                     >
                       {link.label}
@@ -213,17 +236,35 @@ export default function Navbar() {
                   </li>
                 );
               })}
+              {isAuthenticated && (
+                <li className="px-4 py-2 text-sm text-slate-500">
+                  Signed in
+                </li>
+              )}
               <li className="pt-3 grid grid-cols-2 gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setOpen(false);
-                    setLoginOpen(true);
-                  }}
-                >
-                  <LogIn className="w-4 h-4" /> Login
-                </Button>
+                {isAuthenticated ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setOpen(false);
+                      mobileLogout();
+                    }}
+                  >
+                    <LogOut className="w-4 h-4" /> Logout
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setOpen(false);
+                      setLoginOpen(true);
+                    }}
+                  >
+                    <LogIn className="w-4 h-4" /> Login
+                  </Button>
+                )}
                 <Button variant="primary" size="sm">
                   <Sparkles className="w-4 h-4" /> Plan Trip
                 </Button>
@@ -233,7 +274,18 @@ export default function Navbar() {
         )}
       </AnimatePresence>
 
-      <LoginModal open={loginOpen} onClose={() => setLoginOpen(false)} />
+      <LoginModal
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        onForgotPassword={() => {
+          setLoginOpen(false);
+          router.push("/forgot-password");
+        }}
+        onRegister={() => {
+          setLoginOpen(false);
+          router.push("/register");
+        }}
+      />
     </motion.header>
   );
 }

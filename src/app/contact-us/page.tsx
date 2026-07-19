@@ -5,7 +5,8 @@ import Navbar from "@/components/navbar/Navbar";
 import Footer from "@/components/footer/Footer";
 
 const ADDRESS =
-  "C86, Sterling Bispark, Fort Station Road, Thillai Nagar, Trichy 620018";
+  "4th Floor, Sterling Bispark, C86, Fort Station Rd, Thillai Nagar, Tennur, Tiruchirappalli, Tamil Nadu 620018";
+const MAP_QUERY = `Drive To Destination Holidays, ${ADDRESS}`;
 const PHONE_PRIMARY = "+91 95001 21263";
 const PHONE_SECONDARY = "+91 95001 21261";
 const EMAIL = "d2dholidays.admin@gmail.com";
@@ -17,7 +18,7 @@ const CONTACT_CARDS = [
     lines: [ADDRESS],
     action: {
       label: "Get Directions",
-      href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ADDRESS)}`,
+      href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(MAP_QUERY)}`,
       external: true,
     },
   },

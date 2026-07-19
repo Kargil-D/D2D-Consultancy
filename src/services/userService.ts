@@ -60,3 +60,14 @@ export function listUsersByRole(roleName: string) {
     orderBy: { firstName: "asc" },
   });
 }
+
+export function updateOwnProfile(
+  id: string,
+  data: { firstName: string; lastName: string; phoneNumber: string | null },
+) {
+  return prisma.user.update({
+    where: { id },
+    data,
+    include: { role: true },
+  });
+}

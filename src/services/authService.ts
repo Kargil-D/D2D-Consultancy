@@ -51,6 +51,11 @@ export function meApi() {
   return apiClient.get<{ user: User }>("/api/auth/me");
 }
 
+/** Rotates the refresh token cookie into a fresh access token — keeps the session alive past the 15-minute access-token TTL. */
+export function refreshSessionApi() {
+  return apiClient.post<Record<string, never>>("/api/auth/refresh");
+}
+
 export function logoutApi() {
   return apiClient.post<Record<string, never>>("/api/auth/logout");
 }

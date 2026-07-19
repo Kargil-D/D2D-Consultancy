@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Paginated } from "@/types/admin";
 import type { Prisma, LeadStatus } from "@/generated/prisma/client";
+import { createBookingFromWonLead, bookingCode } from "@/services/bookingService";
 
 export interface ListQuery {
   search?: string;
@@ -69,6 +70,22 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
         message: `Status changed from ${current.status} to ${status}`,
       },
     });
+
+    // Most bookings arrive automatically via this trigger — manual Add Booking is for exceptions.
+    if (status === "Won" && current.status !== "Won") {
+      const booking = await createBookingFromWonLead(tx, {
+        id: updated.id,
+        destinationId: updated.destinationId,
+        travelDate: updated.travelDate,
+      });
+      await tx.leadActivity.create({
+        data: {
+          leadId: id,
+          message: `Booking ${bookingCode(booking.seq)} created automatically`,
+        },
+      });
+    }
+
     return updated;
   });
 }

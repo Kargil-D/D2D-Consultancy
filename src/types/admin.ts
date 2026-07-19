@@ -288,6 +288,56 @@ export interface AdminQuotation {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Booking Module                                                             */
+/* -------------------------------------------------------------------------- */
+export type BookingStatus = "Assigned" | "DmcSent" | "AwaitingConfirmation" | "Confirmed" | "VoucherGenerated" | "Booked";
+export type BookingComponentType = "Hotel" | "Transfer" | "Activity" | "Visa";
+export type BookingComponentStatus = "Pending" | "Confirmed" | "Cancelled" | "Approved" | "Rejected";
+export type BookingDocumentType = "Passport" | "Visa" | "FlightTicket" | "Insurance";
+
+export interface AdminBookingComponent {
+  id?: string;
+  component: BookingComponentType;
+  detail: string;
+  status: BookingComponentStatus;
+  sortOrder?: number;
+}
+
+export interface AdminBookingDocument {
+  id: string;
+  type: BookingDocumentType;
+  url: string;
+  uploadedDate: string;
+}
+
+export interface AdminBooking {
+  id: string;
+  seq: number;
+  leadId: string;
+  lead?: AdminLead;
+  quotationId?: string | null;
+  quotation?: AdminQuotation | null;
+  destinationId: string;
+  destination?: AdminDestination;
+  travelDate?: string | null;
+  bookingExecutiveId?: string | null;
+  bookingExecutive?: AdminSalesUser | null;
+  customerSupportId?: string | null;
+  customerSupport?: AdminSalesUser | null;
+  totalAmount: number;
+  status: BookingStatus;
+  remarks?: string | null;
+  dmcName?: string | null;
+  dmcEmailSentDate?: string | null;
+  dmcResponse?: string | null;
+  dmcRemarks?: string | null;
+  documents: AdminBookingDocument[];
+  components: AdminBookingComponent[];
+  createdDate: string;
+  updatedDate: string;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Standard API response shape                                                */
 /* -------------------------------------------------------------------------- */
 export interface ApiResponse<T> {

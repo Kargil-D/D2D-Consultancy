@@ -25,10 +25,10 @@ export interface RecentItineraryCard {
   image: string;
   bookedBy: { name: string; city: string; ago: string };
   bucket: PriceBucket;
-  /** When true the "View Details" CTA links to /itinerary/{id}. */
+  /** When true the "Unlock Details" CTA links to /plan-trip pre-filled with this destination. */
   active: boolean;
-  /** Overrides the default `/itinerary/{id}` link (e.g. for campaign-sourced cards). */
-  href?: string;
+  /** This campaign's own detail page — the lead form returns here after submission instead of the generic destination listing. */
+  detailsUrl: string;
 }
 
 interface RecentItinerariesRailProps {
@@ -238,6 +238,8 @@ function ItineraryCard({
   itin: RecentItineraryCard;
   avatarColor: string;
 }) {
+  const planTripHref = `/plan-trip?destination=${encodeURIComponent(itin.destination)}&returnTo=${encodeURIComponent(itin.detailsUrl)}`;
+
   return (
     <article
       data-itin-card
@@ -296,10 +298,10 @@ function ItineraryCard({
           </div>
           {itin.active ? (
             <Link
-              href={itin.href ?? `/itinerary/${itin.id}`}
+              href={planTripHref}
               className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-500/30 transition-all hover:bg-emerald-600 hover:shadow-lg hover:shadow-emerald-500/40"
             >
-              View Details
+              Unlock Details
             </Link>
           ) : (
             <span
