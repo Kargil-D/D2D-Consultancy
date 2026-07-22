@@ -2,7 +2,8 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import type { Paginated, ActivityDetail, HotelStayDetail, ItineraryDayDetail, TransferStopDetail } from "@/types/admin";
 import type { Prisma } from "@/generated/prisma/client";
-import type { QuotationItemInput } from "@/lib/validation/quotation";
+import type { QuotationCreate, QuotationUpdate } from "@/lib/validation/quotation";
+import { createLead, updateLead, updateLeadStatus } from "@/services/leadService";
 import { findItineraryByPackageId } from "@/services/campaignItineraryService";
 import { findHotelByPackageId } from "@/services/campaignHotelService";
 import { findTransferByPackageId } from "@/services/campaignTransferService";
@@ -12,6 +13,7 @@ const QUOTATION_INCLUDE = {
   lead: true,
   destination: true,
   campaign: true,
+  salesExecutive: true,
   items: { orderBy: { sortOrder: "asc" as const } },
 };
 
@@ -65,23 +67,84 @@ export async function getQuotationByShareToken(token: string) {
   });
 }
 
-interface QuotationInput {
-  leadId: string;
-  destinationId: string;
-  campaignId?: string | null;
-  marginPercent: number;
-  items: QuotationItemInput[];
+const LEAD_PIPELINE_ORDER = ["New", "Contacted", "FollowUp"] as const;
+
+/**
+ * Step 1 has no "pick a lead" dropdown — it's a plain customer-detail form. This finds an
+ * existing Lead by exact mobile match (and refreshes its display fields) or creates a new
+ * one, so the Leads pipeline/reporting keeps working untouched. Status only ever moves
+ * forward to "QuotationSent" (never downgrades a Lead already further along, e.g. "Won").
+ */
+export async function findOrCreateLeadForQuotation(
+  customer: { customerName: string; mobile: string; email?: string | null; companyName?: string | null },
+  destinationId: string,
+  source?: string | null,
+) {
+  const existing = await prisma.lead.findFirst({ where: { mobile: customer.mobile, isDeleted: false } });
+
+  if (existing) {
+    const changed =
+      existing.customerName !== customer.customerName ||
+      (existing.email ?? null) !== (customer.email ?? null) ||
+      (existing.companyName ?? null) !== (customer.companyName ?? null);
+    const lead = changed
+      ? await updateLead(existing.id, {
+          customerName: customer.customerName,
+          email: customer.email || null,
+          companyName: customer.companyName || null,
+        })
+      : existing;
+
+    if ((LEAD_PIPELINE_ORDER as readonly string[]).includes(lead.status)) {
+      await updateLeadStatus(lead.id, "QuotationSent");
+      return prisma.lead.findUniqueOrThrow({ where: { id: lead.id } });
+    }
+    return lead;
+  }
+
+  return createLead({
+    customerName: customer.customerName,
+    mobile: customer.mobile,
+    email: customer.email || null,
+    companyName: customer.companyName || null,
+    destinationId,
+    source: (source as Prisma.LeadUncheckedCreateInput["source"]) ?? "Manual",
+    status: "QuotationSent",
+  });
 }
 
-export async function createQuotation(input: QuotationInput) {
+function quotationScalarData(input: Partial<QuotationCreate | QuotationUpdate>) {
+  return {
+    ...(input.destinationId !== undefined && { destinationId: input.destinationId }),
+    ...(input.campaignId !== undefined && { campaignId: input.campaignId || null }),
+    ...(input.marginPercent !== undefined && { marginPercent: input.marginPercent }),
+    ...(input.travelDate !== undefined && { travelDate: input.travelDate }),
+    ...(input.days !== undefined && { days: input.days }),
+    ...(input.nights !== undefined && { nights: input.nights }),
+    ...(input.adults !== undefined && { adults: input.adults }),
+    ...(input.children !== undefined && { children: input.children }),
+    ...(input.infants !== undefined && { infants: input.infants }),
+    ...(input.salesExecutiveId !== undefined && { salesExecutiveId: input.salesExecutiveId || null }),
+    ...(input.source !== undefined && { source: input.source }),
+    ...(input.validUntil !== undefined && { validUntil: input.validUntil }),
+    ...(input.internalNotes !== undefined && { internalNotes: input.internalNotes }),
+    ...(input.itineraryMode !== undefined && { itineraryMode: input.itineraryMode }),
+    ...(input.itineraryDays !== undefined && { itineraryDays: input.itineraryDays as Prisma.InputJsonValue }),
+    ...(input.hotelOptions !== undefined && { hotelOptions: input.hotelOptions as Prisma.InputJsonValue }),
+    ...(input.transfers !== undefined && { transfers: input.transfers as Prisma.InputJsonValue }),
+    ...(input.activities !== undefined && { activities: input.activities as Prisma.InputJsonValue }),
+  } satisfies Prisma.QuotationUncheckedUpdateInput;
+}
+
+export async function createQuotation(input: QuotationCreate) {
+  const lead = await findOrCreateLeadForQuotation(input.customer, input.destinationId, input.source);
+
   return prisma.$transaction(async (tx) => {
     const quotation = await tx.quotation.create({
       data: {
-        leadId: input.leadId,
-        destinationId: input.destinationId,
-        campaignId: input.campaignId || null,
-        marginPercent: input.marginPercent,
-      },
+        leadId: lead.id,
+        ...quotationScalarData(input),
+      } as Prisma.QuotationUncheckedCreateInput,
     });
     if (input.items.length > 0) {
       await tx.quotationItem.createMany({
@@ -102,16 +165,21 @@ export async function createQuotation(input: QuotationInput) {
   });
 }
 
-export async function updateQuotation(id: string, input: Partial<QuotationInput>) {
+export async function updateQuotation(id: string, input: QuotationUpdate) {
+  if (input.customer) {
+    const current = await prisma.quotation.findUniqueOrThrow({ where: { id } });
+    const lead = await findOrCreateLeadForQuotation(
+      input.customer,
+      input.destinationId ?? current.destinationId,
+      input.source,
+    );
+    if (lead.id !== current.leadId) {
+      await prisma.quotation.update({ where: { id }, data: { leadId: lead.id } });
+    }
+  }
+
   return prisma.$transaction(async (tx) => {
-    await tx.quotation.update({
-      where: { id },
-      data: {
-        ...(input.destinationId !== undefined && { destinationId: input.destinationId }),
-        ...(input.campaignId !== undefined && { campaignId: input.campaignId || null }),
-        ...(input.marginPercent !== undefined && { marginPercent: input.marginPercent }),
-      },
-    });
+    await tx.quotation.update({ where: { id }, data: quotationScalarData(input) });
     if (input.items) {
       await tx.quotationItem.deleteMany({ where: { quotationId: id } });
       if (input.items.length > 0) {
@@ -147,6 +215,21 @@ export async function duplicateQuotation(id: string) {
         destinationId: source.destinationId,
         campaignId: source.campaignId,
         marginPercent: source.marginPercent,
+        travelDate: source.travelDate,
+        days: source.days,
+        nights: source.nights,
+        adults: source.adults,
+        children: source.children,
+        infants: source.infants,
+        salesExecutiveId: source.salesExecutiveId,
+        source: source.source,
+        validUntil: source.validUntil,
+        internalNotes: source.internalNotes,
+        itineraryMode: source.itineraryMode,
+        itineraryDays: source.itineraryDays as Prisma.InputJsonValue,
+        hotelOptions: source.hotelOptions as Prisma.InputJsonValue,
+        transfers: source.transfers as Prisma.InputJsonValue,
+        activities: source.activities as Prisma.InputJsonValue,
       },
     });
     if (source.items.length > 0) {
@@ -190,9 +273,23 @@ export function toPublicQuoteData(quotation: NonNullable<Awaited<ReturnType<type
     quoteCode: quoteCode(quotation.seq),
     customerName: quotation.lead.customerName,
     destinationName: quotation.destination.name,
-    travelDate: quotation.lead.travelDate ? quotation.lead.travelDate.toLocaleDateString("en-IN") : null,
+    travelDate: quotation.travelDate
+      ? quotation.travelDate.toLocaleDateString("en-IN")
+      : quotation.lead.travelDate
+        ? quotation.lead.travelDate.toLocaleDateString("en-IN")
+        : null,
+    days: quotation.days,
+    nights: quotation.nights,
+    adults: quotation.adults,
+    children: quotation.children,
+    infants: quotation.infants,
+    validUntil: quotation.validUntil ? quotation.validUntil.toLocaleDateString("en-IN") : null,
     createdDate: quotation.createdDate.toLocaleDateString("en-IN"),
     components: quotation.items.map((i) => ({ component: i.component, detail: i.detail, qty: i.qty })),
+    itineraryDays: quotation.itineraryDays,
+    hotelOptions: quotation.hotelOptions,
+    transfers: quotation.transfers,
+    activities: quotation.activities,
     sellingPrice,
     status: quotation.status,
   };

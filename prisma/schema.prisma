@@ -56,6 +56,7 @@ model User {
   assignedLeads         Lead[]
   bookingsAsExecutive   Booking[]      @relation("BookingExecutive")
   bookingsAsSupport     Booking[]      @relation("CustomerSupport")
+  quotationsAsSalesExec Quotation[]    @relation("QuotationSalesExecutive")
 
   @@index([roleId])
   @@map("users")
@@ -121,6 +122,7 @@ model Destination {
   leads           Lead[]
   quotations      Quotation[]
   bookings        Booking[]
+  hotelMasters    HotelMaster[]
 
   @@map("destinations")
 }
@@ -258,6 +260,31 @@ model TransferType {
   @@map("transfer_types")
 }
 
+model HotelMaster {
+  id            String       @id @default(uuid())
+  name          String
+  destinationId String?
+  destination   Destination? @relation(fields: [destinationId], references: [id])
+  images        String[]     @default([])
+  description   String       @default("")
+  category      String?
+  roomTypes     String[]     @default([])
+  mealPlans     String[]     @default([])
+  amenities     String[]     @default([])
+  googleMapUrl  String?
+  website       String?
+  status        Status       @default(Active)
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  @@index([destinationId])
+  @@map("hotel_master")
+}
+
 enum LeadSource {
   Website
   MetaAds
@@ -284,6 +311,7 @@ model Lead {
   customerName  String
   mobile        String
   email         String?
+  companyName   String?
   destinationId String
   destination   Destination @relation(fields: [destinationId], references: [id])
   travelDate    DateTime?
@@ -349,6 +377,28 @@ model Quotation {
   marginPercent Float           @default(0)
   status        QuotationStatus @default(Draft)
   shareToken    String?         @unique
+
+  // Step 1 — Trip & Traveller Details (quotation-specific, independent of the linked Lead's own values)
+  travelDate DateTime?
+  days       Int?
+  nights     Int?
+  adults     Int  @default(1)
+  children   Int  @default(0)
+  infants    Int  @default(0)
+
+  // Step 1 — Other Details
+  salesExecutiveId String?
+  salesExecutive   User?      @relation("QuotationSalesExecutive", fields: [salesExecutiveId], references: [id])
+  source           LeadSource?
+  validUntil       DateTime?
+  internalNotes    String?
+
+  // Steps 2–5 — Itinerary / Hotels / Transfers / Activities (manual entry, JSON — same pattern as Campaign.activities / Itinerary.days)
+  itineraryMode String @default("custom")
+  itineraryDays Json   @default("[]")
+  hotelOptions  Json   @default("[]")
+  transfers     Json   @default("[]")
+  activities    Json   @default("[]")
 
   createdDate DateTime @default(now())
   updatedDate DateTime @updatedAt

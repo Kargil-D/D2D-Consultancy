@@ -3,19 +3,64 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Plus, Trash2, FileDown, Mail, Share2, Copy, Save } from "lucide-react";
-import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
+import {
+  Plus,
+  Trash2,
+  FileDown,
+  Mail,
+  Share2,
+  Copy,
+  Save,
+  Check,
+  ArrowLeft,
+  ArrowRight,
+  User as UserIcon,
+  Map,
+  BedDouble,
+  ArrowRightLeft,
+  Ticket,
+  Wallet,
+} from "lucide-react";
+import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
-import { currenciesApi, destinationsApi, leadsApi, packagesApi, quotationsApi } from "@/lib/adminApi";
-import type { AdminCurrency, AdminLead, AdminDestination, AdminPackage, AdminQuotationItem, QuotationComponentType } from "@/types/admin";
+import { currenciesApi, destinationsApi, leadsApi, packagesApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
+import { useAuth } from "@/contexts/AuthContext";
+import QuotationItineraryDaysEditor, { newQuotationDay } from "@/components/admin/quotation/QuotationItineraryDaysEditor";
+import QuotationHotelOptionsEditor from "@/components/admin/quotation/QuotationHotelOptionsEditor";
+import QuotationTransfersEditor from "@/components/admin/quotation/QuotationTransfersEditor";
+import QuotationActivitiesEditor from "@/components/admin/quotation/QuotationActivitiesEditor";
+import type {
+  AdminCurrency,
+  AdminDestination,
+  AdminPackage,
+  AdminQuotationItem,
+  AdminSalesUser,
+  LeadSource,
+  QuotationActivityItem,
+  QuotationComponentType,
+  QuotationCustomerInput,
+  QuotationHotelOptionGroup,
+  QuotationItineraryDay,
+  QuotationTransferItem,
+} from "@/types/admin";
 
 interface QuotationBuilderProps {
   id?: string;
 }
 
 const COMPONENTS: QuotationComponentType[] = ["Hotel", "Transfer", "Activity", "Visa", "Insurance", "Flight"];
+const SOURCES: LeadSource[] = ["Website", "MetaAds", "GoogleAds", "SEO", "WhatsApp", "Referral", "Manual"];
 
-const emptyRow = (sortOrder: number): AdminQuotationItem => ({
+const STEPS = [
+  { key: "customer", label: "Customer Details", icon: UserIcon },
+  { key: "itinerary", label: "Itinerary", icon: Map },
+  { key: "hotels", label: "Hotels", icon: BedDouble },
+  { key: "transfers", label: "Transfers", icon: ArrowRightLeft },
+  { key: "activities", label: "Activities", icon: Ticket },
+  { key: "pricing", label: "Pricing", icon: Wallet },
+] as const;
+
+const emptyItemRow = (sortOrder: number): AdminQuotationItem => ({
   component: "Hotel",
   detail: "",
   qty: 1,
@@ -29,77 +74,158 @@ const emptyRow = (sortOrder: number): AdminQuotationItem => ({
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
 
-export default function QuotationBuilder({ id }: QuotationBuilderProps) {
+interface Draft {
+  customer: QuotationCustomerInput;
+  destinationId: string;
+  campaignId: string;
+  travelDate: string;
+  days: string;
+  nights: string;
+  adults: number;
+  children: number;
+  infants: number;
+  salesExecutiveId: string;
+  source: LeadSource | "";
+  validUntil: string;
+  internalNotes: string;
+  itineraryMode: "template" | "custom";
+  itineraryDays: QuotationItineraryDay[];
+  hotelOptions: QuotationHotelOptionGroup[];
+  transfers: QuotationTransferItem[];
+  activities: QuotationActivityItem[];
+  marginPercent: number;
+  items: AdminQuotationItem[];
+}
+
+const emptyDraft = (): Draft => ({
+  customer: { customerName: "", mobile: "", email: "", companyName: "" },
+  destinationId: "",
+  campaignId: "",
+  travelDate: "",
+  days: "",
+  nights: "",
+  adults: 1,
+  children: 0,
+  infants: 0,
+  salesExecutiveId: "",
+  source: "Manual",
+  validUntil: "",
+  internalNotes: "",
+  itineraryMode: "custom",
+  itineraryDays: [],
+  hotelOptions: [],
+  transfers: [],
+  activities: [],
+  marginPercent: 0,
+  items: [emptyItemRow(0)],
+});
+
+export default function QuotationBuilder({ id: initialId }: QuotationBuilderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { notify } = useToast();
+  const { user } = useAuth();
 
-  const [leads, setLeads] = useState<AdminLead[]>([]);
-  const [destinations, setDestinations] = useState<AdminDestination[]>([]);
-  const [campaigns, setCampaigns] = useState<AdminPackage[]>([]);
-  const [currencies, setCurrencies] = useState<AdminCurrency[]>([]);
-
-  const [leadId, setLeadId] = useState("");
-  const [destinationId, setDestinationId] = useState("");
-  const [campaignId, setCampaignId] = useState("");
-  const [marginPercent, setMarginPercent] = useState(0);
-  const [items, setItems] = useState<AdminQuotationItem[]>([emptyRow(0)]);
+  const [id, setId] = useState<string | undefined>(initialId);
+  const [step, setStep] = useState(0);
+  const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [status, setStatus] = useState<string>("Draft");
   const [shareToken, setShareToken] = useState<string | null>(null);
 
-  const [loading, setLoading] = useState(!!id);
+  const [destinations, setDestinations] = useState<AdminDestination[]>([]);
+  const [campaigns, setCampaigns] = useState<AdminPackage[]>([]);
+  const [currencies, setCurrencies] = useState<AdminCurrency[]>([]);
+  const [salesUsers, setSalesUsers] = useState<AdminSalesUser[]>([]);
+
+  const [loading, setLoading] = useState(!!initialId);
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
-  // Load reference lists once.
+  const patch = (next: Partial<Draft>) => setDraft((d) => ({ ...d, ...next }));
+
   useEffect(() => {
     (async () => {
-      const [leadsRes, destRes, currRes] = await Promise.all([
-        leadsApi.list({ pageSize: 1000 }),
+      const [destRes, currRes, salesRes] = await Promise.all([
         destinationsApi.all(),
         currenciesApi.list({ pageSize: 100, filter: { status: "Active" } }),
+        salesUsersApi.list(),
       ]);
-      if (leadsRes.success) setLeads(leadsRes.data.items);
       if (destRes.success) setDestinations(destRes.data);
       if (currRes.success) setCurrencies(currRes.data.items);
+      if (salesRes.success) setSalesUsers(salesRes.data);
     })();
   }, []);
 
-  // Load campaigns whenever the destination changes (they're the "Itinerary Template" source).
+  // Default Sales Executive to the logged-in user on a fresh quotation ("Auto from Login") — still overridable.
   useEffect(() => {
-    if (!destinationId) {
+    if (!initialId && user?.id) patch({ salesExecutiveId: user.id });
+  }, [initialId, user?.id]);
+
+  useEffect(() => {
+    if (!draft.destinationId) {
       setCampaigns([]);
       return;
     }
-    packagesApi.list({ pageSize: 1000, filter: { destinationId } }).then((res) => {
+    packagesApi.list({ pageSize: 1000, filter: { destinationId: draft.destinationId } }).then((res) => {
       if (res.success) setCampaigns(res.data.items);
     });
-  }, [destinationId]);
+  }, [draft.destinationId]);
 
   // Prefill from ?leadId= when arriving from a Lead's "Create Quotation" button.
   useEffect(() => {
-    if (id) return;
+    if (initialId) return;
     const prefillLeadId = searchParams.get("leadId");
     if (!prefillLeadId) return;
-    setLeadId(prefillLeadId);
     leadsApi.get(prefillLeadId).then((res) => {
-      if (res.success && res.data) setDestinationId(res.data.destinationId);
+      if (res.success && res.data) {
+        patch({
+          customer: {
+            customerName: res.data.customerName,
+            mobile: res.data.mobile,
+            email: res.data.email ?? "",
+            companyName: res.data.companyName ?? "",
+          },
+          destinationId: res.data.destinationId,
+          source: res.data.source,
+        });
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [initialId]);
 
-  // Load existing quotation when editing.
   useEffect(() => {
-    if (!id) return;
+    if (!initialId) return;
     (async () => {
-      const res = await quotationsApi.get(id);
+      const res = await quotationsApi.get(initialId);
       if (res.success && res.data) {
         const q = res.data;
-        setLeadId(q.leadId);
-        setDestinationId(q.destinationId);
-        setCampaignId(q.campaignId ?? "");
-        setMarginPercent(q.marginPercent);
-        setItems(q.items.length > 0 ? q.items : [emptyRow(0)]);
+        setDraft({
+          customer: {
+            customerName: q.lead?.customerName ?? "",
+            mobile: q.lead?.mobile ?? "",
+            email: q.lead?.email ?? "",
+            companyName: q.lead?.companyName ?? "",
+          },
+          destinationId: q.destinationId,
+          campaignId: q.campaignId ?? "",
+          travelDate: q.travelDate ? q.travelDate.slice(0, 10) : "",
+          days: q.days != null ? String(q.days) : "",
+          nights: q.nights != null ? String(q.nights) : "",
+          adults: q.adults,
+          children: q.children,
+          infants: q.infants,
+          salesExecutiveId: q.salesExecutiveId ?? "",
+          source: q.source ?? "",
+          validUntil: q.validUntil ? q.validUntil.slice(0, 10) : "",
+          internalNotes: q.internalNotes ?? "",
+          itineraryMode: q.itineraryMode,
+          itineraryDays: q.itineraryDays,
+          hotelOptions: q.hotelOptions,
+          transfers: q.transfers,
+          activities: q.activities,
+          marginPercent: q.marginPercent,
+          items: q.items.length > 0 ? q.items : [emptyItemRow(0)],
+        });
         setStatus(q.status);
         setShareToken(q.shareToken ?? null);
       } else {
@@ -108,13 +234,13 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [initialId]);
 
   // Selecting an Itinerary Template pre-loads default components (only for a fresh/empty builder).
   const applyTemplate = async (nextCampaignId: string) => {
-    setCampaignId(nextCampaignId);
+    patch({ campaignId: nextCampaignId });
     if (!nextCampaignId) return;
-    const onlyBlankRow = items.length === 1 && !items[0].detail && items[0].cost === 0;
+    const onlyBlankRow = draft.items.length === 1 && !draft.items[0].detail && draft.items[0].cost === 0;
     if (!onlyBlankRow) return;
 
     const res = await packagesApi.get(nextCampaignId);
@@ -127,57 +253,38 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
     if (campaign.insurancePrice > 0) {
       preset.push({ component: "Insurance", detail: "Travel insurance", qty: 1, cost: campaign.insurancePrice, sortOrder: 1 });
     }
-    if (preset.length > 0) setItems(preset);
+    if (preset.length > 0) patch({ items: preset });
   };
-
-  const updateItem = (index: number, patch: Partial<AdminQuotationItem>) => {
-    setItems((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
-  };
-
-  // Switching currency freezes that currency's current active rate into the row —
-  // the rate is only ever re-read here, at the moment the row is edited, never later.
-  const changeItemCurrency = (index: number, code: string) => {
-    if (code === "INR") {
-      updateItem(index, { currencyCode: "INR", exchangeRate: 1, foreignAmount: null });
-      return;
-    }
-    const currency = currencies.find((c) => c.code === code);
-    const rate = currency?.exchangeRate ?? 1;
-    setItems((rows) =>
-      rows.map((r, i) =>
-        i === index
-          ? { ...r, currencyCode: code, exchangeRate: rate, cost: Math.round((r.foreignAmount ?? 0) * rate) }
-          : r,
-      ),
-    );
-  };
-
-  const changeItemForeignAmount = (index: number, amount: number) => {
-    setItems((rows) =>
-      rows.map((r, i) => (i === index ? { ...r, foreignAmount: amount, cost: Math.round(amount * r.exchangeRate!) } : r)),
-    );
-  };
-
-  const addRow = () => setItems((rows) => [...rows, emptyRow(rows.length)]);
-  const removeRow = (index: number) => setItems((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows));
-
-  const totalCost = items.reduce((sum, r) => sum + r.qty * r.cost, 0);
-  const marginValue = Math.round(totalCost * (marginPercent / 100));
-  const sellingPrice = totalCost + marginValue;
-
-  const canSave = !!leadId && !!destinationId;
 
   const buildPayload = () => ({
-    leadId,
-    destinationId,
-    campaignId: campaignId || null,
-    marginPercent,
-    items: items.map((r, i) => ({ ...r, sortOrder: i })),
+    customer: draft.customer,
+    destinationId: draft.destinationId,
+    campaignId: draft.campaignId || null,
+    travelDate: draft.travelDate || null,
+    days: draft.days === "" ? null : Number(draft.days),
+    nights: draft.nights === "" ? null : Number(draft.nights),
+    adults: draft.adults,
+    children: draft.children,
+    infants: draft.infants,
+    salesExecutiveId: draft.salesExecutiveId || null,
+    source: draft.source || null,
+    validUntil: draft.validUntil || null,
+    internalNotes: draft.internalNotes || null,
+    marginPercent: draft.marginPercent,
+    items: draft.items.map((r, i) => ({ ...r, sortOrder: i })),
+    itineraryMode: draft.itineraryMode,
+    itineraryDays: draft.itineraryDays,
+    hotelOptions: draft.hotelOptions,
+    transfers: draft.transfers,
+    activities: draft.activities,
   });
 
-  const save = async (): Promise<string | null> => {
-    if (!canSave) {
-      notify("Select a customer/lead and a destination first", "error");
+  const canSaveStep1 = !!draft.customer.customerName.trim() && !!draft.customer.mobile.trim() && !!draft.destinationId;
+
+  /** Persists the whole draft — create on first save, update afterwards. Used by "Save & Next" and the top-level Save Draft button. */
+  const persist = async (): Promise<string | null> => {
+    if (!canSaveStep1) {
+      notify("Customer name, mobile and destination are required", "error");
       return null;
     }
     setSaving(true);
@@ -188,7 +295,6 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
           notify(res.message || "Unable to save quotation", "error");
           return null;
         }
-        notify("Quotation saved", "success");
         return id;
       }
       const res = await quotationsApi.create(buildPayload());
@@ -196,13 +302,22 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
         notify(res.message || "Unable to create quotation", "error");
         return null;
       }
-      notify("Quotation created", "success");
-      router.push(`/admin/quotations/${res.data.id}/edit`);
+      setId(res.data.id);
+      router.replace(`/admin/quotations/${res.data.id}/edit`);
       return res.data.id;
     } finally {
       setSaving(false);
     }
   };
+
+  const goNext = async () => {
+    const savedId = await persist();
+    if (!savedId) return;
+    if (step === 0) notify("Quotation saved as Draft", "success");
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  };
+
+  const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   const withBusy = async (key: string, fn: () => Promise<void>) => {
     setBusyAction(key);
@@ -215,14 +330,14 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
 
   const generatePdf = () =>
     withBusy("pdf", async () => {
-      const savedId = await save();
+      const savedId = await persist();
       if (!savedId) return;
       window.open(`/api/admin/quotations/${savedId}/pdf`, "_blank");
     });
 
   const sendEmail = () =>
     withBusy("email", async () => {
-      const savedId = await save();
+      const savedId = await persist();
       if (!savedId) return;
       const res = await quotationsApi.sendEmail(savedId);
       if (!res.success) return notify(res.message || "Unable to send email", "error");
@@ -232,7 +347,7 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
 
   const generateLink = () =>
     withBusy("link", async () => {
-      const savedId = await save();
+      const savedId = await persist();
       if (!savedId) return;
       const res = await quotationsApi.generateShareLink(savedId);
       if (!res.success || !res.data) return notify(res.message || "Unable to generate link", "error");
@@ -251,6 +366,33 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
       router.push(`/admin/quotations/${res.data.id}/edit`);
     });
 
+  // Costing helpers (Step 6 — unchanged pricing logic).
+  const updateItem = (index: number, itemPatch: Partial<AdminQuotationItem>) => {
+    patch({ items: draft.items.map((r, i) => (i === index ? { ...r, ...itemPatch } : r)) });
+  };
+  const changeItemCurrency = (index: number, code: string) => {
+    if (code === "INR") {
+      updateItem(index, { currencyCode: "INR", exchangeRate: 1, foreignAmount: null });
+      return;
+    }
+    const currency = currencies.find((c) => c.code === code);
+    const rate = currency?.exchangeRate ?? 1;
+    patch({
+      items: draft.items.map((r, i) =>
+        i === index ? { ...r, currencyCode: code, exchangeRate: rate, cost: Math.round((r.foreignAmount ?? 0) * rate) } : r,
+      ),
+    });
+  };
+  const changeItemForeignAmount = (index: number, amount: number) => {
+    patch({ items: draft.items.map((r, i) => (i === index ? { ...r, foreignAmount: amount, cost: Math.round(amount * r.exchangeRate!) } : r)) });
+  };
+  const addRow = () => patch({ items: [...draft.items, emptyItemRow(draft.items.length)] });
+  const removeRow = (index: number) => patch({ items: draft.items.length > 1 ? draft.items.filter((_, i) => i !== index) : draft.items });
+
+  const totalCost = draft.items.reduce((sum, r) => sum + r.qty * r.cost, 0);
+  const marginValue = Math.round(totalCost * (draft.marginPercent / 100));
+  const sellingPrice = totalCost + marginValue;
+
   if (loading) {
     return (
       <div className="rounded-2xl bg-white border border-slate-200 p-10 text-center text-sm text-slate-500">
@@ -261,205 +403,291 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_260px] gap-6">
-      {/* Quotation Actions panel (left) */}
+      {/* Actions panel (left) */}
       <div className="rounded-2xl bg-white border border-slate-200 p-4 h-fit space-y-2 order-2 lg:order-1">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Actions</h3>
-        <button
-          type="button"
-          onClick={generatePdf}
-          disabled={busyAction !== null}
-          className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-        >
+        <button type="button" onClick={() => persist()} disabled={saving} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+          <Save className="w-4 h-4" /> Save Draft
+        </button>
+        <button type="button" onClick={generatePdf} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
           <FileDown className="w-4 h-4" /> Generate PDF
         </button>
-        <button
-          type="button"
-          onClick={sendEmail}
-          disabled={busyAction !== null}
-          className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-        >
+        <button type="button" onClick={sendEmail} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
           <Mail className="w-4 h-4" /> Send Email
         </button>
-        <button
-          type="button"
-          onClick={generateLink}
-          disabled={busyAction !== null}
-          className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-        >
+        <button type="button" onClick={generateLink} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
           <Share2 className="w-4 h-4" /> Generate Shareable Link
         </button>
         {id && (
-          <button
-            type="button"
-            onClick={duplicate}
-            disabled={busyAction !== null}
-            className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
+          <button type="button" onClick={duplicate} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
             <Copy className="w-4 h-4" /> Duplicate
           </button>
         )}
         {shareToken && (
-          <Link
-            href={`/quote/${shareToken}`}
-            target="_blank"
-            className="block text-center text-xs text-cyan-700 hover:underline pt-1"
-          >
+          <Link href={`/quote/${shareToken}`} target="_blank" className="block text-center text-xs text-cyan-700 hover:underline pt-1">
             View public link
           </Link>
         )}
+        {id && (
+          <div className="text-xs text-slate-400 pt-2 border-t border-slate-100 mt-2">
+            Status: <span className="font-semibold text-slate-600">{status}</span>
+          </div>
+        )}
       </div>
 
-      {/* Main builder */}
+      {/* Stepper + step content (center) */}
       <div className="space-y-6 order-1 lg:order-2">
         <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
             <h2 className="text-xl font-bold text-slate-900">{id ? "Edit Quotation" : "New Quotation"}</h2>
-            <div className="flex items-center gap-2">
-              <Link href="/admin/leads" className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100">
-                Cancel
-              </Link>
+            <Link href="/admin/leads" className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100">
+              Cancel
+            </Link>
+          </div>
+          <div className="flex items-center overflow-x-auto px-4 py-3 gap-1 bg-slate-50/60">
+            {STEPS.map((s, i) => {
+              const Icon = s.icon;
+              const reachable = i === 0 || !!id;
+              const active = i === step;
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  disabled={!reachable}
+                  onClick={() => reachable && setStep(i)}
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                    active ? "bg-blue-600 text-white shadow-sm" : reachable ? "text-slate-600 hover:bg-slate-100" : "text-slate-300 cursor-not-allowed"
+                  }`}
+                >
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${active ? "bg-white/20" : "bg-slate-200"}`}>
+                    {i < step || (i === 0 && id) ? <Check className="w-3 h-3" /> : i + 1}
+                  </span>
+                  <Icon className="w-3.5 h-3.5" /> {s.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-6">
+            {step === 0 && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-3">Customer Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Field label="Customer Name" required>
+                      <input className={inputCls} value={draft.customer.customerName} onChange={(e) => patch({ customer: { ...draft.customer, customerName: e.target.value } })} placeholder="Jane Doe" />
+                    </Field>
+                    <Field label="Mobile Number" required>
+                      <input className={inputCls} value={draft.customer.mobile} onChange={(e) => patch({ customer: { ...draft.customer, mobile: e.target.value } })} placeholder="+91 98765 43210" />
+                    </Field>
+                    <Field label="Email Address">
+                      <input type="email" className={inputCls} value={draft.customer.email ?? ""} onChange={(e) => patch({ customer: { ...draft.customer, email: e.target.value } })} />
+                    </Field>
+                    <Field label="Company Name" hint="Optional">
+                      <input className={inputCls} value={draft.customer.companyName ?? ""} onChange={(e) => patch({ customer: { ...draft.customer, companyName: e.target.value } })} />
+                    </Field>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-3">Trip Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Field label="Destination" required className="md:col-span-2">
+                      <select className={selectCls} value={draft.destinationId} onChange={(e) => patch({ destinationId: e.target.value, campaignId: "" })}>
+                        <option value="">Select destination</option>
+                        {destinations.map((d) => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Travel Date">
+                      <input type="date" className={inputCls} value={draft.travelDate} onChange={(e) => patch({ travelDate: e.target.value })} />
+                    </Field>
+                    <div />
+                    <Field label="Days">
+                      <input type="number" min={0} className={inputCls} value={draft.days} onChange={(e) => patch({ days: e.target.value })} />
+                    </Field>
+                    <Field label="Nights">
+                      <input type="number" min={0} className={inputCls} value={draft.nights} onChange={(e) => patch({ nights: e.target.value })} />
+                    </Field>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-3">Traveller Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Field label="Adults">
+                      <input type="number" min={1} className={inputCls} value={draft.adults} onChange={(e) => patch({ adults: Number(e.target.value) || 1 })} />
+                    </Field>
+                    <Field label="Children">
+                      <input type="number" min={0} className={inputCls} value={draft.children} onChange={(e) => patch({ children: Number(e.target.value) || 0 })} />
+                    </Field>
+                    <Field label="Infants">
+                      <input type="number" min={0} className={inputCls} value={draft.infants} onChange={(e) => patch({ infants: Number(e.target.value) || 0 })} />
+                    </Field>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-3">Other Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Field label="Sales Executive" hint="Defaults to you">
+                      <select className={selectCls} value={draft.salesExecutiveId} onChange={(e) => patch({ salesExecutiveId: e.target.value })}>
+                        <option value="">Unassigned</option>
+                        {salesUsers.map((u) => (
+                          <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Lead Source">
+                      <select className={selectCls} value={draft.source} onChange={(e) => patch({ source: e.target.value as LeadSource })}>
+                        {SOURCES.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Quotation Validity">
+                      <input type="date" className={inputCls} value={draft.validUntil} onChange={(e) => patch({ validUntil: e.target.value })} />
+                    </Field>
+                  </div>
+                  <Field label="Internal Notes" hint="Visible only to Admin/Sales — never shown to the customer" className="mt-4">
+                    <textarea className={textareaCls} value={draft.internalNotes} onChange={(e) => patch({ internalNotes: e.target.value })} />
+                  </Field>
+                </div>
+              </div>
+            )}
+
+            {step === 1 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Build itinerary from</span>
+                  <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
+                    <button type="button" onClick={() => patch({ itineraryMode: "template" })} className={`px-3 py-1.5 text-xs font-semibold ${draft.itineraryMode === "template" ? "bg-blue-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                      Package Template
+                    </button>
+                    <button type="button" onClick={() => patch({ itineraryMode: "custom" })} className={`px-3 py-1.5 text-xs font-semibold ${draft.itineraryMode === "custom" ? "bg-blue-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+                      Custom Itinerary
+                    </button>
+                  </div>
+                </div>
+
+                {draft.itineraryMode === "template" && (
+                  <Field label="Itinerary Template" hint="Copies the campaign's day-wise plan in — you can still edit it below">
+                    <select
+                      className={selectCls}
+                      value={draft.campaignId}
+                      onChange={(e) => {
+                        const campaignId = e.target.value;
+                        applyTemplate(campaignId);
+                        if (campaignId && draft.itineraryDays.length === 0) patch({ itineraryDays: [newQuotationDay(1)] });
+                      }}
+                      disabled={!draft.destinationId}
+                    >
+                      <option value="">Select template</option>
+                      {campaigns.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
+
+                <QuotationItineraryDaysEditor days={draft.itineraryDays} onChange={(itineraryDays) => patch({ itineraryDays })} />
+              </div>
+            )}
+
+            {step === 2 && <QuotationHotelOptionsEditor options={draft.hotelOptions} onChange={(hotelOptions) => patch({ hotelOptions })} />}
+
+            {step === 3 && <QuotationTransfersEditor transfers={draft.transfers} onChange={(transfers) => patch({ transfers })} />}
+
+            {step === 4 && <QuotationActivitiesEditor activities={draft.activities} onChange={(activities) => patch({ activities })} />}
+
+            {step === 5 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-900">Costing Components</h3>
+                  <button type="button" onClick={addRow} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200">
+                    <Plus className="w-3.5 h-3.5" /> Add Row
+                  </button>
+                </div>
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
+                        <th className="px-4 py-2 w-36">Component</th>
+                        <th className="px-4 py-2">Detail</th>
+                        <th className="px-4 py-2 w-16">Qty</th>
+                        <th className="px-4 py-2 w-24">Currency</th>
+                        <th className="px-4 py-2 w-40">Supplier Cost</th>
+                        <th className="px-4 py-2 w-10" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {draft.items.map((row, i) => (
+                        <tr key={i} className="border-b border-slate-50">
+                          <td className="px-4 py-2">
+                            <select className={selectCls} value={row.component} onChange={(e) => updateItem(i, { component: e.target.value as QuotationComponentType })}>
+                              {COMPONENTS.map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-2">
+                            <input className={inputCls} value={row.detail} onChange={(e) => updateItem(i, { detail: e.target.value })} placeholder="e.g. 4-star hotel, 3 nights" />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input type="number" min={1} className={inputCls} value={row.qty} onChange={(e) => updateItem(i, { qty: Number(e.target.value) || 1 })} />
+                          </td>
+                          <td className="px-4 py-2">
+                            <select className={selectCls} value={row.currencyCode ?? "INR"} onChange={(e) => changeItemCurrency(i, e.target.value)}>
+                              <option value="INR">INR</option>
+                              {currencies.filter((c) => c.code !== "INR").map((c) => (
+                                <option key={c.code} value={c.code}>{c.code}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-2">
+                            {(row.currencyCode ?? "INR") === "INR" ? (
+                              <input type="number" min={0} className={inputCls} value={row.cost} onChange={(e) => updateItem(i, { cost: Number(e.target.value) || 0 })} />
+                            ) : (
+                              <div>
+                                <input type="number" min={0} className={inputCls} value={row.foreignAmount ?? 0} onChange={(e) => changeItemForeignAmount(i, Number(e.target.value) || 0)} placeholder={`Cost in ${row.currencyCode}`} />
+                                <p className="mt-1 text-xs text-slate-400">≈ {formatINR(row.cost)} (rate {row.exchangeRate})</p>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <button type="button" onClick={() => removeRow(i)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete row">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/40">
+            <button type="button" onClick={goBack} disabled={step === 0} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40">
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+            {step < STEPS.length - 1 ? (
               <button
                 type="button"
-                onClick={() => save()}
-                disabled={!canSave || saving}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm ${
-                  !canSave || saving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
-                }`}
+                onClick={goNext}
+                disabled={saving || (step === 0 && !canSaveStep1)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
               >
-                <Save className="w-4 h-4" /> Save Draft
+                {step === 0 ? "Save & Next" : "Next"} <ArrowRight className="w-4 h-4" />
               </button>
-            </div>
+            ) : (
+              <button type="button" onClick={() => persist()} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                <Save className="w-4 h-4" /> Save Quotation
+              </button>
+            )}
           </div>
-
-          <div className="p-6 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Field label="Customer / Lead" required>
-                <select className={selectCls} value={leadId} onChange={(e) => setLeadId(e.target.value)}>
-                  <option value="">Select lead</option>
-                  {leads.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      LD-{l.seq.toString().padStart(4, "0")} — {l.customerName}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Destination" required>
-                <select
-                  className={selectCls}
-                  value={destinationId}
-                  onChange={(e) => {
-                    setDestinationId(e.target.value);
-                    setCampaignId("");
-                  }}
-                >
-                  <option value="">Select destination</option>
-                  {destinations.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Itinerary Template" hint="Pre-loads default components">
-                <select className={selectCls} value={campaignId} onChange={(e) => applyTemplate(e.target.value)} disabled={!destinationId}>
-                  <option value="">No template</option>
-                  {campaigns.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-            <h3 className="text-sm font-bold text-slate-900">Costing Components</h3>
-            <button
-              type="button"
-              onClick={addRow}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Row
-            </button>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
-                <th className="px-4 py-2 w-36">Component</th>
-                <th className="px-4 py-2">Detail</th>
-                <th className="px-4 py-2 w-16">Qty</th>
-                <th className="px-4 py-2 w-24">Currency</th>
-                <th className="px-4 py-2 w-40">Supplier Cost</th>
-                <th className="px-4 py-2 w-10" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row, i) => (
-                <tr key={i} className="border-b border-slate-50">
-                  <td className="px-4 py-2">
-                    <select
-                      className={selectCls}
-                      value={row.component}
-                      onChange={(e) => updateItem(i, { component: e.target.value as QuotationComponentType })}
-                    >
-                      {COMPONENTS.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-2">
-                    <input className={inputCls} value={row.detail} onChange={(e) => updateItem(i, { detail: e.target.value })} placeholder="e.g. 4-star hotel, 3 nights" />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input type="number" min={1} className={inputCls} value={row.qty} onChange={(e) => updateItem(i, { qty: Number(e.target.value) || 1 })} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <select
-                      className={selectCls}
-                      value={row.currencyCode ?? "INR"}
-                      onChange={(e) => changeItemCurrency(i, e.target.value)}
-                    >
-                      <option value="INR">INR</option>
-                      {currencies.filter((c) => c.code !== "INR").map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.code}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-2">
-                    {(row.currencyCode ?? "INR") === "INR" ? (
-                      <input type="number" min={0} className={inputCls} value={row.cost} onChange={(e) => updateItem(i, { cost: Number(e.target.value) || 0 })} />
-                    ) : (
-                      <div>
-                        <input
-                          type="number"
-                          min={0}
-                          className={inputCls}
-                          value={row.foreignAmount ?? 0}
-                          onChange={(e) => changeItemForeignAmount(i, Number(e.target.value) || 0)}
-                          placeholder={`Cost in ${row.currencyCode}`}
-                        />
-                        <p className="mt-1 text-xs text-slate-400">
-                          ≈ {formatINR(row.cost)} (rate {row.exchangeRate})
-                        </p>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    <button type="button" onClick={() => removeRow(i)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete row">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
 
@@ -471,14 +699,7 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
           <span className="font-semibold text-slate-900">{formatINR(totalCost)}</span>
         </div>
         <Field label="Margin %">
-          <input
-            type="number"
-            min={0}
-            step={0.5}
-            className={inputCls}
-            value={marginPercent}
-            onChange={(e) => setMarginPercent(Number(e.target.value) || 0)}
-          />
+          <input type="number" min={0} step={0.5} className={inputCls} value={draft.marginPercent} onChange={(e) => patch({ marginPercent: Number(e.target.value) || 0 })} />
         </Field>
         <div className="flex items-center justify-between text-sm">
           <span className="text-slate-500">Margin Value</span>
@@ -488,11 +709,6 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
           <span className="text-sm font-bold text-slate-900">Selling Price</span>
           <span className="text-lg font-bold text-emerald-700">{formatINR(sellingPrice)}</span>
         </div>
-        {id && (
-          <div className="text-xs text-slate-400 pt-2 border-t border-slate-100">
-            Status: <span className="font-semibold text-slate-600">{status}</span>
-          </div>
-        )}
       </div>
     </div>
   );

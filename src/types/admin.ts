@@ -166,6 +166,25 @@ export interface AdminTransferType extends AuditColumns {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Hotel Master (searchable hotel catalog used by the Quotation Hotel step)   */
+/* -------------------------------------------------------------------------- */
+export interface AdminHotelMaster extends AuditColumns {
+  id: string;
+  name: string;
+  destinationId?: string | null;
+  destination?: AdminDestination | null;
+  images: string[];
+  description: string;
+  category?: string | null;
+  roomTypes: string[];
+  mealPlans: string[];
+  amenities: string[];
+  googleMapUrl?: string | null;
+  website?: string | null;
+  status: Status;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Currency Master                                                            */
 /* -------------------------------------------------------------------------- */
 export interface AdminCurrency extends AuditColumns {
@@ -256,6 +275,7 @@ export interface AdminLead {
   customerName: string;
   mobile: string;
   email?: string | null;
+  companyName?: string | null;
   destinationId: string;
   destination?: AdminDestination;
   travelDate?: string | null;
@@ -296,6 +316,84 @@ export interface AdminQuotationItem {
   sortOrder?: number;
 }
 
+/** Step 1 — customer-detail form input. Not persisted on Quotation directly; drives find-or-create-Lead. */
+export interface QuotationCustomerInput {
+  customerName: string;
+  mobile: string;
+  email?: string | null;
+  companyName?: string | null;
+}
+
+/** Step 2 — one itinerary day (manual entry or copied in from a Campaign template). */
+export interface QuotationItineraryDay {
+  id: string;
+  dayNumber: number;
+  title: string;
+  description: string;
+  images: string[];
+  meals: string[];
+  notes: string;
+}
+
+/** Step 3 — one hotel selected (from Hotel Master) within a hotel option group. */
+export interface QuotationHotelSelection {
+  id: string;
+  hotelMasterId?: string | null;
+  hotelName: string;
+  images: string[];
+  description: string;
+  category?: string | null;
+  roomType: string;
+  mealPlan: string;
+  amenities: string[];
+  googleMapUrl?: string | null;
+  website?: string | null;
+  checkIn: string;
+  checkOut: string;
+  rooms: number;
+  nights: number;
+}
+
+export type QuotationHotelOptionLabel = "Option A" | "Option B" | "Option C";
+
+export interface QuotationHotelOptionGroup {
+  id: string;
+  label: QuotationHotelOptionLabel;
+  hotels: QuotationHotelSelection[];
+}
+
+export type QuotationLineStatus = "Included" | "Optional" | "Excluded";
+
+/** Step 4 — one transfer leg. */
+export interface QuotationTransferItem {
+  id: string;
+  name: string;
+  description: string;
+  images: string[];
+  pickupLocation: string;
+  dropLocation: string;
+  vehicleType: string;
+  mode: "Private" | "SIC";
+  duration: string;
+  pickupTime: string;
+  dropTime: string;
+  status: QuotationLineStatus;
+  notes: string;
+}
+
+/** Step 5 — one activity. */
+export interface QuotationActivityItem {
+  id: string;
+  name: string;
+  description: string;
+  images: string[];
+  duration: string;
+  reportingTime: string;
+  activityTime: string;
+  status: QuotationLineStatus;
+  notes: string;
+}
+
 export interface AdminQuotation {
   id: string;
   seq: number;
@@ -308,6 +406,27 @@ export interface AdminQuotation {
   marginPercent: number;
   status: QuotationStatus;
   shareToken?: string | null;
+
+  // Step 1 — Trip / Traveller / Other details
+  travelDate?: string | null;
+  days?: number | null;
+  nights?: number | null;
+  adults: number;
+  children: number;
+  infants: number;
+  salesExecutiveId?: string | null;
+  salesExecutive?: AdminSalesUser | null;
+  source?: LeadSource | null;
+  validUntil?: string | null;
+  internalNotes?: string | null;
+
+  // Steps 2–5 — content modules
+  itineraryMode: "template" | "custom";
+  itineraryDays: QuotationItineraryDay[];
+  hotelOptions: QuotationHotelOptionGroup[];
+  transfers: QuotationTransferItem[];
+  activities: QuotationActivityItem[];
+
   items: AdminQuotationItem[];
   createdDate: string;
   updatedDate: string;

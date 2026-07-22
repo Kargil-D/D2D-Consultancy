@@ -17,6 +17,7 @@ import type {
   AdminEnquiryConfig,
   AdminHeroConfig,
   AdminHotel,
+  AdminHotelMaster,
   AdminItinerary,
   AdminLead,
   AdminPackage,
@@ -28,6 +29,7 @@ import type {
   ApiResponse,
   LeadStatus,
   Paginated,
+  QuotationCustomerInput,
 } from "@/types/admin";
 
 const KEY = (entity: string) => `d2d.admin.${entity}`;
@@ -279,11 +281,16 @@ export const quotationsApi = {
     const res = await fetch(`/api/admin/quotations/${id}`);
     return (await res.json()) as ApiResponse<AdminQuotation | null>;
   },
-  create: async (payload: Partial<AdminQuotation>): Promise<ApiResponse<AdminQuotation>> => {
+  create: async (
+    payload: Partial<AdminQuotation> & { customer: QuotationCustomerInput },
+  ): Promise<ApiResponse<AdminQuotation>> => {
     const res = await fetch(`/api/admin/quotations`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminQuotation>;
   },
-  update: async (id: string, payload: Partial<AdminQuotation>): Promise<ApiResponse<AdminQuotation | null>> => {
+  update: async (
+    id: string,
+    payload: Partial<AdminQuotation> & { customer?: QuotationCustomerInput },
+  ): Promise<ApiResponse<AdminQuotation | null>> => {
     const res = await fetch(`/api/admin/quotations/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminQuotation | null>;
   },
@@ -559,6 +566,44 @@ export const currenciesApi = {
   history: async (id: string): Promise<ApiResponse<AdminCurrencyRateHistory[]>> => {
     const res = await fetch(`/api/admin/currencies/${id}/history`);
     return (await res.json()) as ApiResponse<AdminCurrencyRateHistory[]>;
+  },
+};
+
+export const hotelMasterApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminHotelMaster>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const { status } = query.filter ?? {};
+    if (typeof status === "string") params.set("status", status);
+    const res = await fetch(`/api/admin/hotel-master?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminHotelMaster>>;
+  },
+  /** Unpaginated, Active-only list — used by the Quotation Hotel step's search/select. */
+  all: async (): Promise<ApiResponse<AdminHotelMaster[]>> => {
+    const res = await fetch(`/api/admin/hotel-master?all=true`);
+    return (await res.json()) as ApiResponse<AdminHotelMaster[]>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminHotelMaster | null>> => {
+    const res = await fetch(`/api/admin/hotel-master/${id}`);
+    return (await res.json()) as ApiResponse<AdminHotelMaster | null>;
+  },
+  create: async (payload: Partial<AdminHotelMaster>): Promise<ApiResponse<AdminHotelMaster>> => {
+    const res = await fetch(`/api/admin/hotel-master`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminHotelMaster>;
+  },
+  update: async (id: string, payload: Partial<AdminHotelMaster>): Promise<ApiResponse<AdminHotelMaster | null>> => {
+    const res = await fetch(`/api/admin/hotel-master/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminHotelMaster | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/hotel-master/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminHotelMaster | null>> => {
+    const res = await fetch(`/api/admin/hotel-master/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminHotelMaster | null>;
   },
 };
 

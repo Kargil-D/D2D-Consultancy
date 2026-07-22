@@ -1,6 +1,6 @@
 "use client";
 
-import { Users, FileText } from "lucide-react";
+import { Users, FileText, BedDouble } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DepartmentTiles from "@/components/admin/DepartmentTiles";
@@ -8,6 +8,7 @@ import DepartmentTiles from "@/components/admin/DepartmentTiles";
 const SALES_TILES = [
   { label: "Leads", icon: Users, href: "/admin/leads" },
   { label: "Quotations", icon: FileText, href: "/admin/quotations" },
+  { label: "Hotel Master", icon: BedDouble, href: "/admin/hotel-master" },
 ];
 
 export default function AdminSalesPage() {
