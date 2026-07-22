@@ -12,7 +12,7 @@ interface BookingFormProps {
   id?: string;
 }
 
-const STATUSES: BookingStatus[] = ["Assigned", "DmcSent", "AwaitingConfirmation", "Confirmed", "VoucherGenerated", "Booked"];
+const STATUSES: BookingStatus[] = ["Won", "Booked", "OnTrip", "Completed", "Cancelled"];
 
 const leadCode = (seq: number) => `LD-${seq.toString().padStart(4, "0")}`;
 const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
@@ -35,7 +35,7 @@ export default function BookingForm({ id }: BookingFormProps) {
   const [bookingExecutiveId, setBookingExecutiveId] = useState("");
   const [customerSupportId, setCustomerSupportId] = useState("");
   const [totalAmount, setTotalAmount] = useState(0);
-  const [status, setStatus] = useState<BookingStatus>("Assigned");
+  const [status, setStatus] = useState<BookingStatus>("Won");
   const [remarks, setRemarks] = useState("");
 
   const [loading, setLoading] = useState(!!id);

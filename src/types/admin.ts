@@ -166,6 +166,29 @@ export interface AdminTransferType extends AuditColumns {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Currency Master                                                            */
+/* -------------------------------------------------------------------------- */
+export interface AdminCurrency extends AuditColumns {
+  id: string;
+  code: string;
+  name: string;
+  exchangeRate: number;
+  effectiveFrom: string;
+  status: Status;
+}
+
+export interface AdminCurrencyRateHistory {
+  id: string;
+  currencyId: string;
+  currencyCode: string;
+  oldRate: number | null;
+  newRate: number;
+  effectiveFrom: string;
+  changedBy?: string | null;
+  changedDate: string;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Hero Section                                                               */
 /* -------------------------------------------------------------------------- */
 export interface AdminHeroConfig extends AuditColumns {
@@ -267,6 +290,9 @@ export interface AdminQuotationItem {
   detail: string;
   qty: number;
   cost: number;
+  currencyCode?: string;
+  foreignAmount?: number | null;
+  exchangeRate?: number;
   sortOrder?: number;
 }
 
@@ -290,7 +316,7 @@ export interface AdminQuotation {
 /* -------------------------------------------------------------------------- */
 /*  Booking Module                                                             */
 /* -------------------------------------------------------------------------- */
-export type BookingStatus = "Assigned" | "DmcSent" | "AwaitingConfirmation" | "Confirmed" | "VoucherGenerated" | "Booked";
+export type BookingStatus = "Won" | "Booked" | "OnTrip" | "Completed" | "Cancelled";
 export type BookingComponentType = "Hotel" | "Transfer" | "Activity" | "Visa";
 export type BookingComponentStatus = "Pending" | "Confirmed" | "Cancelled" | "Approved" | "Rejected";
 export type BookingDocumentType = "Passport" | "Visa" | "FlightTicket" | "Insurance";

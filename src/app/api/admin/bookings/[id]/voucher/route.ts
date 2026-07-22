@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getBooking, updateBookingStatus, bookingCode } from "@/services/bookingService";
+import { getBooking, bookingCode } from "@/services/bookingService";
 import { renderVoucherPdf } from "@/lib/bookingVoucherPdf";
 
 export const runtime = "nodejs";
@@ -21,11 +21,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       totalAmount: booking.totalAmount,
       components: booking.components.map((c) => ({ component: c.component, detail: c.detail, status: c.status })),
     });
-
-    // Generating the voucher advances the pipeline toward Booked, per the spec.
-    if (booking.status !== "Booked") {
-      await updateBookingStatus(id, "VoucherGenerated");
-    }
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {

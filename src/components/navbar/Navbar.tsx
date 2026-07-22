@@ -18,13 +18,23 @@ import PackagesMegaMenu, {
   PackagesMegaMenuMobile,
 } from "@/components/navbar/PackagesMegaMenu";
 
+interface NavbarProps {
+  /**
+   * Force the solid white/dark-text state from the start instead of the
+   * transparent/white-text state. Pages without a dark hero image directly
+   * under the navbar (e.g. /account/**) need this — the transparent state
+   * assumes a dark background is visible behind it at scroll position 0.
+   */
+  alwaysSolid?: boolean;
+}
+
 /**
  * Sticky transparent navbar that turns into a frosted glass bar on scroll.
  * Includes a responsive hamburger menu for mobile devices and premium
  * "Destinations" + "Packages" mega-menus on desktop.
  */
-export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false);
+export default function Navbar({ alwaysSolid = false }: NavbarProps) {
+  const [scrolled, setScrolled] = useState(alwaysSolid);
   const [open, setOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const { isAuthenticated, loading, logout } = useAuth();
@@ -58,11 +68,12 @@ export default function Navbar() {
   const packages = useHover();
 
   useEffect(() => {
+    if (alwaysSolid) return;
     const onScroll = () => setScrolled(window.scrollY > 30);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [alwaysSolid]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

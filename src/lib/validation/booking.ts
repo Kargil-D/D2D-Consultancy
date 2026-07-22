@@ -14,7 +14,7 @@ export const BookingCreateSchema = z.object({
 export const BookingUpdateSchema = BookingCreateSchema.partial();
 
 export const BookingStatusUpdateSchema = z.object({
-  status: z.enum(["Assigned", "DmcSent", "AwaitingConfirmation", "Confirmed", "VoucherGenerated", "Booked"]),
+  status: z.enum(["Won", "Booked", "OnTrip", "Completed", "Cancelled"]),
 });
 
 export const DmcUpdateSchema = z.object({

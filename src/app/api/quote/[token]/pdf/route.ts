@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getQuotationByShareToken, toPublicQuoteData } from "@/services/quotationService";
+import { getQuotationByShareToken, buildQuotationPdfData } from "@/services/quotationService";
 import { renderQuotationPdf } from "@/lib/quotationPdf";
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
       return NextResponse.json({ success: false, message: "Quote not found", data: null }, { status: 404 });
     }
 
-    const pdfData = toPublicQuoteData(quotation);
+    const pdfData = await buildQuotationPdfData(quotation);
     const buffer = await renderQuotationPdf(pdfData);
 
     return new NextResponse(new Uint8Array(buffer), {

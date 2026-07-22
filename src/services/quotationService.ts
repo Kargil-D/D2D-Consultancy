@@ -1,8 +1,12 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import type { Paginated } from "@/types/admin";
+import type { Paginated, ActivityDetail, HotelStayDetail, ItineraryDayDetail, TransferStopDetail } from "@/types/admin";
 import type { Prisma } from "@/generated/prisma/client";
 import type { QuotationItemInput } from "@/lib/validation/quotation";
+import { findItineraryByPackageId } from "@/services/campaignItineraryService";
+import { findHotelByPackageId } from "@/services/campaignHotelService";
+import { findTransferByPackageId } from "@/services/campaignTransferService";
+import { listTransferTypes } from "@/services/transferTypeService";
 
 const QUOTATION_INCLUDE = {
   lead: true,
@@ -87,6 +91,9 @@ export async function createQuotation(input: QuotationInput) {
           detail: item.detail ?? "",
           qty: item.qty,
           cost: item.cost,
+          currencyCode: item.currencyCode ?? "INR",
+          foreignAmount: item.foreignAmount ?? null,
+          exchangeRate: item.exchangeRate ?? 1,
           sortOrder: item.sortOrder ?? i,
         })),
       });
@@ -115,6 +122,9 @@ export async function updateQuotation(id: string, input: Partial<QuotationInput>
             detail: item.detail ?? "",
             qty: item.qty,
             cost: item.cost,
+            currencyCode: item.currencyCode ?? "INR",
+            foreignAmount: item.foreignAmount ?? null,
+            exchangeRate: item.exchangeRate ?? 1,
             sortOrder: item.sortOrder ?? i,
           })),
         });
@@ -147,6 +157,9 @@ export async function duplicateQuotation(id: string) {
           detail: item.detail,
           qty: item.qty,
           cost: item.cost,
+          currencyCode: item.currencyCode,
+          foreignAmount: item.foreignAmount,
+          exchangeRate: item.exchangeRate,
           sortOrder: item.sortOrder,
         })),
       });
@@ -182,5 +195,56 @@ export function toPublicQuoteData(quotation: NonNullable<Awaited<ReturnType<type
     components: quotation.items.map((i) => ({ component: i.component, detail: i.detail, qty: i.qty })),
     sellingPrice,
     status: quotation.status,
+  };
+}
+
+function textToLines(text: string): string[] {
+  return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+}
+
+/**
+ * Same public shape as toPublicQuoteData, plus the full campaign itinerary
+ * (day-wise plan, hotels, activities, transfers, inclusions/exclusions) when
+ * the quotation was built from a Campaign template — mirrors exactly what
+ * the public Campaign Detail page (src/app/campaigns/[slug]/page.tsx) loads.
+ * Used only by PDF generation; quotations built without a campaign template
+ * simply omit `campaignDetail` and fall back to the plain line-item layout.
+ */
+export async function buildQuotationPdfData(quotation: NonNullable<Awaited<ReturnType<typeof getQuotation>>>) {
+  const base = toPublicQuoteData(quotation);
+  const campaign = quotation.campaign;
+
+  if (!campaign) return base;
+
+  const [itinerary, hotelPlan, transferPlan, transferTypesRes] = await Promise.all([
+    findItineraryByPackageId(campaign.id),
+    findHotelByPackageId(campaign.id),
+    findTransferByPackageId(campaign.id),
+    listTransferTypes({ pageSize: 1000 }),
+  ]);
+
+  const transferTypeNameById = new Map(transferTypesRes.items.map((t) => [t.id, t.name]));
+  const days = (itinerary?.days as unknown as ItineraryDayDetail[] | undefined) ?? [];
+  const hotels = (hotelPlan?.hotels as unknown as HotelStayDetail[] | undefined) ?? [];
+  const transfers = (transferPlan?.transfers as unknown as TransferStopDetail[] | undefined) ?? [];
+  const activities = (campaign.activities as unknown as ActivityDetail[] | undefined) ?? [];
+
+  return {
+    ...base,
+    campaignDetail: {
+      name: campaign.name,
+      nights: campaign.nights,
+      days: campaign.days,
+      heroImage: campaign.coverBanner || campaign.thumbnail || "",
+      itineraryDays: days,
+      hotels,
+      activities,
+      transfers: transfers.map((t) => ({
+        ...t,
+        typeName: (t.transferTypeId && transferTypeNameById.get(t.transferTypeId)) || "Transfer",
+      })),
+      inclusionLines: textToLines(campaign.inclusionsText || ""),
+      exclusionLines: textToLines(campaign.exclusionsText || ""),
+    },
   };
 }

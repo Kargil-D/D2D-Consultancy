@@ -8,6 +8,9 @@ const QuotationItemSchema = z.object({
   detail: z.string().optional().default(""),
   qty: z.coerce.number().int().min(1).default(1),
   cost: z.coerce.number().min(0).default(0),
+  currencyCode: z.string().trim().toUpperCase().optional().default("INR"),
+  foreignAmount: z.coerce.number().min(0).optional().nullable(),
+  exchangeRate: z.coerce.number().positive().optional().default(1),
   sortOrder: z.coerce.number().int().default(0),
 });
 

@@ -12,7 +12,7 @@ export const runtime = "nodejs";
  *     tags: [Customer]
  *     responses:
  *       200:
- *         description: Bookings (Confirmed, VoucherGenerated, or Booked) whose lead matches the logged-in user's email
+ *         description: Bookings (Booked, OnTrip, or Completed) whose lead matches the logged-in user's email
  *       401:
  *         description: Not authenticated
  */
@@ -22,7 +22,7 @@ export const GET = withApiHandler("[/api/customer/activities] GET", async (req) 
   const bookings = await prisma.booking.findMany({
     where: {
       isDeleted: false,
-      status: { in: ["Confirmed", "VoucherGenerated", "Booked"] },
+      status: { in: ["Booked", "OnTrip", "Completed"] },
       lead: { email: { equals: user.email, mode: "insensitive" } },
     },
     include: { destination: true, lead: true },

@@ -28,7 +28,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   if (loading || !isAuthenticated) {
     return (
       <main className="relative min-h-screen bg-white">
-        <Navbar />
+        <Navbar alwaysSolid />
         <div className="pt-32 pb-20 text-center text-sm text-slate-500">Loading…</div>
       </main>
     );
@@ -36,7 +36,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   return (
     <main className="relative min-h-screen bg-slate-50">
-      <Navbar />
+      <Navbar alwaysSolid />
 
       <div className="pt-28 sm:pt-32 pb-20 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-wrap gap-2 border-b border-slate-200 mb-8">

@@ -19,7 +19,7 @@ const HOME_TILES = [
   { label: "Sales", icon: Users, href: "/admin/sales" },
   { label: "Bookings", icon: CalendarCheck, href: "/admin/bookings" },
   { label: "CX", icon: Headphones },
-  { label: "Finance", icon: Wallet },
+  { label: "Finance", icon: Wallet, href: "/admin/finance" },
   { label: "Roster", icon: ClipboardList },
   { label: "Ticketing", icon: Ticket },
   { label: "Report", icon: FileBarChart },

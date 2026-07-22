@@ -11,6 +11,8 @@
 
 import type {
   AdminBooking,
+  AdminCurrency,
+  AdminCurrencyRateHistory,
   AdminDestination,
   AdminEnquiryConfig,
   AdminHeroConfig,
@@ -524,6 +526,39 @@ export const transferTypesApi = {
   toggleStatus: async (id: string): Promise<ApiResponse<AdminTransferType | null>> => {
     const res = await fetch(`/api/admin/transfer-types/${id}/toggle-status`, { method: "POST" });
     return (await res.json()) as ApiResponse<AdminTransferType | null>;
+  },
+};
+
+export const currenciesApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminCurrency>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const { status } = query.filter ?? {};
+    if (typeof status === "string") params.set("status", status);
+    const res = await fetch(`/api/admin/currencies?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminCurrency>>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminCurrency | null>> => {
+    const res = await fetch(`/api/admin/currencies/${id}`);
+    return (await res.json()) as ApiResponse<AdminCurrency | null>;
+  },
+  create: async (payload: Omit<AdminCurrency, "id" | "createdDate" | "updatedDate">): Promise<ApiResponse<AdminCurrency>> => {
+    const res = await fetch(`/api/admin/currencies`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminCurrency>;
+  },
+  update: async (id: string, payload: Partial<AdminCurrency>): Promise<ApiResponse<AdminCurrency | null>> => {
+    const res = await fetch(`/api/admin/currencies/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminCurrency | null>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminCurrency | null>> => {
+    const res = await fetch(`/api/admin/currencies/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminCurrency | null>;
+  },
+  history: async (id: string): Promise<ApiResponse<AdminCurrencyRateHistory[]>> => {
+    const res = await fetch(`/api/admin/currencies/${id}/history`);
+    return (await res.json()) as ApiResponse<AdminCurrencyRateHistory[]>;
   },
 };
 

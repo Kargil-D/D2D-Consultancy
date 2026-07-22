@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getQuotation, toPublicQuoteData, markQuotationSent } from "@/services/quotationService";
+import { getQuotation, buildQuotationPdfData, markQuotationSent } from "@/services/quotationService";
 import { renderQuotationPdf } from "@/lib/quotationPdf";
 import { sendQuotationEmail } from "@/services/emailService";
 
@@ -19,7 +19,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       );
     }
 
-    const pdfData = toPublicQuoteData(quotation);
+    const pdfData = await buildQuotationPdfData(quotation);
     const pdfBuffer = await renderQuotationPdf(pdfData);
     const shareUrl = quotation.shareToken
       ? `${new URL(req.url).protocol}//${new URL(req.url).host}/quote/${quotation.shareToken}`

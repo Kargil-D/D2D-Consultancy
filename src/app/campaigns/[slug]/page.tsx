@@ -18,6 +18,7 @@ import { listTransferTypes } from "@/services/transferTypeService";
 import TravelerStories from "@/components/itinerary/TravelerStories";
 import CampaignDayAccordion from "@/components/campaigns/CampaignDayAccordion";
 import CampaignHotelGallery from "@/components/campaigns/CampaignHotelGallery";
+import PriceBreakdownCard from "@/components/campaigns/PriceBreakdownCard";
 import type { ActivityDetail, HotelStayDetail, ItineraryDayDetail, TransferStopDetail } from "@/types/admin";
 
 interface PageProps { params: Promise<{ slug: string }>; }
@@ -79,10 +80,6 @@ export default async function CampaignDetailPage({ params }: PageProps) {
   const exclusionLines = textToLines(campaign.exclusionsText || "");
 
   const price = campaign.offerPrice || campaign.startingPrice;
-  const subtotal =
-    campaign.packageCost + campaign.platformFee + campaign.marginPrice + campaign.insurancePrice;
-  const gstAmount = Math.round((subtotal * campaign.gstPercent) / 100);
-  const grandTotal = subtotal + gstAmount;
   const hasPricingBreakdown =
     campaign.packageCost > 0 || campaign.platformFee > 0 || campaign.marginPrice > 0 || campaign.insurancePrice > 0;
 
@@ -278,46 +275,14 @@ export default async function CampaignDetailPage({ params }: PageProps) {
           </div>
 
           <aside className="space-y-5">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md shadow-slate-900/5 lg:sticky lg:top-32">
-              <h3 className="text-lg font-bold text-slate-900 mb-4">Price Break down</h3>
-              {hasPricingBreakdown ? (
-                <>
-                  <div className="space-y-2.5 text-sm">
-                    <div className="flex justify-between text-slate-600">
-                      <span>Package Cost</span><span className="font-semibold text-slate-900">{formatINR(campaign.packageCost + campaign.marginPrice)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span>Planning Platform fee</span><span className="font-semibold text-slate-900">{formatINR(campaign.platformFee)}</span>
-                    </div>
-                    {campaign.insurancePrice > 0 && (
-                      <div className="flex justify-between text-slate-600">
-                        <span>Insurance</span><span className="font-semibold text-slate-900">{formatINR(campaign.insurancePrice)}</span>
-                      </div>
-                    )}
-                    <div className="my-2 border-t border-dashed border-slate-200" />
-                    <div className="flex justify-between text-slate-600">
-                      <span>Subtotal</span><span className="font-semibold text-slate-900">{formatINR(subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span>GST ({campaign.gstPercent}%)</span><span className="font-semibold text-slate-900">{formatINR(gstAmount)}</span>
-                    </div>
-                  </div>
-                  <div className="my-4 border-t border-dashed border-slate-200" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-semibold text-slate-700">Grand Total</span>
-                    <span className="text-xl font-bold text-slate-900">{formatINR(grandTotal)}</span>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-2">
-                  <div className="text-sm text-slate-500">Starting From</div>
-                  <div className="text-2xl font-bold text-slate-900">{formatINR(price)}</div>
-                </div>
-              )}
-              <div className="mt-5 flex items-center justify-center gap-1.5 text-xs text-emerald-600 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" />Best Price Guaranteed
-              </div>
-            </div>
+            <PriceBreakdownCard
+              packageCostPerPerson={campaign.packageCost + campaign.marginPrice}
+              platformFee={campaign.platformFee}
+              insurancePerPerson={campaign.insurancePrice}
+              gstPercent={campaign.gstPercent}
+              hasPricingBreakdown={hasPricingBreakdown}
+              price={price}
+            />
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6">
               <h3 className="text-sm font-bold text-slate-900 mb-2">Need Help?</h3>

@@ -6,8 +6,8 @@ import Link from "next/link";
 import { Plus, Trash2, FileDown, Mail, Share2, Copy, Save } from "lucide-react";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
-import { destinationsApi, leadsApi, packagesApi, quotationsApi } from "@/lib/adminApi";
-import type { AdminLead, AdminDestination, AdminPackage, AdminQuotationItem, QuotationComponentType } from "@/types/admin";
+import { currenciesApi, destinationsApi, leadsApi, packagesApi, quotationsApi } from "@/lib/adminApi";
+import type { AdminCurrency, AdminLead, AdminDestination, AdminPackage, AdminQuotationItem, QuotationComponentType } from "@/types/admin";
 
 interface QuotationBuilderProps {
   id?: string;
@@ -20,6 +20,9 @@ const emptyRow = (sortOrder: number): AdminQuotationItem => ({
   detail: "",
   qty: 1,
   cost: 0,
+  currencyCode: "INR",
+  foreignAmount: null,
+  exchangeRate: 1,
   sortOrder,
 });
 
@@ -34,6 +37,7 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
   const [leads, setLeads] = useState<AdminLead[]>([]);
   const [destinations, setDestinations] = useState<AdminDestination[]>([]);
   const [campaigns, setCampaigns] = useState<AdminPackage[]>([]);
+  const [currencies, setCurrencies] = useState<AdminCurrency[]>([]);
 
   const [leadId, setLeadId] = useState("");
   const [destinationId, setDestinationId] = useState("");
@@ -50,9 +54,14 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
   // Load reference lists once.
   useEffect(() => {
     (async () => {
-      const [leadsRes, destRes] = await Promise.all([leadsApi.list({ pageSize: 1000 }), destinationsApi.all()]);
+      const [leadsRes, destRes, currRes] = await Promise.all([
+        leadsApi.list({ pageSize: 1000 }),
+        destinationsApi.all(),
+        currenciesApi.list({ pageSize: 100, filter: { status: "Active" } }),
+      ]);
       if (leadsRes.success) setLeads(leadsRes.data.items);
       if (destRes.success) setDestinations(destRes.data);
+      if (currRes.success) setCurrencies(currRes.data.items);
     })();
   }, []);
 
@@ -123,6 +132,30 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
 
   const updateItem = (index: number, patch: Partial<AdminQuotationItem>) => {
     setItems((rows) => rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  };
+
+  // Switching currency freezes that currency's current active rate into the row —
+  // the rate is only ever re-read here, at the moment the row is edited, never later.
+  const changeItemCurrency = (index: number, code: string) => {
+    if (code === "INR") {
+      updateItem(index, { currencyCode: "INR", exchangeRate: 1, foreignAmount: null });
+      return;
+    }
+    const currency = currencies.find((c) => c.code === code);
+    const rate = currency?.exchangeRate ?? 1;
+    setItems((rows) =>
+      rows.map((r, i) =>
+        i === index
+          ? { ...r, currencyCode: code, exchangeRate: rate, cost: Math.round((r.foreignAmount ?? 0) * rate) }
+          : r,
+      ),
+    );
+  };
+
+  const changeItemForeignAmount = (index: number, amount: number) => {
+    setItems((rows) =>
+      rows.map((r, i) => (i === index ? { ...r, foreignAmount: amount, cost: Math.round(amount * r.exchangeRate!) } : r)),
+    );
   };
 
   const addRow = () => setItems((rows) => [...rows, emptyRow(rows.length)]);
@@ -355,10 +388,11 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
-                <th className="px-4 py-2 w-40">Component</th>
+                <th className="px-4 py-2 w-36">Component</th>
                 <th className="px-4 py-2">Detail</th>
-                <th className="px-4 py-2 w-20">Qty</th>
-                <th className="px-4 py-2 w-32">Cost (INR)</th>
+                <th className="px-4 py-2 w-16">Qty</th>
+                <th className="px-4 py-2 w-24">Currency</th>
+                <th className="px-4 py-2 w-40">Supplier Cost</th>
                 <th className="px-4 py-2 w-10" />
               </tr>
             </thead>
@@ -385,7 +419,37 @@ export default function QuotationBuilder({ id }: QuotationBuilderProps) {
                     <input type="number" min={1} className={inputCls} value={row.qty} onChange={(e) => updateItem(i, { qty: Number(e.target.value) || 1 })} />
                   </td>
                   <td className="px-4 py-2">
-                    <input type="number" min={0} className={inputCls} value={row.cost} onChange={(e) => updateItem(i, { cost: Number(e.target.value) || 0 })} />
+                    <select
+                      className={selectCls}
+                      value={row.currencyCode ?? "INR"}
+                      onChange={(e) => changeItemCurrency(i, e.target.value)}
+                    >
+                      <option value="INR">INR</option>
+                      {currencies.filter((c) => c.code !== "INR").map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.code}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    {(row.currencyCode ?? "INR") === "INR" ? (
+                      <input type="number" min={0} className={inputCls} value={row.cost} onChange={(e) => updateItem(i, { cost: Number(e.target.value) || 0 })} />
+                    ) : (
+                      <div>
+                        <input
+                          type="number"
+                          min={0}
+                          className={inputCls}
+                          value={row.foreignAmount ?? 0}
+                          onChange={(e) => changeItemForeignAmount(i, Number(e.target.value) || 0)}
+                          placeholder={`Cost in ${row.currencyCode}`}
+                        />
+                        <p className="mt-1 text-xs text-slate-400">
+                          ≈ {formatINR(row.cost)} (rate {row.exchangeRate})
+                        </p>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right">
                     <button type="button" onClick={() => removeRow(i)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete row">

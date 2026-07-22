@@ -12,17 +12,16 @@ import { bookingsApi } from "@/lib/adminApi";
 import type { AdminBooking, BookingStatus } from "@/types/admin";
 
 const PAGE_SIZE = 10;
-const STATUSES: BookingStatus[] = ["Assigned", "DmcSent", "AwaitingConfirmation", "Confirmed", "VoucherGenerated", "Booked"];
+const STATUSES: BookingStatus[] = ["Won", "Booked", "OnTrip", "Completed", "Cancelled"];
 
 const bookingCode = (seq: number) => `BK-${seq.toString().padStart(4, "0")}`;
 
 const STATUS_STYLES: Record<BookingStatus, string> = {
-  Assigned: "bg-slate-100 text-slate-700 border-slate-200",
-  DmcSent: "bg-amber-50 text-amber-700 border-amber-200",
-  AwaitingConfirmation: "bg-orange-50 text-orange-700 border-orange-200",
-  Confirmed: "bg-cyan-50 text-cyan-700 border-cyan-200",
-  VoucherGenerated: "bg-blue-50 text-blue-700 border-blue-200",
-  Booked: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Won: "bg-slate-100 text-slate-700 border-slate-200",
+  Booked: "bg-cyan-50 text-cyan-700 border-cyan-200",
+  OnTrip: "bg-amber-50 text-amber-700 border-amber-200",
+  Completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Cancelled: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 export default function BookingsAdminPage() {

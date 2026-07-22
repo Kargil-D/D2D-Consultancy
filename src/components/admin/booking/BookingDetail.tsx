@@ -131,7 +131,6 @@ export default function BookingDetail({ id }: BookingDetailProps) {
 
   const generateVoucher = () => {
     window.open(`/api/admin/bookings/${id}/voucher`, "_blank");
-    setTimeout(reload, 1000);
   };
 
   if (loading) {
@@ -285,7 +284,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       <div className="rounded-2xl bg-white border border-slate-200 p-6 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-bold text-slate-900">Travel Voucher</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Generates the voucher PDF and advances the booking toward Booked.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Generates the voucher PDF for this booking.</p>
         </div>
         <button
           type="button"

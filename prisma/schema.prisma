@@ -363,26 +363,62 @@ model Quotation {
 }
 
 model QuotationItem {
-  id          String             @id @default(uuid())
-  quotationId String
-  quotation   Quotation          @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  component   QuotationComponent
-  detail      String             @default("")
-  qty         Int                @default(1)
-  cost        Int                @default(0)
-  sortOrder   Int                @default(0)
+  id            String             @id @default(uuid())
+  quotationId   String
+  quotation     Quotation          @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  component     QuotationComponent
+  detail        String             @default("")
+  qty           Int                @default(1)
+  cost          Int                @default(0)
+  currencyCode  String             @default("INR")
+  foreignAmount Float?
+  exchangeRate  Float              @default(1)
+  sortOrder     Int                @default(0)
 
   @@index([quotationId])
   @@map("quotation_items")
 }
 
+model Currency {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  name          String
+  exchangeRate  Float
+  effectiveFrom DateTime
+  status        Status   @default(Active)
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  rateHistory CurrencyRateHistory[]
+
+  @@map("currencies")
+}
+
+model CurrencyRateHistory {
+  id            String   @id @default(uuid())
+  currencyId    String
+  currency      Currency @relation(fields: [currencyId], references: [id])
+  currencyCode  String
+  oldRate       Float?
+  newRate       Float
+  effectiveFrom DateTime
+  changedBy     String?
+  changedDate   DateTime @default(now())
+
+  @@index([currencyId])
+  @@map("currency_rate_history")
+}
+
 enum BookingStatus {
-  Assigned
-  DmcSent
-  AwaitingConfirmation
-  Confirmed
-  VoucherGenerated
+  Won
   Booked
+  OnTrip
+  Completed
+  Cancelled
 }
 
 enum BookingComponentType {
@@ -422,7 +458,7 @@ model Booking {
   customerSupportId  String?
   customerSupport    User?         @relation("CustomerSupport", fields: [customerSupportId], references: [id])
   totalAmount        Int           @default(0)
-  status             BookingStatus @default(Assigned)
+  status             BookingStatus @default(Won)
   remarks            String?
   dmcName            String?
   dmcEmailSentDate   DateTime?
