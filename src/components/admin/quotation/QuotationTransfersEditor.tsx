@@ -4,9 +4,7 @@ import Image from "next/image";
 import { Plus, Trash2, Copy, ArrowRightLeft, X } from "lucide-react";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
-import type { QuotationLineStatus, QuotationTransferItem } from "@/types/admin";
-
-const STATUSES: QuotationLineStatus[] = ["Included", "Optional", "Excluded"];
+import type { QuotationTransferItem } from "@/types/admin";
 
 export const newTransferItem = (): QuotationTransferItem => ({
   id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -100,7 +98,7 @@ export default function QuotationTransfersEditor({ transfers, onChange }: Quotat
               <input className={inputCls} value={t.dropLocation} onChange={(e) => update(i, { dropLocation: e.target.value })} placeholder="Hotel" />
             </Field>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
             <Field label="Duration">
               <input className={inputCls} value={t.duration} onChange={(e) => update(i, { duration: e.target.value })} placeholder="45 mins" />
             </Field>
@@ -109,13 +107,6 @@ export default function QuotationTransfersEditor({ transfers, onChange }: Quotat
             </Field>
             <Field label="Drop Time">
               <input type="time" className={inputCls} value={t.dropTime} onChange={(e) => update(i, { dropTime: e.target.value })} />
-            </Field>
-            <Field label="Status">
-              <select className={selectCls} value={t.status} onChange={(e) => update(i, { status: e.target.value as QuotationLineStatus })}>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
             </Field>
           </div>
           <Field label="Description" className="mt-3">

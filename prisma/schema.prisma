@@ -417,6 +417,8 @@ model QuotationItem {
   quotationId   String
   quotation     Quotation          @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   component     QuotationComponent
+  /** Links this costing row back to its source hotel/activity/transfer id (from the Quotation's JSON content fields) so Pricing stays in sync as those are added/edited/removed. Null for manually-added rows (Visa/Insurance/Flight). */
+  sourceId      String?
   detail        String             @default("")
   qty           Int                @default(1)
   cost          Int                @default(0)

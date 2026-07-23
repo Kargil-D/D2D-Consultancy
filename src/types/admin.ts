@@ -306,6 +306,8 @@ export type QuotationStatus = "Draft" | "Sent" | "Accepted" | "Rejected" | "Expi
 
 export interface AdminQuotationItem {
   id?: string;
+  /** Links this row back to its source hotel/activity/transfer id — set only for auto-generated Pricing rows, null for manual (Visa/Insurance/Flight) rows. */
+  sourceId?: string | null;
   component: QuotationComponentType;
   detail: string;
   qty: number;
@@ -390,7 +392,7 @@ export interface QuotationActivityItem {
   duration: string;
   reportingTime: string;
   activityTime: string;
-  status: QuotationLineStatus;
+  pax: number;
   notes: string;
 }
 

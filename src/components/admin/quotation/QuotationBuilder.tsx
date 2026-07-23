@@ -15,7 +15,7 @@ import {
   ArrowLeft,
   ArrowRight,
   User as UserIcon,
-  Map,
+  Map as MapIcon,
   BedDouble,
   ArrowRightLeft,
   Ticket,
@@ -48,12 +48,13 @@ interface QuotationBuilderProps {
   id?: string;
 }
 
-const COMPONENTS: QuotationComponentType[] = ["Hotel", "Transfer", "Activity", "Visa", "Insurance", "Flight"];
+/** Hotel/Transfer/Activity costing rows are auto-generated from Steps 3–5 (see reconcileItems) — manual "Other" rows only cover components those steps don't. */
+const MANUAL_COMPONENTS: QuotationComponentType[] = ["Visa", "Insurance", "Flight"];
 const SOURCES: LeadSource[] = ["Website", "MetaAds", "GoogleAds", "SEO", "WhatsApp", "Referral", "Manual"];
 
 const STEPS = [
   { key: "customer", label: "Customer Details", icon: UserIcon },
-  { key: "itinerary", label: "Itinerary", icon: Map },
+  { key: "itinerary", label: "Itinerary", icon: MapIcon },
   { key: "hotels", label: "Hotels", icon: BedDouble },
   { key: "transfers", label: "Transfers", icon: ArrowRightLeft },
   { key: "activities", label: "Activities", icon: Ticket },
@@ -61,7 +62,7 @@ const STEPS = [
 ] as const;
 
 const emptyItemRow = (sortOrder: number): AdminQuotationItem => ({
-  component: "Hotel",
+  component: "Visa",
   detail: "",
   qty: 1,
   cost: 0,
@@ -73,6 +74,47 @@ const emptyItemRow = (sortOrder: number): AdminQuotationItem => ({
 
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
+
+/**
+ * Keeps Pricing's Hotel/Activity/Transfer rows in lockstep with Steps 3–5 so nothing gets
+ * missed: one row per hotel/activity/transfer (matched by sourceId), preserving whatever
+ * currency/cost the user already entered, dropping rows whose source was deleted, and
+ * leaving manual rows (Visa/Insurance/Flight — no sourceId) untouched.
+ */
+function reconcileItems(
+  items: AdminQuotationItem[],
+  hotelOptions: QuotationHotelOptionGroup[],
+  transfers: QuotationTransferItem[],
+  activities: QuotationActivityItem[],
+  currencies: AdminCurrency[],
+): AdminQuotationItem[] {
+  const bySource = new Map<string, AdminQuotationItem>();
+  items.forEach((it) => {
+    if (it.sourceId) bySource.set(it.sourceId, it);
+  });
+  const manual = items.filter((it) => !it.sourceId);
+  const defaultRate = currencies.find((c) => c.code === "USD")?.exchangeRate ?? 1;
+
+  const sourced = (sourceId: string, component: QuotationComponentType, detail: string, qty: number): AdminQuotationItem => {
+    const existing = bySource.get(sourceId);
+    return {
+      sourceId,
+      component,
+      detail,
+      qty,
+      cost: existing?.cost ?? 0,
+      currencyCode: existing?.currencyCode ?? "USD",
+      foreignAmount: existing?.foreignAmount ?? null,
+      exchangeRate: existing?.exchangeRate ?? defaultRate,
+    };
+  };
+
+  const hotelRows = hotelOptions.flatMap((g) => g.hotels).map((h) => sourced(h.id, "Hotel", h.hotelName || "Hotel", h.nights || 0));
+  const activityRows = activities.map((a) => sourced(a.id, "Activity", a.name || "Activity", a.pax || 0));
+  const transferRows = transfers.map((t) => sourced(t.id, "Transfer", t.name || "Transfer", 1));
+
+  return [...manual, ...hotelRows, ...activityRows, ...transferRows].map((it, i) => ({ ...it, sortOrder: i }));
+}
 
 interface Draft {
   customer: QuotationCustomerInput;
@@ -117,7 +159,7 @@ const emptyDraft = (): Draft => ({
   transfers: [],
   activities: [],
   marginPercent: 0,
-  items: [emptyItemRow(0)],
+  items: [],
 });
 
 export default function QuotationBuilder({ id: initialId }: QuotationBuilderProps) {
@@ -160,6 +202,11 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   useEffect(() => {
     if (!initialId && user?.id) patch({ salesExecutiveId: user.id });
   }, [initialId, user?.id]);
+
+  // Keep Pricing's Hotel/Activity/Transfer rows in sync the moment Steps 3–5 change — not just when Pricing is opened.
+  useEffect(() => {
+    setDraft((d) => ({ ...d, items: reconcileItems(d.items, d.hotelOptions, d.transfers, d.activities, currencies) }));
+  }, [draft.hotelOptions, draft.transfers, draft.activities, currencies]);
 
   useEffect(() => {
     if (!draft.destinationId) {
@@ -224,7 +271,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           transfers: q.transfers,
           activities: q.activities,
           marginPercent: q.marginPercent,
-          items: q.items.length > 0 ? q.items : [emptyItemRow(0)],
+          items: q.items,
         });
         setStatus(q.status);
         setShareToken(q.shareToken ?? null);
@@ -240,20 +287,16 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   const applyTemplate = async (nextCampaignId: string) => {
     patch({ campaignId: nextCampaignId });
     if (!nextCampaignId) return;
-    const onlyBlankRow = draft.items.length === 1 && !draft.items[0].detail && draft.items[0].cost === 0;
-    if (!onlyBlankRow) return;
+    const hasManualRows = draft.items.some((it) => !it.sourceId);
+    if (hasManualRows) return;
 
     const res = await packagesApi.get(nextCampaignId);
     if (!res.success || !res.data) return;
     const campaign = res.data;
-    const preset: AdminQuotationItem[] = [];
-    if (campaign.packageCost > 0) {
-      preset.push({ component: "Hotel", detail: `${campaign.name} package`, qty: 1, cost: campaign.packageCost, sortOrder: 0 });
-    }
+    // Package cost isn't presettable here anymore — it now flows through the per-hotel rows added in the Hotels step.
     if (campaign.insurancePrice > 0) {
-      preset.push({ component: "Insurance", detail: "Travel insurance", qty: 1, cost: campaign.insurancePrice, sortOrder: 1 });
+      patch({ items: [...draft.items, { component: "Insurance", detail: "Travel insurance", qty: 1, cost: campaign.insurancePrice, sortOrder: draft.items.length }] });
     }
-    if (preset.length > 0) patch({ items: preset });
   };
 
   const buildPayload = () => ({
@@ -387,7 +430,54 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     patch({ items: draft.items.map((r, i) => (i === index ? { ...r, foreignAmount: amount, cost: Math.round(amount * r.exchangeRate!) } : r)) });
   };
   const addRow = () => patch({ items: [...draft.items, emptyItemRow(draft.items.length)] });
-  const removeRow = (index: number) => patch({ items: draft.items.length > 1 ? draft.items.filter((_, i) => i !== index) : draft.items });
+  const removeRow = (index: number) => patch({ items: draft.items.filter((_, i) => i !== index) });
+
+  // Pricing rows for Hotels/Activities/Transfers are looked up (not indexed) by the source hotel/activity/transfer id.
+  const sourceItem = (sourceId: string) => draft.items.find((it) => it.sourceId === sourceId);
+  const sourceIndex = (sourceId: string) => draft.items.findIndex((it) => it.sourceId === sourceId);
+  const changeSourceCurrency = (sourceId: string, code: string) => {
+    const idx = sourceIndex(sourceId);
+    if (idx !== -1) changeItemCurrency(idx, code);
+  };
+  const changeSourceForeignAmount = (sourceId: string, amount: number) => {
+    const idx = sourceIndex(sourceId);
+    if (idx !== -1) changeItemForeignAmount(idx, amount);
+  };
+  const changeSourceCostDirect = (sourceId: string, cost: number) => {
+    const idx = sourceIndex(sourceId);
+    if (idx !== -1) updateItem(idx, { cost });
+  };
+
+  /** Currency + Supplier Cost (editable) + auto-computed Total — reused by the Hotel/Activity/Transfer pricing tables. */
+  const pricingCells = (sourceId: string) => {
+    const item = sourceItem(sourceId);
+    const currencyCode = item?.currencyCode ?? "USD";
+    const cost = item?.cost ?? 0;
+    const qty = item?.qty ?? 0;
+    return (
+      <>
+        <td className="px-3 py-2">
+          <select className={selectCls} value={currencyCode} onChange={(e) => changeSourceCurrency(sourceId, e.target.value)}>
+            <option value="INR">INR</option>
+            {currencies.filter((c) => c.code !== "INR").map((c) => (
+              <option key={c.code} value={c.code}>{c.code}</option>
+            ))}
+          </select>
+        </td>
+        <td className="px-3 py-2">
+          {currencyCode === "INR" ? (
+            <input type="number" min={0} className={inputCls} value={cost} onChange={(e) => changeSourceCostDirect(sourceId, Number(e.target.value) || 0)} />
+          ) : (
+            <div>
+              <input type="number" min={0} className={inputCls} value={item?.foreignAmount ?? 0} onChange={(e) => changeSourceForeignAmount(sourceId, Number(e.target.value) || 0)} />
+              <p className="mt-1 text-xs text-slate-400">≈ {formatINR(cost)}</p>
+            </div>
+          )}
+        </td>
+        <td className="px-3 py-2 text-right font-semibold text-slate-900">{formatINR(qty * cost)}</td>
+      </>
+    );
+  };
 
   const totalCost = draft.items.reduce((sum, r) => sum + r.qty * r.cost, 0);
   const marginValue = Math.round(totalCost * (draft.marginPercent / 100));
@@ -602,68 +692,187 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
             {step === 4 && <QuotationActivitiesEditor activities={draft.activities} onChange={(activities) => patch({ activities })} />}
 
             {step === 5 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900">Costing Components</h3>
-                  <button type="button" onClick={addRow} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200">
-                    <Plus className="w-3.5 h-3.5" /> Add Row
-                  </button>
+              <div className="space-y-6">
+                <p className="text-xs text-slate-500">
+                  Every hotel, transfer and activity added in the earlier steps shows up here automatically — just fill in Currency and Supplier Cost for each.
+                </p>
+
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-2">Hotels</h3>
+                  {draft.hotelOptions.some((g) => g.hotels.length > 0) ? (
+                    <div className="overflow-x-auto rounded-xl border border-slate-100">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
+                            <th className="px-3 py-2 w-16">Option</th>
+                            <th className="px-3 py-2">Hotel Name</th>
+                            <th className="px-3 py-2 w-20">Nights</th>
+                            <th className="px-3 py-2 w-20">Rooms</th>
+                            <th className="px-3 py-2 w-24">Currency</th>
+                            <th className="px-3 py-2 w-36">Supplier Cost</th>
+                            <th className="px-3 py-2 w-32 text-right">Total Cost</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {draft.hotelOptions.flatMap((g) =>
+                            g.hotels.map((h) => (
+                              <tr key={h.id} className="border-b border-slate-50">
+                                <td className="px-3 py-2 text-xs text-slate-500">{g.label}</td>
+                                <td className="px-3 py-2">
+                                  <input className={inputCls} value={h.hotelName} disabled />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input className={inputCls} value={h.nights} disabled />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input className={inputCls} value={h.rooms} disabled />
+                                </td>
+                                {pricingCells(h.id)}
+                              </tr>
+                            )),
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No hotels added yet — go to the Hotels step to add one.</p>
+                  )}
                 </div>
-                <div className="overflow-x-auto rounded-xl border border-slate-100">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
-                        <th className="px-4 py-2 w-36">Component</th>
-                        <th className="px-4 py-2">Detail</th>
-                        <th className="px-4 py-2 w-16">Qty</th>
-                        <th className="px-4 py-2 w-24">Currency</th>
-                        <th className="px-4 py-2 w-40">Supplier Cost</th>
-                        <th className="px-4 py-2 w-10" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {draft.items.map((row, i) => (
-                        <tr key={i} className="border-b border-slate-50">
-                          <td className="px-4 py-2">
-                            <select className={selectCls} value={row.component} onChange={(e) => updateItem(i, { component: e.target.value as QuotationComponentType })}>
-                              {COMPONENTS.map((c) => (
-                                <option key={c} value={c}>{c}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-4 py-2">
-                            <input className={inputCls} value={row.detail} onChange={(e) => updateItem(i, { detail: e.target.value })} placeholder="e.g. 4-star hotel, 3 nights" />
-                          </td>
-                          <td className="px-4 py-2">
-                            <input type="number" min={1} className={inputCls} value={row.qty} onChange={(e) => updateItem(i, { qty: Number(e.target.value) || 1 })} />
-                          </td>
-                          <td className="px-4 py-2">
-                            <select className={selectCls} value={row.currencyCode ?? "INR"} onChange={(e) => changeItemCurrency(i, e.target.value)}>
-                              <option value="INR">INR</option>
-                              {currencies.filter((c) => c.code !== "INR").map((c) => (
-                                <option key={c.code} value={c.code}>{c.code}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-4 py-2">
-                            {(row.currencyCode ?? "INR") === "INR" ? (
-                              <input type="number" min={0} className={inputCls} value={row.cost} onChange={(e) => updateItem(i, { cost: Number(e.target.value) || 0 })} />
-                            ) : (
-                              <div>
-                                <input type="number" min={0} className={inputCls} value={row.foreignAmount ?? 0} onChange={(e) => changeItemForeignAmount(i, Number(e.target.value) || 0)} placeholder={`Cost in ${row.currencyCode}`} />
-                                <p className="mt-1 text-xs text-slate-400">≈ {formatINR(row.cost)} (rate {row.exchangeRate})</p>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-2 text-right">
-                            <button type="button" onClick={() => removeRow(i)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete row">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
+
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-2">Activities</h3>
+                  {draft.activities.length > 0 ? (
+                    <div className="overflow-x-auto rounded-xl border border-slate-100">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
+                            <th className="px-3 py-2">Activity Name</th>
+                            <th className="px-3 py-2 w-24">No. of Pax</th>
+                            <th className="px-3 py-2 w-24">Currency</th>
+                            <th className="px-3 py-2 w-36">Supplier Cost</th>
+                            <th className="px-3 py-2 w-32 text-right">Total Cost</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {draft.activities.map((a) => (
+                            <tr key={a.id} className="border-b border-slate-50">
+                              <td className="px-3 py-2">
+                                <input className={inputCls} value={a.name} disabled />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input className={inputCls} value={a.pax} disabled />
+                              </td>
+                              {pricingCells(a.id)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No activities added yet — go to the Activities step to add one.</p>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 mb-2">Transfers</h3>
+                  {draft.transfers.length > 0 ? (
+                    <div className="overflow-x-auto rounded-xl border border-slate-100">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
+                            <th className="px-3 py-2">Transfer Name</th>
+                            <th className="px-3 py-2 w-32">Vehicle Type</th>
+                            <th className="px-3 py-2 w-24">Private/SIC</th>
+                            <th className="px-3 py-2 w-24">Currency</th>
+                            <th className="px-3 py-2 w-36">Supplier Cost</th>
+                            <th className="px-3 py-2 w-32 text-right">Total Cost</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {draft.transfers.map((t) => (
+                            <tr key={t.id} className="border-b border-slate-50">
+                              <td className="px-3 py-2">
+                                <input className={inputCls} value={t.name} disabled />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input className={inputCls} value={t.vehicleType} disabled />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input className={inputCls} value={t.mode} disabled />
+                              </td>
+                              {pricingCells(t.id)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No transfers added yet — go to the Transfers step to add one.</p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold text-slate-900">Other Components</h3>
+                    <button type="button" onClick={addRow} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200">
+                      <Plus className="w-3.5 h-3.5" /> Add Row
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-2">Visa, insurance, flights — anything not already captured above.</p>
+                  <div className="overflow-x-auto rounded-xl border border-slate-100">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
+                          <th className="px-4 py-2 w-36">Component</th>
+                          <th className="px-4 py-2">Detail</th>
+                          <th className="px-4 py-2 w-24">Currency</th>
+                          <th className="px-4 py-2 w-40">Supplier Cost</th>
+                          <th className="px-4 py-2 w-10" />
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {draft.items.map((row, i) =>
+                          row.sourceId ? null : (
+                            <tr key={i} className="border-b border-slate-50">
+                              <td className="px-4 py-2">
+                                <select className={selectCls} value={row.component} onChange={(e) => updateItem(i, { component: e.target.value as QuotationComponentType })}>
+                                  {MANUAL_COMPONENTS.map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-4 py-2">
+                                <input className={inputCls} value={row.detail} onChange={(e) => updateItem(i, { detail: e.target.value })} placeholder="e.g. Group visa fee" />
+                              </td>
+                              <td className="px-4 py-2">
+                                <select className={selectCls} value={row.currencyCode ?? "INR"} onChange={(e) => changeItemCurrency(i, e.target.value)}>
+                                  <option value="INR">INR</option>
+                                  {currencies.filter((c) => c.code !== "INR").map((c) => (
+                                    <option key={c.code} value={c.code}>{c.code}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-4 py-2">
+                                {(row.currencyCode ?? "INR") === "INR" ? (
+                                  <input type="number" min={0} className={inputCls} value={row.cost} onChange={(e) => updateItem(i, { cost: Number(e.target.value) || 0 })} />
+                                ) : (
+                                  <div>
+                                    <input type="number" min={0} className={inputCls} value={row.foreignAmount ?? 0} onChange={(e) => changeItemForeignAmount(i, Number(e.target.value) || 0)} placeholder={`Cost in ${row.currencyCode}`} />
+                                    <p className="mt-1 text-xs text-slate-400">≈ {formatINR(row.cost)} (rate {row.exchangeRate})</p>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                <button type="button" onClick={() => removeRow(i)} className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete row">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}

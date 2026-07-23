@@ -150,6 +150,7 @@ export async function createQuotation(input: QuotationCreate) {
       await tx.quotationItem.createMany({
         data: input.items.map((item, i) => ({
           quotationId: quotation.id,
+          sourceId: item.sourceId ?? null,
           component: item.component,
           detail: item.detail ?? "",
           qty: item.qty,
@@ -186,6 +187,7 @@ export async function updateQuotation(id: string, input: QuotationUpdate) {
         await tx.quotationItem.createMany({
           data: input.items.map((item, i) => ({
             quotationId: id,
+            sourceId: item.sourceId ?? null,
             component: item.component,
             detail: item.detail ?? "",
             qty: item.qty,
@@ -236,6 +238,7 @@ export async function duplicateQuotation(id: string) {
       await tx.quotationItem.createMany({
         data: source.items.map((item) => ({
           quotationId: copy.id,
+          sourceId: item.sourceId,
           component: item.component,
           detail: item.detail,
           qty: item.qty,

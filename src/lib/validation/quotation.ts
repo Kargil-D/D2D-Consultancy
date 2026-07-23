@@ -6,6 +6,7 @@ const LineStatusEnum = z.enum(["Included", "Optional", "Excluded"]);
 
 const QuotationItemSchema = z.object({
   id: z.string().optional(), // present when editing an existing row
+  sourceId: z.string().optional().nullable(),
   component: QuotationComponentEnum,
   detail: z.string().optional().default(""),
   qty: z.coerce.number().int().min(1).default(1),
@@ -86,7 +87,7 @@ const QuotationActivityItemSchema = z.object({
   duration: z.string().optional().default(""),
   reportingTime: z.string().optional().default(""),
   activityTime: z.string().optional().default(""),
-  status: LineStatusEnum.default("Included"),
+  pax: z.coerce.number().int().min(0).default(1),
   notes: z.string().optional().default(""),
 });
 

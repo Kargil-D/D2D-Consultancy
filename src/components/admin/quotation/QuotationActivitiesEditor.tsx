@@ -3,10 +3,8 @@
 import Image from "next/image";
 import { Plus, Trash2, Copy, Ticket, X } from "lucide-react";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
-import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
-import type { QuotationActivityItem, QuotationLineStatus } from "@/types/admin";
-
-const STATUSES: QuotationLineStatus[] = ["Included", "Optional", "Excluded"];
+import { Field, inputCls, textareaCls } from "@/components/admin/ui/Field";
+import type { QuotationActivityItem } from "@/types/admin";
 
 export const newActivityItem = (): QuotationActivityItem => ({
   id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -16,7 +14,7 @@ export const newActivityItem = (): QuotationActivityItem => ({
   duration: "",
   reportingTime: "",
   activityTime: "",
-  status: "Included",
+  pax: 1,
   notes: "",
 });
 
@@ -60,13 +58,6 @@ export default function QuotationActivitiesEditor({ activities, onChange }: Quot
             <div className="flex items-center gap-2">
               <Ticket className="w-4 h-4 text-slate-400" />
               <span className="font-bold text-slate-900">{a.name || `Activity ${i + 1}`}</span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${
-                  a.status === "Included" ? "bg-emerald-100 text-emerald-700" : a.status === "Optional" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-600"
-                }`}
-              >
-                {a.status}
-              </span>
             </div>
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => duplicate(i)} className="p-1.5 rounded text-slate-500 hover:bg-slate-200" aria-label="Duplicate activity"><Copy className="w-3.5 h-3.5" /></button>
@@ -87,12 +78,8 @@ export default function QuotationActivitiesEditor({ activities, onChange }: Quot
             <Field label="Activity Time">
               <input type="time" className={inputCls} value={a.activityTime} onChange={(e) => update(i, { activityTime: e.target.value })} />
             </Field>
-            <Field label="Status">
-              <select className={selectCls} value={a.status} onChange={(e) => update(i, { status: e.target.value as QuotationLineStatus })}>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+            <Field label="No. of Pax">
+              <input type="number" min={0} className={inputCls} value={a.pax} onChange={(e) => update(i, { pax: Number(e.target.value) || 0 })} />
             </Field>
           </div>
           <Field label="Description" className="mt-3">
