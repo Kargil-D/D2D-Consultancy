@@ -406,6 +406,7 @@ export interface AdminQuotation {
   campaignId?: string | null;
   campaign?: AdminPackage | null;
   marginPercent: number;
+  gstPercent: number;
   status: QuotationStatus;
   shareToken?: string | null;
 

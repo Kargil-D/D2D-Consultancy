@@ -1,6 +1,16 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import type { Paginated, ActivityDetail, HotelStayDetail, ItineraryDayDetail, TransferStopDetail } from "@/types/admin";
+import type {
+  Paginated,
+  ActivityDetail,
+  HotelStayDetail,
+  ItineraryDayDetail,
+  TransferStopDetail,
+  QuotationItineraryDay,
+  QuotationHotelOptionGroup,
+  QuotationTransferItem,
+  QuotationActivityItem,
+} from "@/types/admin";
 import type { Prisma } from "@/generated/prisma/client";
 import type { QuotationCreate, QuotationUpdate } from "@/lib/validation/quotation";
 import { createLead, updateLead, updateLeadStatus } from "@/services/leadService";
@@ -24,11 +34,13 @@ export interface ListQuery {
   filter?: Prisma.QuotationWhereInput;
 }
 
-export function computeTotals(items: { qty: number; cost: number }[], marginPercent: number) {
+export function computeTotals(items: { qty: number; cost: number }[], marginPercent: number, gstPercent: number) {
   const totalCost = items.reduce((sum, i) => sum + i.qty * i.cost, 0);
   const marginValue = Math.round(totalCost * (marginPercent / 100));
-  const sellingPrice = totalCost + marginValue;
-  return { totalCost, marginValue, sellingPrice };
+  const subtotal = totalCost + marginValue;
+  const gstValue = Math.round(subtotal * (gstPercent / 100));
+  const sellingPrice = subtotal + gstValue;
+  return { totalCost, marginValue, gstValue, sellingPrice };
 }
 
 export async function listQuotations(query: ListQuery = {}) {
@@ -118,6 +130,7 @@ function quotationScalarData(input: Partial<QuotationCreate | QuotationUpdate>) 
     ...(input.destinationId !== undefined && { destinationId: input.destinationId }),
     ...(input.campaignId !== undefined && { campaignId: input.campaignId || null }),
     ...(input.marginPercent !== undefined && { marginPercent: input.marginPercent }),
+    ...(input.gstPercent !== undefined && { gstPercent: input.gstPercent }),
     ...(input.travelDate !== undefined && { travelDate: input.travelDate }),
     ...(input.days !== undefined && { days: input.days }),
     ...(input.nights !== undefined && { nights: input.nights }),
@@ -217,6 +230,7 @@ export async function duplicateQuotation(id: string) {
         destinationId: source.destinationId,
         campaignId: source.campaignId,
         marginPercent: source.marginPercent,
+        gstPercent: source.gstPercent,
         travelDate: source.travelDate,
         days: source.days,
         nights: source.nights,
@@ -269,82 +283,164 @@ export async function markQuotationSent(id: string) {
 
 export const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
 
-/** Strips internal cost/margin fields — only ever pass this shape to a PDF, email, or public link. */
-export function toPublicQuoteData(quotation: NonNullable<Awaited<ReturnType<typeof getQuotation>>>) {
-  const { sellingPrice } = computeTotals(quotation.items, quotation.marginPercent);
+function textToLines(text: string): string[] {
+  return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+}
+
+/** Maps a legacy Campaign-template day into the wizard's own day shape, for quotations that never used Step 2. */
+function dayFromCampaign(d: ItineraryDayDetail): QuotationItineraryDay {
+  const notes = [d.stayDetails, d.transportDetails].filter(Boolean).join(" — ");
+  return {
+    id: d.id,
+    dayNumber: d.dayNumber,
+    title: d.title,
+    description: d.description,
+    images: d.dayImage ? [d.dayImage] : [],
+    meals: d.mealsIncluded,
+    notes,
+  };
+}
+
+/** Maps legacy Campaign hotels into a single "Option A" group, for quotations that never used Step 3. */
+function hotelOptionsFromCampaign(hotels: HotelStayDetail[]): QuotationHotelOptionGroup[] {
+  if (hotels.length === 0) return [];
+  return [
+    {
+      id: "campaign-hotels",
+      label: "Option A",
+      hotels: hotels.map((h) => ({
+        id: h.id,
+        hotelMasterId: null,
+        hotelName: h.name,
+        images: h.images ?? [],
+        description: h.description,
+        category: null,
+        roomType: h.roomType,
+        mealPlan: "",
+        amenities: [],
+        googleMapUrl: null,
+        website: null,
+        checkIn: "",
+        checkOut: "",
+        rooms: 1,
+        nights: 0,
+      })),
+    },
+  ];
+}
+
+/** Maps legacy Campaign transfers into the wizard's own transfer shape, for quotations that never used Step 4. */
+function transfersFromCampaign(transfers: (TransferStopDetail & { typeName: string })[]): QuotationTransferItem[] {
+  return transfers.map((t) => ({
+    id: t.id,
+    name: t.typeName,
+    description: "",
+    images: [],
+    pickupLocation: t.from,
+    dropLocation: t.to,
+    vehicleType: t.typeName,
+    mode: "Private",
+    duration: "",
+    pickupTime: "",
+    dropTime: "",
+    status: "Included",
+    notes: "",
+  }));
+}
+
+/** Maps legacy Campaign activities into the wizard's own activity shape, for quotations that never used Step 5. */
+function activitiesFromCampaign(activities: ActivityDetail[]): QuotationActivityItem[] {
+  return activities.map((a) => ({
+    id: a.id,
+    name: a.title,
+    description: "",
+    images: [],
+    duration: "",
+    reportingTime: "",
+    activityTime: "",
+    pax: 0,
+    notes: "",
+  }));
+}
+
+/**
+ * The single source of truth for anything shown to the customer (PDF, email, public share
+ * link) — strips every internal cost/margin field, only the final selling price survives.
+ *
+ * Itinerary/Hotels/Transfers/Activities come from the quotation's own Step 2–5 content
+ * first; a quotation built from a Campaign template before those steps existed (or one
+ * where a step was simply left empty) falls back to that campaign's own itinerary/hotel/
+ * transfer/activity data instead, mapped into the same shape so the renderer never has to
+ * care which source it came from.
+ */
+export async function buildPublicQuoteData(quotation: NonNullable<Awaited<ReturnType<typeof getQuotation>>>) {
+  const { sellingPrice } = computeTotals(quotation.items, quotation.marginPercent, quotation.gstPercent);
+
+  let itineraryDays = quotation.itineraryDays as unknown as QuotationItineraryDay[];
+  let hotelOptions = quotation.hotelOptions as unknown as QuotationHotelOptionGroup[];
+  let transfers = quotation.transfers as unknown as QuotationTransferItem[];
+  let activities = quotation.activities as unknown as QuotationActivityItem[];
+  let heroImage = "";
+  let inclusionLines: string[] = [];
+  let exclusionLines: string[] = [];
+
+  const campaign = quotation.campaign;
+  const needsFallback = itineraryDays.length === 0 || hotelOptions.length === 0 || transfers.length === 0 || activities.length === 0;
+
+  if (campaign && needsFallback) {
+    const [itinerary, hotelPlan, transferPlan, transferTypesRes] = await Promise.all([
+      findItineraryByPackageId(campaign.id),
+      findHotelByPackageId(campaign.id),
+      findTransferByPackageId(campaign.id),
+      listTransferTypes({ pageSize: 1000 }),
+    ]);
+    const transferTypeNameById = new Map(transferTypesRes.items.map((t) => [t.id, t.name]));
+    const campaignDays = (itinerary?.days as unknown as ItineraryDayDetail[] | undefined) ?? [];
+    const campaignHotels = (hotelPlan?.hotels as unknown as HotelStayDetail[] | undefined) ?? [];
+    const campaignTransfers = (transferPlan?.transfers as unknown as TransferStopDetail[] | undefined) ?? [];
+    const campaignActivities = (campaign.activities as unknown as ActivityDetail[] | undefined) ?? [];
+
+    if (itineraryDays.length === 0) itineraryDays = campaignDays.map(dayFromCampaign);
+    if (hotelOptions.length === 0) hotelOptions = hotelOptionsFromCampaign(campaignHotels);
+    if (transfers.length === 0) {
+      transfers = transfersFromCampaign(
+        campaignTransfers.map((t) => ({ ...t, typeName: (t.transferTypeId && transferTypeNameById.get(t.transferTypeId)) || "Transfer" })),
+      );
+    }
+    if (activities.length === 0) activities = activitiesFromCampaign(campaignActivities);
+
+    heroImage = campaign.coverBanner || campaign.thumbnail || "";
+    inclusionLines = textToLines(campaign.inclusionsText || "");
+    exclusionLines = textToLines(campaign.exclusionsText || "");
+  }
+
   return {
     quoteCode: quoteCode(quotation.seq),
     customerName: quotation.lead.customerName,
     destinationName: quotation.destination.name,
+    packageName: campaign?.name ?? null,
+    heroImage,
     travelDate: quotation.travelDate
       ? quotation.travelDate.toLocaleDateString("en-IN")
       : quotation.lead.travelDate
         ? quotation.lead.travelDate.toLocaleDateString("en-IN")
         : null,
-    days: quotation.days,
-    nights: quotation.nights,
+    days: quotation.days ?? campaign?.days ?? null,
+    nights: quotation.nights ?? campaign?.nights ?? null,
     adults: quotation.adults,
     children: quotation.children,
     infants: quotation.infants,
     validUntil: quotation.validUntil ? quotation.validUntil.toLocaleDateString("en-IN") : null,
     createdDate: quotation.createdDate.toLocaleDateString("en-IN"),
-    components: quotation.items.map((i) => ({ component: i.component, detail: i.detail, qty: i.qty })),
-    itineraryDays: quotation.itineraryDays,
-    hotelOptions: quotation.hotelOptions,
-    transfers: quotation.transfers,
-    activities: quotation.activities,
+    itineraryDays,
+    hotelOptions,
+    transfers,
+    activities,
+    inclusionLines,
+    exclusionLines,
     sellingPrice,
     status: quotation.status,
   };
 }
 
-function textToLines(text: string): string[] {
-  return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-}
-
-/**
- * Same public shape as toPublicQuoteData, plus the full campaign itinerary
- * (day-wise plan, hotels, activities, transfers, inclusions/exclusions) when
- * the quotation was built from a Campaign template — mirrors exactly what
- * the public Campaign Detail page (src/app/campaigns/[slug]/page.tsx) loads.
- * Used only by PDF generation; quotations built without a campaign template
- * simply omit `campaignDetail` and fall back to the plain line-item layout.
- */
-export async function buildQuotationPdfData(quotation: NonNullable<Awaited<ReturnType<typeof getQuotation>>>) {
-  const base = toPublicQuoteData(quotation);
-  const campaign = quotation.campaign;
-
-  if (!campaign) return base;
-
-  const [itinerary, hotelPlan, transferPlan, transferTypesRes] = await Promise.all([
-    findItineraryByPackageId(campaign.id),
-    findHotelByPackageId(campaign.id),
-    findTransferByPackageId(campaign.id),
-    listTransferTypes({ pageSize: 1000 }),
-  ]);
-
-  const transferTypeNameById = new Map(transferTypesRes.items.map((t) => [t.id, t.name]));
-  const days = (itinerary?.days as unknown as ItineraryDayDetail[] | undefined) ?? [];
-  const hotels = (hotelPlan?.hotels as unknown as HotelStayDetail[] | undefined) ?? [];
-  const transfers = (transferPlan?.transfers as unknown as TransferStopDetail[] | undefined) ?? [];
-  const activities = (campaign.activities as unknown as ActivityDetail[] | undefined) ?? [];
-
-  return {
-    ...base,
-    campaignDetail: {
-      name: campaign.name,
-      nights: campaign.nights,
-      days: campaign.days,
-      heroImage: campaign.coverBanner || campaign.thumbnail || "",
-      itineraryDays: days,
-      hotels,
-      activities,
-      transfers: transfers.map((t) => ({
-        ...t,
-        typeName: (t.transferTypeId && transferTypeNameById.get(t.transferTypeId)) || "Transfer",
-      })),
-      inclusionLines: textToLines(campaign.inclusionsText || ""),
-      exclusionLines: textToLines(campaign.exclusionsText || ""),
-    },
-  };
-}
+export type PublicQuoteData = Awaited<ReturnType<typeof buildPublicQuoteData>>;

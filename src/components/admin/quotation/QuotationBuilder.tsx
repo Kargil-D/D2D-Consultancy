@@ -136,6 +136,7 @@ interface Draft {
   transfers: QuotationTransferItem[];
   activities: QuotationActivityItem[];
   marginPercent: number;
+  gstPercent: number;
   items: AdminQuotationItem[];
 }
 
@@ -159,6 +160,7 @@ const emptyDraft = (): Draft => ({
   transfers: [],
   activities: [],
   marginPercent: 0,
+  gstPercent: 5,
   items: [],
 });
 
@@ -271,6 +273,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           transfers: q.transfers,
           activities: q.activities,
           marginPercent: q.marginPercent,
+          gstPercent: q.gstPercent,
           items: q.items,
         });
         setStatus(q.status);
@@ -314,6 +317,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     validUntil: draft.validUntil || null,
     internalNotes: draft.internalNotes || null,
     marginPercent: draft.marginPercent,
+    gstPercent: draft.gstPercent,
     items: draft.items.map((r, i) => ({ ...r, sortOrder: i })),
     itineraryMode: draft.itineraryMode,
     itineraryDays: draft.itineraryDays,
@@ -481,7 +485,9 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
 
   const totalCost = draft.items.reduce((sum, r) => sum + r.qty * r.cost, 0);
   const marginValue = Math.round(totalCost * (draft.marginPercent / 100));
-  const sellingPrice = totalCost + marginValue;
+  const preGstSubtotal = totalCost + marginValue;
+  const gstValue = Math.round(preGstSubtotal * (draft.gstPercent / 100));
+  const sellingPrice = preGstSubtotal + gstValue;
 
   if (loading) {
     return (
@@ -913,6 +919,13 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
         <div className="flex items-center justify-between text-sm">
           <span className="text-slate-500">Margin Value</span>
           <span className="font-semibold text-slate-900">{formatINR(marginValue)}</span>
+        </div>
+        <Field label="GST %">
+          <input type="number" min={0} step={0.5} className={inputCls} value={draft.gstPercent} onChange={(e) => patch({ gstPercent: Number(e.target.value) || 0 })} />
+        </Field>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-slate-500">GST Value</span>
+          <span className="font-semibold text-slate-900">{formatINR(gstValue)}</span>
         </div>
         <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
           <span className="text-sm font-bold text-slate-900">Selling Price</span>

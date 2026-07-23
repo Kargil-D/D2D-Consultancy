@@ -70,7 +70,8 @@ export default function QuotationsAdminPage() {
       label: "Selling Price",
       render: (r) => {
         const totalCost = r.items.reduce((sum, i) => sum + i.qty * i.cost, 0);
-        const sellingPrice = totalCost + Math.round(totalCost * (r.marginPercent / 100));
+        const preGstSubtotal = totalCost + Math.round(totalCost * (r.marginPercent / 100));
+        const sellingPrice = preGstSubtotal + Math.round(preGstSubtotal * (r.gstPercent / 100));
         return <span className="font-semibold text-slate-900">{formatINR(sellingPrice)}</span>;
       },
     },

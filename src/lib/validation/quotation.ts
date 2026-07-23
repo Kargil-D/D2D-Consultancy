@@ -111,6 +111,7 @@ export const QuotationCreateSchema = z.object({
 
   // Pricing (unchanged)
   marginPercent: z.coerce.number().min(0).default(0),
+  gstPercent: z.coerce.number().min(0).default(5),
   items: z.array(QuotationItemSchema).default([]),
 
   // Steps 2–5 — content modules

@@ -375,6 +375,7 @@ model Quotation {
   campaignId    String?
   campaign      Campaign?       @relation(fields: [campaignId], references: [id])
   marginPercent Float           @default(0)
+  gstPercent    Float           @default(5)
   status        QuotationStatus @default(Draft)
   shareToken    String?         @unique
 
