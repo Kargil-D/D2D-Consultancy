@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
 import { bookingsApi, leadsApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
@@ -43,6 +44,21 @@ export default function BookingForm({ id }: BookingFormProps) {
 
   const selectedLead = wonLeads.find((l) => l.id === leadId);
   const selectedQuotation = quotations.find((q) => q.id === quotationId);
+
+  const quotePricing = selectedQuotation
+    ? (() => {
+        const cost = selectedQuotation.items.reduce((sum, i) => sum + i.qty * i.cost, 0);
+        const marginValue = Math.round(cost * (selectedQuotation.marginPercent / 100));
+        const subtotal = cost + marginValue;
+        const gstValue = Math.round(subtotal * (selectedQuotation.gstPercent / 100));
+        const sellingPrice = subtotal + gstValue;
+        return { cost, marginValue, gstValue, sellingPrice };
+      })()
+    : null;
+
+  const priceDifference = quotePricing ? totalAmount - quotePricing.sellingPrice : 0;
+  const priceDiffPercent = quotePricing && quotePricing.sellingPrice > 0 ? (priceDifference / quotePricing.sellingPrice) * 100 : 0;
+  const priceVerdict = priceDifference > 0 ? "profit" : priceDifference < 0 ? "loss" : "even";
 
   useEffect(() => {
     (async () => {
@@ -93,6 +109,15 @@ export default function BookingForm({ id }: BookingFormProps) {
         setTotalAmount(b.totalAmount);
         setStatus(b.status);
         setRemarks(b.remarks ?? "");
+
+        // The Won Lead picker only lists status="Won" leads — but by the time a booking is
+        // being edited, its lead has usually moved further along the pipeline. Without this,
+        // the dropdown (and the read-only Customer/Destination fields below it) would render
+        // blank even though a lead genuinely is linked.
+        const lead = b.lead;
+        if (lead) {
+          setWonLeads((prev) => (prev.some((l) => l.id === b.leadId) ? prev : [...prev, lead]));
+        }
       } else {
         notify(res.message || "Unable to load booking", "error");
       }
@@ -101,10 +126,10 @@ export default function BookingForm({ id }: BookingFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const canSave = !!leadId && !!destinationId && !!bookingExecutiveId && !!customerSupportId;
+  const canSave = !!leadId && !!destinationId;
 
   const save = async () => {
-    if (!canSave) return notify("Won Lead, destination, Booking Executive and Customer Support are required", "error");
+    if (!canSave) return notify("Won Lead and destination are required", "error");
     const payload = {
       leadId,
       quotationId: quotationId || null,
@@ -203,15 +228,15 @@ export default function BookingForm({ id }: BookingFormProps) {
               ))}
             </select>
           </Field>
-          <Field label="Assign Booking Executive" required>
+          <Field label="Assign Operations Executive">
             <select className={selectCls} value={bookingExecutiveId} onChange={(e) => setBookingExecutiveId(e.target.value)}>
-              <option value="">Select Booking Executive</option>
+              <option value="">Select Operations Executive</option>
               {bookingExecutives.map((u) => (
                 <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
               ))}
             </select>
           </Field>
-          <Field label="Assign Customer Support" required>
+          <Field label="Assign Customer Support">
             <select className={selectCls} value={customerSupportId} onChange={(e) => setCustomerSupportId(e.target.value)}>
               <option value="">Select Customer Support</option>
               {customerSupportUsers.map((u) => (
@@ -222,11 +247,37 @@ export default function BookingForm({ id }: BookingFormProps) {
           <Field label="Total Amount (INR)">
             <input type="number" min={0} className={inputCls} value={totalAmount} onChange={(e) => setTotalAmount(Number(e.target.value) || 0)} />
           </Field>
+          {quotePricing && (
+            <div
+              className={`rounded-xl border p-3 flex items-center justify-between gap-3 ${
+                priceVerdict === "profit"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  : priceVerdict === "loss"
+                    ? "bg-rose-50 border-rose-200 text-rose-700"
+                    : "bg-slate-50 border-slate-200 text-slate-600"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {priceVerdict === "profit" && <TrendingUp className="w-4 h-4 flex-shrink-0" />}
+                {priceVerdict === "loss" && <TrendingDown className="w-4 h-4 flex-shrink-0" />}
+                {priceVerdict === "even" && <Minus className="w-4 h-4 flex-shrink-0" />}
+                <span className="text-sm font-semibold">
+                  {priceVerdict === "profit" && "Profit vs Quote"}
+                  {priceVerdict === "loss" && "Loss vs Quote"}
+                  {priceVerdict === "even" && "Matches Quote"}
+                </span>
+              </div>
+              <div className="text-right">
+                <div className="font-bold">
+                  {priceVerdict !== "even" && (priceDifference > 0 ? "+" : "−")}{formatINR(Math.abs(priceDifference))}
+                </div>
+                {priceVerdict !== "even" && (
+                  <div className="text-xs opacity-80">{priceDiffPercent > 0 ? "+" : ""}{priceDiffPercent.toFixed(1)}%</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-
-        <Field label="Remarks">
-          <textarea className={textareaCls} value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={4} />
-        </Field>
 
         {selectedQuotation && (
           <div className="rounded-xl border border-slate-200 overflow-hidden">
@@ -258,29 +309,32 @@ export default function BookingForm({ id }: BookingFormProps) {
                 ))}
               </tbody>
             </table>
-            {(() => {
-              const totalCost = selectedQuotation.items.reduce((sum, i) => sum + i.qty * i.cost, 0);
-              const marginValue = Math.round(totalCost * (selectedQuotation.marginPercent / 100));
-              const sellingPrice = totalCost + marginValue;
-              return (
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-col gap-1 text-sm">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Total Cost</span>
-                    <span>{formatINR(totalCost)}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-500">
-                    <span>Margin ({selectedQuotation.marginPercent}%)</span>
-                    <span>{formatINR(marginValue)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-slate-900">
-                    <span>Selling Price</span>
-                    <span>{formatINR(sellingPrice)}</span>
-                  </div>
+            {quotePricing && (
+              <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-col gap-1 text-sm">
+                <div className="flex justify-between text-slate-500">
+                  <span>Booking Price</span>
+                  <span className="font-semibold text-slate-900">{formatINR(totalAmount)}</span>
                 </div>
-              );
-            })()}
+                <div className="flex justify-between text-slate-500">
+                  <span>Margin ({selectedQuotation.marginPercent}%)</span>
+                  <span>{formatINR(quotePricing.marginValue)}</span>
+                </div>
+                <div className="flex justify-between text-slate-500">
+                  <span>GST ({selectedQuotation.gstPercent}%)</span>
+                  <span>{formatINR(quotePricing.gstValue)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-slate-900 pt-1 border-t border-dashed border-slate-200">
+                  <span>Selling Price (Quoted)</span>
+                  <span>{formatINR(quotePricing.sellingPrice)}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
+
+        <Field label="Remarks">
+          <textarea className={textareaCls} value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={4} />
+        </Field>
       </div>
     </div>
   );

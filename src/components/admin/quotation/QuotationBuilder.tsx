@@ -20,6 +20,7 @@ import {
   ArrowRightLeft,
   Ticket,
   Wallet,
+  ListChecks,
 } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
@@ -58,6 +59,7 @@ const STEPS = [
   { key: "hotels", label: "Hotels", icon: BedDouble },
   { key: "transfers", label: "Transfers", icon: ArrowRightLeft },
   { key: "activities", label: "Activities", icon: Ticket },
+  { key: "inclusions", label: "Inclusions/Exclusions", icon: ListChecks },
   { key: "pricing", label: "Pricing", icon: Wallet },
 ] as const;
 
@@ -135,6 +137,8 @@ interface Draft {
   hotelOptions: QuotationHotelOptionGroup[];
   transfers: QuotationTransferItem[];
   activities: QuotationActivityItem[];
+  inclusionsText: string;
+  exclusionsText: string;
   marginPercent: number;
   gstPercent: number;
   items: AdminQuotationItem[];
@@ -159,6 +163,8 @@ const emptyDraft = (): Draft => ({
   hotelOptions: [],
   transfers: [],
   activities: [],
+  inclusionsText: "",
+  exclusionsText: "",
   marginPercent: 0,
   gstPercent: 5,
   items: [],
@@ -272,6 +278,8 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           hotelOptions: q.hotelOptions,
           transfers: q.transfers,
           activities: q.activities,
+          inclusionsText: q.inclusionsText,
+          exclusionsText: q.exclusionsText,
           marginPercent: q.marginPercent,
           gstPercent: q.gstPercent,
           items: q.items,
@@ -324,6 +332,8 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     hotelOptions: draft.hotelOptions,
     transfers: draft.transfers,
     activities: draft.activities,
+    inclusionsText: draft.inclusionsText,
+    exclusionsText: draft.exclusionsText,
   });
 
   const canSaveStep1 = !!draft.customer.customerName.trim() && !!draft.customer.mobile.trim() && !!draft.destinationId;
@@ -698,6 +708,30 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
             {step === 4 && <QuotationActivitiesEditor activities={draft.activities} onChange={(activities) => patch({ activities })} />}
 
             {step === 5 && (
+              <div className="space-y-6">
+                <p className="text-xs text-slate-500">One line per bullet point — shown to the customer on the PDF and shareable link.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Field label="Inclusions">
+                    <textarea
+                      className={`${textareaCls} min-h-[220px]`}
+                      value={draft.inclusionsText}
+                      onChange={(e) => patch({ inclusionsText: e.target.value })}
+                      placeholder={"4 Nights accommodation\nAll meals (Breakfast, Lunch, Dinner)\nAirport transfers"}
+                    />
+                  </Field>
+                  <Field label="Exclusions">
+                    <textarea
+                      className={`${textareaCls} min-h-[220px]`}
+                      value={draft.exclusionsText}
+                      onChange={(e) => patch({ exclusionsText: e.target.value })}
+                      placeholder={"International airfare\nPersonal expenses\nTravel insurance"}
+                    />
+                  </Field>
+                </div>
+              </div>
+            )}
+
+            {step === 6 && (
               <div className="space-y-6">
                 <p className="text-xs text-slate-500">
                   Every hotel, transfer and activity added in the earlier steps shows up here automatically — just fill in Currency and Supplier Cost for each.

@@ -19,7 +19,22 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       destinationName: booking.destination.name,
       travelDate: booking.travelDate ? booking.travelDate.toLocaleDateString("en-IN") : null,
       totalAmount: booking.totalAmount,
-      components: booking.components.map((c) => ({ component: c.component, detail: c.detail, status: c.status })),
+      flights: booking.flights.map((f) => ({ airline: f.airline, flightNumber: f.flightNumber, fromLocation: f.fromLocation, toLocation: f.toLocation, pnr: f.pnr })),
+      hotels: booking.hotels.map((h) => ({
+        hotelName: h.hotelName,
+        roomType: h.roomType,
+        checkIn: h.checkIn ? h.checkIn.toLocaleDateString("en-IN") : null,
+        checkOut: h.checkOut ? h.checkOut.toLocaleDateString("en-IN") : null,
+        nights: h.nights,
+      })),
+      activities: booking.activities.map((a) => ({
+        activityName: a.activityName,
+        activityDate: a.activityDate ? a.activityDate.toLocaleDateString("en-IN") : null,
+        duration: a.duration,
+      })),
+      transfers: booking.transfers.map((t) => ({ transferType: t.transferType, vehicleType: t.vehicleType, pickupLocation: t.pickupLocation, dropLocation: t.dropLocation })),
+      visas: booking.visas.map((v) => ({ country: v.country, visaType: v.visaType, status: v.status })),
+      insurances: booking.insurances.map((i) => ({ insuranceCompany: i.insuranceCompany, policyNumber: i.policyNumber, planName: i.planName })),
     });
 
     return new NextResponse(new Uint8Array(buffer), {

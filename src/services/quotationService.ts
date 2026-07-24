@@ -40,7 +40,7 @@ export function computeTotals(items: { qty: number; cost: number }[], marginPerc
   const subtotal = totalCost + marginValue;
   const gstValue = Math.round(subtotal * (gstPercent / 100));
   const sellingPrice = subtotal + gstValue;
-  return { totalCost, marginValue, gstValue, sellingPrice };
+  return { totalCost, marginValue, subtotal, gstValue, sellingPrice };
 }
 
 export async function listQuotations(query: ListQuery = {}) {
@@ -81,18 +81,29 @@ export async function getQuotationByShareToken(token: string) {
 
 const LEAD_PIPELINE_ORDER = ["New", "Contacted", "FollowUp"] as const;
 
+/** Strips formatting so "+91 77083 02280", "917708302280" and "7708302280" all match as the same number. */
+function normalizeMobile(mobile: string): string {
+  const digits = mobile.replace(/\D/g, "");
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
 /**
  * Step 1 has no "pick a lead" dropdown — it's a plain customer-detail form. This finds an
- * existing Lead by exact mobile match (and refreshes its display fields) or creates a new
- * one, so the Leads pipeline/reporting keeps working untouched. Status only ever moves
- * forward to "QuotationSent" (never downgrades a Lead already further along, e.g. "Won").
+ * existing Lead by mobile match (formatting-insensitive — see normalizeMobile) and refreshes
+ * its display fields, or creates a new one, so the Leads pipeline/reporting keeps working
+ * untouched. Status only ever moves forward to "QuotationSent" (never downgrades a Lead
+ * already further along, e.g. "Won").
  */
 export async function findOrCreateLeadForQuotation(
   customer: { customerName: string; mobile: string; email?: string | null; companyName?: string | null },
   destinationId: string,
   source?: string | null,
 ) {
-  const existing = await prisma.lead.findFirst({ where: { mobile: customer.mobile, isDeleted: false } });
+  const normalized = normalizeMobile(customer.mobile);
+  const candidates = normalized
+    ? await prisma.lead.findMany({ where: { isDeleted: false, mobile: { endsWith: normalized } } })
+    : [];
+  const existing = candidates.find((l) => normalizeMobile(l.mobile) === normalized) ?? null;
 
   if (existing) {
     const changed =
@@ -146,6 +157,8 @@ function quotationScalarData(input: Partial<QuotationCreate | QuotationUpdate>) 
     ...(input.hotelOptions !== undefined && { hotelOptions: input.hotelOptions as Prisma.InputJsonValue }),
     ...(input.transfers !== undefined && { transfers: input.transfers as Prisma.InputJsonValue }),
     ...(input.activities !== undefined && { activities: input.activities as Prisma.InputJsonValue }),
+    ...(input.inclusionsText !== undefined && { inclusionsText: input.inclusionsText }),
+    ...(input.exclusionsText !== undefined && { exclusionsText: input.exclusionsText }),
   } satisfies Prisma.QuotationUncheckedUpdateInput;
 }
 
@@ -246,6 +259,8 @@ export async function duplicateQuotation(id: string) {
         hotelOptions: source.hotelOptions as Prisma.InputJsonValue,
         transfers: source.transfers as Prisma.InputJsonValue,
         activities: source.activities as Prisma.InputJsonValue,
+        inclusionsText: source.inclusionsText,
+        exclusionsText: source.exclusionsText,
       },
     });
     if (source.items.length > 0) {
@@ -374,15 +389,15 @@ function activitiesFromCampaign(activities: ActivityDetail[]): QuotationActivity
  * care which source it came from.
  */
 export async function buildPublicQuoteData(quotation: NonNullable<Awaited<ReturnType<typeof getQuotation>>>) {
-  const { sellingPrice } = computeTotals(quotation.items, quotation.marginPercent, quotation.gstPercent);
+  const { subtotal, sellingPrice } = computeTotals(quotation.items, quotation.marginPercent, quotation.gstPercent);
 
   let itineraryDays = quotation.itineraryDays as unknown as QuotationItineraryDay[];
   let hotelOptions = quotation.hotelOptions as unknown as QuotationHotelOptionGroup[];
   let transfers = quotation.transfers as unknown as QuotationTransferItem[];
   let activities = quotation.activities as unknown as QuotationActivityItem[];
-  let heroImage = "";
-  let inclusionLines: string[] = [];
-  let exclusionLines: string[] = [];
+  let heroImage = quotation.destination.bannerImage || quotation.destination.thumbnailImage || "";
+  let inclusionLines: string[] = textToLines(quotation.inclusionsText || "");
+  let exclusionLines: string[] = textToLines(quotation.exclusionsText || "");
 
   const campaign = quotation.campaign;
   const needsFallback = itineraryDays.length === 0 || hotelOptions.length === 0 || transfers.length === 0 || activities.length === 0;
@@ -409,9 +424,9 @@ export async function buildPublicQuoteData(quotation: NonNullable<Awaited<Return
     }
     if (activities.length === 0) activities = activitiesFromCampaign(campaignActivities);
 
-    heroImage = campaign.coverBanner || campaign.thumbnail || "";
-    inclusionLines = textToLines(campaign.inclusionsText || "");
-    exclusionLines = textToLines(campaign.exclusionsText || "");
+    heroImage = campaign.coverBanner || campaign.thumbnail || heroImage;
+    if (inclusionLines.length === 0) inclusionLines = textToLines(campaign.inclusionsText || "");
+    if (exclusionLines.length === 0) exclusionLines = textToLines(campaign.exclusionsText || "");
   }
 
   return {
@@ -438,6 +453,8 @@ export async function buildPublicQuoteData(quotation: NonNullable<Awaited<Return
     activities,
     inclusionLines,
     exclusionLines,
+    subtotal,
+    gstPercent: quotation.gstPercent,
     sellingPrice,
     status: quotation.status,
   };

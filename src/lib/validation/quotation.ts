@@ -120,6 +120,10 @@ export const QuotationCreateSchema = z.object({
   hotelOptions: z.array(QuotationHotelOptionGroupSchema).default([]),
   transfers: z.array(QuotationTransferItemSchema).default([]),
   activities: z.array(QuotationActivityItemSchema).default([]),
+
+  // Step 6 — Inclusions / Exclusions
+  inclusionsText: z.string().optional().default(""),
+  exclusionsText: z.string().optional().default(""),
 });
 
 export const QuotationUpdateSchema = QuotationCreateSchema.partial();

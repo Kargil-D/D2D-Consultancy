@@ -11,6 +11,12 @@
 
 import type {
   AdminBooking,
+  AdminBookingActivity,
+  AdminBookingFlight,
+  AdminBookingHotel,
+  AdminBookingInsurance,
+  AdminBookingTransfer,
+  AdminBookingVisa,
   AdminCurrency,
   AdminCurrencyRateHistory,
   AdminDestination,
@@ -356,9 +362,58 @@ export const bookingsApi = {
     const res = await fetch(`/api/admin/bookings/${id}/documents`, { method: "POST", body: JSON.stringify({ type, url }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<unknown>;
   },
-  saveComponents: async (id: string, components: unknown[]): Promise<ApiResponse<AdminBooking | null>> => {
-    const res = await fetch(`/api/admin/bookings/${id}/components`, { method: "PUT", body: JSON.stringify({ components }), headers: { "Content-Type": "application/json" } });
+  removeDocument: async (id: string, docId: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/documents/${docId}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  saveFlights: async (id: string, rows: AdminBookingFlight[]): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/flights`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  saveHotels: async (id: string, rows: AdminBookingHotel[]): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/hotels`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  saveActivities: async (id: string, rows: AdminBookingActivity[]): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/activities`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  saveTransfers: async (id: string, rows: AdminBookingTransfer[]): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/transfers`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  saveVisas: async (id: string, rows: AdminBookingVisa[]): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/visas`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  saveInsurances: async (id: string, rows: AdminBookingInsurance[]): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/insurances`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  saveCostSheet: async (
+    id: string,
+    rows: { id: string; supplierName?: string; dmcCost?: number; bookingCost?: number; settlementCost?: number; sellingPrice?: number; status?: string; remarks?: string | null }[],
+  ): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/cost-sheet`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
+  },
+  addCustomerPayment: async (
+    id: string,
+    payload: { paymentDate: string; paymentMode: string; amount: number; transactionReference?: string | null; remarks?: string | null },
+  ): Promise<ApiResponse<unknown>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/payments/customer`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<unknown>;
+  },
+  addSupplierPayment: async (
+    id: string,
+    payload: { supplierName: string; paymentDate: string; amount: number; paymentMode: string; transactionReference?: string | null; settlementStatus: string },
+  ): Promise<ApiResponse<unknown>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/payments/supplier`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<unknown>;
+  },
+  addNote: async (id: string, authorName: string, message: string): Promise<ApiResponse<unknown>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/notes`, { method: "POST", body: JSON.stringify({ authorName, message }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<unknown>;
   },
 };
 

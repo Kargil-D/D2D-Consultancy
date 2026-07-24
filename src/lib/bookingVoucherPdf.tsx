@@ -7,7 +7,12 @@ export interface VoucherPdfData {
   destinationName: string;
   travelDate: string | null;
   totalAmount: number;
-  components: { component: string; detail: string; status: string }[];
+  flights: { airline: string; flightNumber: string; fromLocation: string; toLocation: string; pnr: string }[];
+  hotels: { hotelName: string; roomType: string; checkIn: string | null; checkOut: string | null; nights: number }[];
+  activities: { activityName: string; activityDate: string | null; duration: string }[];
+  transfers: { transferType: string; vehicleType: string; pickupLocation: string; dropLocation: string }[];
+  visas: { country: string; visaType: string; status: string }[];
+  insurances: { insuranceCompany: string; policyNumber: string; planName: string }[];
 }
 
 const styles = StyleSheet.create({
@@ -17,13 +22,11 @@ const styles = StyleSheet.create({
   tagline: { fontSize: 9, color: "#64748b", marginTop: 2 },
   title: { fontSize: 16, fontWeight: 700, marginTop: 16, marginBottom: 4 },
   meta: { fontSize: 10, color: "#475569", marginBottom: 2 },
-  section: { marginTop: 20 },
+  section: { marginTop: 18 },
   sectionTitle: { fontSize: 12, fontWeight: 700, marginBottom: 8 },
   row: { flexDirection: "row", borderBottom: "1 solid #e2e8f0", paddingVertical: 6 },
   rowHeader: { flexDirection: "row", backgroundColor: "#f1f5f9", paddingVertical: 6, fontWeight: 700 },
-  colComponent: { width: "25%" },
-  colDetail: { width: "50%" },
-  colStatus: { width: "25%", textAlign: "right" },
+  col: { flex: 1 },
   totalBox: {
     marginTop: 24,
     padding: 16,
@@ -58,23 +61,115 @@ function VoucherDocument({ data }: { data: VoucherPdfData }) {
         <Text style={styles.meta}>Destination: {data.destinationName}</Text>
         {data.travelDate && <Text style={styles.meta}>Travel Date: {data.travelDate}</Text>}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Booking Components</Text>
-          <View style={styles.rowHeader}>
-            <Text style={styles.colComponent}>Component</Text>
-            <Text style={styles.colDetail}>Detail</Text>
-            <Text style={styles.colStatus}>Status</Text>
-          </View>
-          {data.components.map((c, i) => (
-            <View style={styles.row} key={i}>
-              <Text style={styles.colComponent}>{c.component}</Text>
-              <Text style={styles.colDetail}>{c.detail || "—"}</Text>
-              <Text style={styles.colStatus}>{c.status}</Text>
+        {data.flights.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Flights</Text>
+            <View style={styles.rowHeader}>
+              <Text style={styles.col}>Airline / Flight</Text>
+              <Text style={styles.col}>Route</Text>
+              <Text style={styles.col}>PNR</Text>
             </View>
-          ))}
-        </View>
+            {data.flights.map((f, i) => (
+              <View style={styles.row} key={i}>
+                <Text style={styles.col}>{[f.airline, f.flightNumber].filter(Boolean).join(" ") || "—"}</Text>
+                <Text style={styles.col}>{f.fromLocation} {"->"} {f.toLocation}</Text>
+                <Text style={styles.col}>{f.pnr || "—"}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
-        <View style={styles.totalBox}>
+        {data.hotels.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Hotels</Text>
+            <View style={styles.rowHeader}>
+              <Text style={styles.col}>Hotel</Text>
+              <Text style={styles.col}>Room</Text>
+              <Text style={styles.col}>Check-in / Check-out</Text>
+            </View>
+            {data.hotels.map((h, i) => (
+              <View style={styles.row} key={i}>
+                <Text style={styles.col}>{h.hotelName || "—"}</Text>
+                <Text style={styles.col}>{h.roomType || "—"}</Text>
+                <Text style={styles.col}>{h.checkIn || "—"} — {h.checkOut || "—"} ({h.nights}N)</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {data.activities.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Activities</Text>
+            <View style={styles.rowHeader}>
+              <Text style={styles.col}>Activity</Text>
+              <Text style={styles.col}>Date</Text>
+              <Text style={styles.col}>Duration</Text>
+            </View>
+            {data.activities.map((a, i) => (
+              <View style={styles.row} key={i}>
+                <Text style={styles.col}>{a.activityName || "—"}</Text>
+                <Text style={styles.col}>{a.activityDate || "—"}</Text>
+                <Text style={styles.col}>{a.duration || "—"}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {data.transfers.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Transfers</Text>
+            <View style={styles.rowHeader}>
+              <Text style={styles.col}>Type</Text>
+              <Text style={styles.col}>Vehicle</Text>
+              <Text style={styles.col}>Route</Text>
+            </View>
+            {data.transfers.map((t, i) => (
+              <View style={styles.row} key={i}>
+                <Text style={styles.col}>{t.transferType || "—"}</Text>
+                <Text style={styles.col}>{t.vehicleType || "—"}</Text>
+                <Text style={styles.col}>{t.pickupLocation} {"->"} {t.dropLocation}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {data.visas.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Visa</Text>
+            <View style={styles.rowHeader}>
+              <Text style={styles.col}>Country</Text>
+              <Text style={styles.col}>Type</Text>
+              <Text style={styles.col}>Status</Text>
+            </View>
+            {data.visas.map((v, i) => (
+              <View style={styles.row} key={i}>
+                <Text style={styles.col}>{v.country || "—"}</Text>
+                <Text style={styles.col}>{v.visaType || "—"}</Text>
+                <Text style={styles.col}>{v.status}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {data.insurances.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Insurance</Text>
+            <View style={styles.rowHeader}>
+              <Text style={styles.col}>Company</Text>
+              <Text style={styles.col}>Policy No.</Text>
+              <Text style={styles.col}>Plan</Text>
+            </View>
+            {data.insurances.map((ins, i) => (
+              <View style={styles.row} key={i}>
+                <Text style={styles.col}>{ins.insuranceCompany || "—"}</Text>
+                <Text style={styles.col}>{ins.policyNumber || "—"}</Text>
+                <Text style={styles.col}>{ins.planName || "—"}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={styles.totalBox} wrap={false}>
           <Text style={styles.totalLabel}>Total Amount</Text>
           <Text style={styles.totalValue}>{formatINR(data.totalAmount)}</Text>
         </View>

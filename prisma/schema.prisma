@@ -94,35 +94,35 @@ model RefreshToken {
 }
 
 model Destination {
-  id              String   @id @default(uuid())
-  name            String
-  country         String
-  state           String?
-  city            String?
-  slug            String   @unique
+  id               String  @id @default(uuid())
+  name             String
+  country          String
+  state            String?
+  city             String?
+  slug             String  @unique
   shortDescription String
-  fullDescription String
-  thumbnailImage  String?
-  bannerImage     String?
-  isPopular       Boolean  @default(false)
-  displayOrder    Int      @default(0)
-  seoTitle        String?
-  seoDescription  String?
-  status          Status   @default(Active)
-  isDomestic      Boolean  @default(false)
+  fullDescription  String
+  thumbnailImage   String?
+  bannerImage      String?
+  isPopular        Boolean @default(false)
+  displayOrder     Int     @default(0)
+  seoTitle         String?
+  seoDescription   String?
+  status           Status  @default(Active)
+  isDomestic       Boolean @default(false)
 
   // Audit
-  createdBy       String?
-  createdDate     DateTime @default(now())
-  updatedBy       String?
-  updatedDate     DateTime @updatedAt
-  isDeleted       Boolean  @default(false)
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
 
-  campaigns       Campaign[]
-  leads           Lead[]
-  quotations      Quotation[]
-  bookings        Booking[]
-  hotelMasters    HotelMaster[]
+  campaigns    Campaign[]
+  leads        Lead[]
+  quotations   Quotation[]
+  bookings     Booking[]
+  hotelMasters HotelMaster[]
 
   @@map("destinations")
 }
@@ -327,9 +327,9 @@ model Lead {
   updatedDate DateTime @updatedAt
   isDeleted   Boolean  @default(false)
 
-  activities  LeadActivity[]
-  quotations  Quotation[]
-  bookings    Booking[]
+  activities LeadActivity[]
+  quotations Quotation[]
+  bookings   Booking[]
 
   @@index([destinationId])
   @@index([assignedToId])
@@ -383,13 +383,13 @@ model Quotation {
   travelDate DateTime?
   days       Int?
   nights     Int?
-  adults     Int  @default(1)
-  children   Int  @default(0)
-  infants    Int  @default(0)
+  adults     Int       @default(1)
+  children   Int       @default(0)
+  infants    Int       @default(0)
 
   // Step 1 — Other Details
   salesExecutiveId String?
-  salesExecutive   User?      @relation("QuotationSalesExecutive", fields: [salesExecutiveId], references: [id])
+  salesExecutive   User?       @relation("QuotationSalesExecutive", fields: [salesExecutiveId], references: [id])
   source           LeadSource?
   validUntil       DateTime?
   internalNotes    String?
@@ -400,6 +400,10 @@ model Quotation {
   hotelOptions  Json   @default("[]")
   transfers     Json   @default("[]")
   activities    Json   @default("[]")
+
+  // Step 6 — Inclusions / Exclusions (free text, one line per bullet — same convention as Campaign.inclusionsText/exclusionsText)
+  inclusionsText String @default("")
+  exclusionsText String @default("")
 
   createdDate DateTime @default(now())
   updatedDate DateTime @updatedAt
@@ -418,7 +422,9 @@ model QuotationItem {
   quotationId   String
   quotation     Quotation          @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   component     QuotationComponent
-  /** Links this costing row back to its source hotel/activity/transfer id (from the Quotation's JSON content fields) so Pricing stays in sync as those are added/edited/removed. Null for manually-added rows (Visa/Insurance/Flight). */
+  /**
+   * Links this costing row back to its source hotel/activity/transfer id (from the Quotation's JSON content fields) so Pricing stays in sync as those are added/edited/removed. Null for manually-added rows (Visa/Insurance/Flight).
+   */
   sourceId      String?
   detail        String             @default("")
   qty           Int                @default(1)
@@ -474,24 +480,60 @@ enum BookingStatus {
   Cancelled
 }
 
-enum BookingComponentType {
+/**
+ * Discriminator linking a BookingCostSheetEntry back to whichever structured service table (via sourceId) it was generated from.
+ */
+enum BookingServiceType {
+  Flight
   Hotel
-  Transfer
   Activity
+  Transfer
   Visa
+  Insurance
 }
 
-enum BookingComponentStatus {
+enum CostSheetStatus {
   Pending
   Confirmed
-  Cancelled
+  Invoiced
+  Settled
+}
+
+enum TourType {
+  Private
+  SIC
+}
+
+enum VisaStatus {
+  Applied
   Approved
   Rejected
+  Issued
+}
+
+enum PaymentMode {
+  Cash
+  BankTransfer
+  Card
+  UPI
+  Cheque
+  Other
+}
+
+enum SettlementStatus {
+  Pending
+  Settled
+  Partial
 }
 
 enum BookingDocumentType {
   Passport
   Visa
+  Aadhaar
+  PAN
+  PassportPhoto
+  Other
+  /// legacy values, kept for rows written before the Customer Documents rework
   FlightTicket
   Insurance
 }
@@ -522,8 +564,18 @@ model Booking {
   updatedDate DateTime @updatedAt
   isDeleted   Boolean  @default(false)
 
-  documents  BookingDocument[]
-  components BookingComponent[]
+  documents        BookingDocument[]
+  flights          BookingFlight[]
+  hotels           BookingHotel[]
+  activities       BookingActivity[]
+  transfers        BookingTransfer[]
+  visas            BookingVisa[]
+  insurances       BookingInsurance[]
+  costSheet        BookingCostSheetEntry[]
+  customerPayments BookingCustomerPayment[]
+  supplierPayments BookingSupplierPayment[]
+  timeline         BookingTimelineEvent[]
+  notes            BookingNote[]
 
   @@index([leadId])
   @@index([bookingExecutiveId])
@@ -539,19 +591,222 @@ model BookingDocument {
   url          String
   uploadedDate DateTime            @default(now())
 
-  @@unique([bookingId, type])
+  @@index([bookingId])
   @@map("booking_documents")
 }
 
-model BookingComponent {
-  id        String                 @id @default(uuid())
-  bookingId String
-  booking   Booking                @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  component BookingComponentType
-  detail    String                 @default("")
-  status    BookingComponentStatus @default(Pending)
-  sortOrder Int                    @default(0)
+/// FRD §4 — Flight
+model BookingFlight {
+  id           String    @id @default(uuid())
+  bookingId    String
+  booking      Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  airline      String    @default("")
+  flightNumber String    @default("")
+  pnr          String    @default("")
+  ticketNumber String    @default("")
+  fromLocation String    @default("")
+  toLocation   String    @default("")
+  departureAt  DateTime?
+  arrivalAt    DateTime?
+  cabinClass   String    @default("")
+  baggage      String    @default("")
+  meal         String    @default("")
+  supplier     String    @default("")
+  ticketUrl    String?
+  voucherUrl   String?
+  sortOrder    Int       @default(0)
 
   @@index([bookingId])
-  @@map("booking_components")
+  @@map("booking_flights")
+}
+
+/// FRD §5 — Hotel
+model BookingHotel {
+  id                 String    @id @default(uuid())
+  bookingId          String
+  booking            Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  hotelName          String    @default("")
+  hotelCategory      String    @default("")
+  checkIn            DateTime?
+  checkOut           DateTime?
+  nights             Int       @default(0)
+  rooms              Int       @default(1)
+  roomCategory       String    @default("")
+  roomType           String    @default("")
+  mealPlan           String    @default("")
+  occupancy          String    @default("")
+  amenities          String[]  @default([])
+  hotelAddress       String    @default("")
+  googleMapLink      String?
+  hotelContactNumber String    @default("")
+  supplier           String    @default("")
+  voucherUrl         String?
+  sortOrder          Int       @default(0)
+
+  @@index([bookingId])
+  @@map("booking_hotels")
+}
+
+/// FRD §6 — Activity
+model BookingActivity {
+  id             String    @id @default(uuid())
+  bookingId      String
+  booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  activityName   String    @default("")
+  activityDate   DateTime?
+  activityTime   String    @default("")
+  duration       String    @default("")
+  tourType       TourType  @default(Private)
+  pickupIncluded Boolean   @default(false)
+  pickupTime     String    @default("")
+  pickupLocation String    @default("")
+  meetingPoint   String    @default("")
+  dropLocation   String    @default("")
+  inclusions     String    @default("")
+  exclusions     String    @default("")
+  supplier       String    @default("")
+  voucherUrl     String?
+  sortOrder      Int       @default(0)
+
+  @@index([bookingId])
+  @@map("booking_activities")
+}
+
+/// FRD §7 — Transfer
+model BookingTransfer {
+  id             String    @id @default(uuid())
+  bookingId      String
+  booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  transferType   String    @default("")
+  vehicleType    String    @default("")
+  mode           TourType  @default(Private)
+  pickupAt       DateTime?
+  pickupLocation String    @default("")
+  dropLocation   String    @default("")
+  driverName     String    @default("")
+  driverMobile   String    @default("")
+  vehicleNumber  String    @default("")
+  supplier       String    @default("")
+  voucherUrl     String?
+  sortOrder      Int       @default(0)
+
+  @@index([bookingId])
+  @@map("booking_transfers")
+}
+
+/// FRD §8 — Visa
+model BookingVisa {
+  id              String     @id @default(uuid())
+  bookingId       String
+  booking         Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  country         String     @default("")
+  visaType        String     @default("")
+  visaNumber      String     @default("")
+  applicationDate DateTime?
+  issueDate       DateTime?
+  expiryDate      DateTime?
+  status          VisaStatus @default(Applied)
+  supplier        String     @default("")
+  visaCopyUrl     String?
+  sortOrder       Int        @default(0)
+
+  @@index([bookingId])
+  @@map("booking_visas")
+}
+
+/// FRD §9 — Insurance
+model BookingInsurance {
+  id               String    @id @default(uuid())
+  bookingId        String
+  booking          Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  insuranceCompany String    @default("")
+  policyNumber     String    @default("")
+  planName         String    @default("")
+  coverageAmount   Int       @default(0)
+  travelStartDate  DateTime?
+  travelEndDate    DateTime?
+  policyPdfUrl     String?
+  sortOrder        Int       @default(0)
+
+  @@index([bookingId])
+  @@map("booking_insurances")
+}
+
+/// FRD §3 — Cost Sheet. One entry per structured-service row (matched by sourceId), auto-reconciled — same pattern as QuotationItem.sourceId.
+model BookingCostSheetEntry {
+  id             String             @id @default(uuid())
+  bookingId      String
+  booking        Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  serviceType    BookingServiceType
+  sourceId       String
+  supplierName   String             @default("")
+  serviceName    String             @default("")
+  dmcCost        Int                @default(0)
+  bookingCost    Int                @default(0)
+  settlementCost Int                @default(0)
+  sellingPrice   Int                @default(0)
+  status         CostSheetStatus    @default(Pending)
+  remarks        String?
+  sortOrder      Int                @default(0)
+
+  @@index([bookingId])
+  @@map("booking_cost_sheet_entries")
+}
+
+/// FRD §10 — Customer Payment
+model BookingCustomerPayment {
+  id                   String      @id @default(uuid())
+  bookingId            String
+  booking              Booking     @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  paymentDate          DateTime
+  paymentMode          PaymentMode @default(Cash)
+  amount               Int
+  transactionReference String?
+  remarks              String?
+  createdDate          DateTime    @default(now())
+
+  @@index([bookingId])
+  @@map("booking_customer_payments")
+}
+
+/// FRD §10 — Supplier Payment
+model BookingSupplierPayment {
+  id                   String           @id @default(uuid())
+  bookingId            String
+  booking              Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  supplierName         String
+  paymentDate          DateTime
+  amount               Int
+  paymentMode          PaymentMode      @default(Cash)
+  transactionReference String?
+  settlementStatus     SettlementStatus @default(Pending)
+  createdDate          DateTime         @default(now())
+
+  @@index([bookingId])
+  @@map("booking_supplier_payments")
+}
+
+/// FRD §13 — Timeline. Verbatim copy of the LeadActivity pattern.
+model BookingTimelineEvent {
+  id          String   @id @default(uuid())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  message     String
+  createdDate DateTime @default(now())
+
+  @@index([bookingId])
+  @@map("booking_timeline_events")
+}
+
+/// FRD §12 — Customer Chat's "Internal Notes" half (WhatsApp/Email are external integrations, not built here).
+model BookingNote {
+  id          String   @id @default(uuid())
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  authorName  String   @default("")
+  message     String
+  createdDate DateTime @default(now())
+
+  @@index([bookingId])
+  @@map("booking_notes")
 }

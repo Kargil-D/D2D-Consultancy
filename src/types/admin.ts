@@ -430,6 +430,10 @@ export interface AdminQuotation {
   transfers: QuotationTransferItem[];
   activities: QuotationActivityItem[];
 
+  // Step 6 — Inclusions / Exclusions
+  inclusionsText: string;
+  exclusionsText: string;
+
   items: AdminQuotationItem[];
   createdDate: string;
   updatedDate: string;
@@ -439,23 +443,177 @@ export interface AdminQuotation {
 /*  Booking Module                                                             */
 /* -------------------------------------------------------------------------- */
 export type BookingStatus = "Won" | "Booked" | "OnTrip" | "Completed" | "Cancelled";
-export type BookingComponentType = "Hotel" | "Transfer" | "Activity" | "Visa";
-export type BookingComponentStatus = "Pending" | "Confirmed" | "Cancelled" | "Approved" | "Rejected";
-export type BookingDocumentType = "Passport" | "Visa" | "FlightTicket" | "Insurance";
-
-export interface AdminBookingComponent {
-  id?: string;
-  component: BookingComponentType;
-  detail: string;
-  status: BookingComponentStatus;
-  sortOrder?: number;
-}
+export type BookingDocumentType = "Passport" | "Visa" | "Aadhaar" | "PAN" | "PassportPhoto" | "Other" | "FlightTicket" | "Insurance";
+export type BookingServiceType = "Flight" | "Hotel" | "Activity" | "Transfer" | "Visa" | "Insurance";
+export type CostSheetStatus = "Pending" | "Confirmed" | "Invoiced" | "Settled";
+export type TourType = "Private" | "SIC";
+export type VisaProcessStatus = "Applied" | "Approved" | "Rejected" | "Issued";
+export type PaymentMode = "Cash" | "BankTransfer" | "Card" | "UPI" | "Cheque" | "Other";
+export type SettlementStatus = "Pending" | "Settled" | "Partial";
 
 export interface AdminBookingDocument {
   id: string;
   type: BookingDocumentType;
   url: string;
   uploadedDate: string;
+}
+
+/* FRD §4 — Flight */
+export interface AdminBookingFlight {
+  id?: string;
+  airline: string;
+  flightNumber: string;
+  pnr: string;
+  ticketNumber: string;
+  fromLocation: string;
+  toLocation: string;
+  departureAt?: string | null;
+  arrivalAt?: string | null;
+  cabinClass: string;
+  baggage: string;
+  meal: string;
+  supplier: string;
+  ticketUrl?: string | null;
+  voucherUrl?: string | null;
+  sortOrder?: number;
+}
+
+/* FRD §5 — Hotel */
+export interface AdminBookingHotel {
+  id?: string;
+  hotelName: string;
+  hotelCategory: string;
+  checkIn?: string | null;
+  checkOut?: string | null;
+  nights: number;
+  rooms: number;
+  roomCategory: string;
+  roomType: string;
+  mealPlan: string;
+  occupancy: string;
+  amenities: string[];
+  hotelAddress: string;
+  googleMapLink?: string | null;
+  hotelContactNumber: string;
+  supplier: string;
+  voucherUrl?: string | null;
+  sortOrder?: number;
+}
+
+/* FRD §6 — Activity */
+export interface AdminBookingActivity {
+  id?: string;
+  activityName: string;
+  activityDate?: string | null;
+  activityTime: string;
+  duration: string;
+  tourType: TourType;
+  pickupIncluded: boolean;
+  pickupTime: string;
+  pickupLocation: string;
+  meetingPoint: string;
+  dropLocation: string;
+  inclusions: string;
+  exclusions: string;
+  supplier: string;
+  voucherUrl?: string | null;
+  sortOrder?: number;
+}
+
+/* FRD §7 — Transfer */
+export interface AdminBookingTransfer {
+  id?: string;
+  transferType: string;
+  vehicleType: string;
+  mode: TourType;
+  pickupAt?: string | null;
+  pickupLocation: string;
+  dropLocation: string;
+  driverName: string;
+  driverMobile: string;
+  vehicleNumber: string;
+  supplier: string;
+  voucherUrl?: string | null;
+  sortOrder?: number;
+}
+
+/* FRD §8 — Visa */
+export interface AdminBookingVisa {
+  id?: string;
+  country: string;
+  visaType: string;
+  visaNumber: string;
+  applicationDate?: string | null;
+  issueDate?: string | null;
+  expiryDate?: string | null;
+  status: VisaProcessStatus;
+  supplier: string;
+  visaCopyUrl?: string | null;
+  sortOrder?: number;
+}
+
+/* FRD §9 — Insurance */
+export interface AdminBookingInsurance {
+  id?: string;
+  insuranceCompany: string;
+  policyNumber: string;
+  planName: string;
+  coverageAmount: number;
+  travelStartDate?: string | null;
+  travelEndDate?: string | null;
+  policyPdfUrl?: string | null;
+  sortOrder?: number;
+}
+
+/** FRD §3 — Cost Sheet. `profit` is computed (sellingPrice - dmcCost), never stored. */
+export interface AdminBookingCostSheetEntry {
+  id: string;
+  serviceType: BookingServiceType;
+  sourceId: string;
+  supplierName: string;
+  serviceName: string;
+  dmcCost: number;
+  bookingCost: number;
+  settlementCost: number;
+  sellingPrice: number;
+  profit: number;
+  status: CostSheetStatus;
+  remarks?: string | null;
+  sortOrder?: number;
+}
+
+export interface AdminBookingCustomerPayment {
+  id?: string;
+  paymentDate: string;
+  paymentMode: PaymentMode;
+  amount: number;
+  transactionReference?: string | null;
+  remarks?: string | null;
+  createdDate?: string;
+}
+
+export interface AdminBookingSupplierPayment {
+  id?: string;
+  supplierName: string;
+  paymentDate: string;
+  amount: number;
+  paymentMode: PaymentMode;
+  transactionReference?: string | null;
+  settlementStatus: SettlementStatus;
+  createdDate?: string;
+}
+
+export interface AdminBookingTimelineEvent {
+  id: string;
+  message: string;
+  createdDate: string;
+}
+
+export interface AdminBookingNote {
+  id?: string;
+  authorName: string;
+  message: string;
+  createdDate?: string;
 }
 
 export interface AdminBooking {
@@ -480,7 +638,17 @@ export interface AdminBooking {
   dmcResponse?: string | null;
   dmcRemarks?: string | null;
   documents: AdminBookingDocument[];
-  components: AdminBookingComponent[];
+  flights: AdminBookingFlight[];
+  hotels: AdminBookingHotel[];
+  activities: AdminBookingActivity[];
+  transfers: AdminBookingTransfer[];
+  visas: AdminBookingVisa[];
+  insurances: AdminBookingInsurance[];
+  costSheet: AdminBookingCostSheetEntry[];
+  customerPayments: AdminBookingCustomerPayment[];
+  supplierPayments: AdminBookingSupplierPayment[];
+  timeline: AdminBookingTimelineEvent[];
+  notes: AdminBookingNote[];
   createdDate: string;
   updatedDate: string;
 }
