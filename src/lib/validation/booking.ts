@@ -69,6 +69,10 @@ export const BookingHotelSchema = z.object({
   hotelContactNumber: z.string().optional().default(""),
   supplier: z.string().optional().default(""),
   voucherUrl: nullableStr,
+  paymentMode: z.enum(["Cash", "BankTransfer", "Card", "UPI", "Cheque", "Other"]).default("Cash"),
+  bookingDate: nullableDate,
+  bookingPnr: z.string().optional().default(""),
+  updatedBy: z.string().optional().default(""),
   sortOrder: z.coerce.number().int().default(0),
 });
 
@@ -81,13 +85,15 @@ export const BookingActivitySchema = z.object({
   tourType: z.enum(["Private", "SIC"]).default("Private"),
   pickupIncluded: z.coerce.boolean().default(false),
   pickupTime: z.string().optional().default(""),
-  pickupLocation: z.string().optional().default(""),
-  meetingPoint: z.string().optional().default(""),
-  dropLocation: z.string().optional().default(""),
+  pax: z.coerce.number().int().min(1).default(1),
   inclusions: z.string().optional().default(""),
   exclusions: z.string().optional().default(""),
   supplier: z.string().optional().default(""),
   voucherUrl: nullableStr,
+  paymentMode: z.enum(["Cash", "BankTransfer", "Card", "UPI", "Cheque", "Other"]).default("Cash"),
+  bookingDate: nullableDate,
+  bookingPnr: z.string().optional().default(""),
+  updatedBy: z.string().optional().default(""),
   sortOrder: z.coerce.number().int().default(0),
 });
 
@@ -104,6 +110,10 @@ export const BookingTransferSchema = z.object({
   vehicleNumber: z.string().optional().default(""),
   supplier: z.string().optional().default(""),
   voucherUrl: nullableStr,
+  paymentMode: z.enum(["Cash", "BankTransfer", "Card", "UPI", "Cheque", "Other"]).default("Cash"),
+  bookingDate: nullableDate,
+  bookingPnr: z.string().optional().default(""),
+  updatedBy: z.string().optional().default(""),
   sortOrder: z.coerce.number().int().default(0),
 });
 

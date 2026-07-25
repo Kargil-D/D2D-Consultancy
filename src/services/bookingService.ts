@@ -264,6 +264,7 @@ export async function replaceHotels(bookingId: string, rows: BookingHotelInput[]
         nights: r.nights, rooms: r.rooms, roomCategory: r.roomCategory, roomType: r.roomType, mealPlan: r.mealPlan,
         occupancy: r.occupancy, amenities: r.amenities, hotelAddress: r.hotelAddress, googleMapLink: r.googleMapLink ?? null,
         hotelContactNumber: r.hotelContactNumber, supplier: r.supplier, voucherUrl: r.voucherUrl ?? null,
+        paymentMode: r.paymentMode, bookingDate: r.bookingDate ?? null, bookingPnr: r.bookingPnr, updatedBy: r.updatedBy,
       };
       await tx.bookingHotel.upsert({ where: { id }, update: data, create: { id, ...data } });
     }
@@ -282,9 +283,10 @@ export async function replaceActivities(bookingId: string, rows: BookingActivity
       const data = {
         bookingId, sortOrder: i,
         activityName: r.activityName, activityDate: r.activityDate ?? null, activityTime: r.activityTime, duration: r.duration,
-        tourType: r.tourType, pickupIncluded: r.pickupIncluded, pickupTime: r.pickupTime, pickupLocation: r.pickupLocation,
-        meetingPoint: r.meetingPoint, dropLocation: r.dropLocation, inclusions: r.inclusions, exclusions: r.exclusions,
+        tourType: r.tourType, pickupIncluded: r.pickupIncluded, pickupTime: r.pickupTime, pax: r.pax,
+        inclusions: r.inclusions, exclusions: r.exclusions,
         supplier: r.supplier, voucherUrl: r.voucherUrl ?? null,
+        paymentMode: r.paymentMode, bookingDate: r.bookingDate ?? null, bookingPnr: r.bookingPnr, updatedBy: r.updatedBy,
       };
       await tx.bookingActivity.upsert({ where: { id }, update: data, create: { id, ...data } });
     }
@@ -305,6 +307,7 @@ export async function replaceTransfers(bookingId: string, rows: BookingTransferI
         transferType: r.transferType, vehicleType: r.vehicleType, mode: r.mode, pickupAt: r.pickupAt ?? null,
         pickupLocation: r.pickupLocation, dropLocation: r.dropLocation, driverName: r.driverName, driverMobile: r.driverMobile,
         vehicleNumber: r.vehicleNumber, supplier: r.supplier, voucherUrl: r.voucherUrl ?? null,
+        paymentMode: r.paymentMode, bookingDate: r.bookingDate ?? null, bookingPnr: r.bookingPnr, updatedBy: r.updatedBy,
       };
       await tx.bookingTransfer.upsert({ where: { id }, update: data, create: { id, ...data } });
     }

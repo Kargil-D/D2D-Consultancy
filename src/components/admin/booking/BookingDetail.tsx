@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   FileDown, Mail, Copy, Link as LinkIcon, ExternalLink, Save, Download,
@@ -11,9 +11,9 @@ import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/F
 import { useToast } from "@/components/admin/ui/Toast";
 import BookingStatusStepper from "@/components/admin/booking/BookingStatusStepper";
 import BookingFlightsEditor from "@/components/admin/booking/BookingFlightsEditor";
-import BookingHotelsEditor from "@/components/admin/booking/BookingHotelsEditor";
-import BookingActivitiesEditor from "@/components/admin/booking/BookingActivitiesEditor";
-import BookingTransfersEditor from "@/components/admin/booking/BookingTransfersEditor";
+import BookingHotelsEditor, { type HotelQuotationMeta } from "@/components/admin/booking/BookingHotelsEditor";
+import BookingActivitiesEditor, { type ActivityQuotationMeta } from "@/components/admin/booking/BookingActivitiesEditor";
+import BookingTransfersEditor, { type TransferQuotationMeta } from "@/components/admin/booking/BookingTransfersEditor";
 import BookingVisasEditor from "@/components/admin/booking/BookingVisasEditor";
 import BookingInsurancesEditor from "@/components/admin/booking/BookingInsurancesEditor";
 import BookingCostSheet from "@/components/admin/booking/BookingCostSheet";
@@ -87,8 +87,11 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   // same pattern as the original single "Save Components" table.
   const [flights, setFlights] = useState<AdminBookingFlight[]>([]);
   const [hotels, setHotels] = useState<AdminBookingHotel[]>([]);
+  const hotelsAutoLoadedRef = useRef(false);
   const [activities, setActivities] = useState<AdminBookingActivity[]>([]);
+  const activitiesAutoLoadedRef = useRef(false);
   const [transfers, setTransfers] = useState<AdminBookingTransfer[]>([]);
+  const transfersAutoLoadedRef = useRef(false);
   const [visas, setVisas] = useState<AdminBookingVisa[]>([]);
   const [insurances, setInsurances] = useState<AdminBookingInsurance[]>([]);
   const [savingFlights, setSavingFlights] = useState(false);
@@ -115,9 +118,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       setDetailTotalAmount(b.totalAmount);
       setDetailRemarks(b.remarks ?? "");
       setFlights(b.flights);
-      setHotels(b.hotels.map((h) => ({ ...h, checkIn: h.checkIn?.slice(0, 10) ?? null, checkOut: h.checkOut?.slice(0, 10) ?? null })));
-      setActivities(b.activities.map((a) => ({ ...a, activityDate: a.activityDate?.slice(0, 10) ?? null })));
-      setTransfers(b.transfers);
+      setHotels(b.hotels.map((h) => ({ ...h, checkIn: h.checkIn?.slice(0, 10) ?? null, checkOut: h.checkOut?.slice(0, 10) ?? null, bookingDate: h.bookingDate?.slice(0, 10) ?? null })));
+      setActivities(b.activities.map((a) => ({ ...a, activityDate: a.activityDate?.slice(0, 10) ?? null, bookingDate: a.bookingDate?.slice(0, 10) ?? null })));
+      setTransfers(b.transfers.map((t) => ({ ...t, bookingDate: t.bookingDate?.slice(0, 10) ?? null })));
       setVisas(b.visas.map((v) => ({
         ...v,
         applicationDate: v.applicationDate?.slice(0, 10) ?? null,
@@ -165,6 +168,149 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       });
     });
   }, [booking?.leadId, booking?.quotation]);
+
+  const selectedQuotation = quotations.find((q) => q.id === detailQuotationId) ?? null;
+
+  useEffect(() => {
+    hotelsAutoLoadedRef.current = false;
+    activitiesAutoLoadedRef.current = false;
+    transfersAutoLoadedRef.current = false;
+  }, [id]);
+
+  // One-time auto-load: if this booking has no hotel rows yet and its Quotation has hotel
+  // options, copy them in once (reusing the Quotation hotel selection's own id as the
+  // booking row's id, so the D2D Cost/Currency/Total Cost columns can mirror the matching
+  // QuotationItem by sourceId). After this first load, rows are fully independent — edits
+  // here never write back to the Quotation.
+  useEffect(() => {
+    if (hotelsAutoLoadedRef.current) return;
+    if (!booking) return;
+    if (hotels.length > 0) {
+      hotelsAutoLoadedRef.current = true;
+      return;
+    }
+    if (!selectedQuotation) return;
+    hotelsAutoLoadedRef.current = true;
+    const rows: AdminBookingHotel[] = selectedQuotation.hotelOptions.flatMap((g) =>
+      g.hotels.map((h) => ({
+        id: h.id,
+        hotelName: h.hotelName,
+        hotelCategory: h.category ?? "",
+        checkIn: h.checkIn || null,
+        checkOut: h.checkOut || null,
+        nights: h.nights,
+        rooms: h.rooms,
+        roomCategory: "",
+        roomType: h.roomType,
+        mealPlan: h.mealPlan,
+        occupancy: "",
+        amenities: h.amenities,
+        hotelAddress: "",
+        googleMapLink: h.googleMapUrl ?? null,
+        hotelContactNumber: "",
+        supplier: "",
+        voucherUrl: null,
+        paymentMode: "Cash",
+        bookingDate: null,
+        bookingPnr: "",
+        updatedBy: "",
+      })),
+    );
+    if (rows.length > 0) setHotels(rows);
+  }, [booking, hotels.length, selectedQuotation]);
+
+  const hotelQuotationMeta = new Map<string, HotelQuotationMeta>();
+  if (selectedQuotation) {
+    for (const g of selectedQuotation.hotelOptions) {
+      for (const h of g.hotels) {
+        const item = selectedQuotation.items.find((it) => it.sourceId === h.id);
+        hotelQuotationMeta.set(h.id, {
+          optionLabel: g.label,
+          currencyCode: item?.currencyCode ?? "INR",
+          cost: item?.cost ?? 0,
+          qty: item?.qty ?? h.nights,
+        });
+      }
+    }
+  }
+
+  // Same one-time auto-load as hotels above, reusing the Quotation activity's own id as the
+  // booking row's id so D2D Cost/Total Cost can mirror the matching QuotationItem by sourceId.
+  useEffect(() => {
+    if (activitiesAutoLoadedRef.current) return;
+    if (!booking) return;
+    if (activities.length > 0) {
+      activitiesAutoLoadedRef.current = true;
+      return;
+    }
+    if (!selectedQuotation) return;
+    activitiesAutoLoadedRef.current = true;
+    const rows: AdminBookingActivity[] = selectedQuotation.activities.map((a) => ({
+      id: a.id,
+      activityName: a.name,
+      activityDate: a.activityDate || null,
+      activityTime: a.activityTime,
+      duration: a.duration,
+      tourType: "Private",
+      pickupIncluded: false,
+      pickupTime: a.reportingTime,
+      pax: a.pax || 1,
+      inclusions: [a.description, a.notes].filter(Boolean).join("\n"),
+      exclusions: "",
+      supplier: "",
+      voucherUrl: null,
+      paymentMode: "Cash",
+      bookingDate: null,
+      bookingPnr: "",
+      updatedBy: "",
+    }));
+    if (rows.length > 0) setActivities(rows);
+  }, [booking, activities.length, selectedQuotation]);
+
+  // Same one-time auto-load as hotels above, reusing the Quotation transfer's own id as the
+  // booking row's id so D2D Cost/Total Cost can mirror the matching QuotationItem by sourceId.
+  useEffect(() => {
+    if (transfersAutoLoadedRef.current) return;
+    if (!booking) return;
+    if (transfers.length > 0) {
+      transfersAutoLoadedRef.current = true;
+      return;
+    }
+    if (!selectedQuotation) return;
+    transfersAutoLoadedRef.current = true;
+    const rows: AdminBookingTransfer[] = selectedQuotation.transfers.map((t) => ({
+      id: t.id,
+      transferType: t.name,
+      vehicleType: t.vehicleType,
+      mode: t.mode,
+      pickupAt: null,
+      pickupLocation: t.pickupLocation,
+      dropLocation: t.dropLocation,
+      driverName: "",
+      driverMobile: "",
+      vehicleNumber: "",
+      supplier: "",
+      voucherUrl: null,
+      paymentMode: "Cash",
+      bookingDate: null,
+      bookingPnr: "",
+      updatedBy: "",
+    }));
+    if (rows.length > 0) setTransfers(rows);
+  }, [booking, transfers.length, selectedQuotation]);
+
+  const activityQuotationMeta = new Map<string, ActivityQuotationMeta>();
+  const transferQuotationMeta = new Map<string, TransferQuotationMeta>();
+  if (selectedQuotation) {
+    for (const a of selectedQuotation.activities) {
+      const item = selectedQuotation.items.find((it) => it.sourceId === a.id);
+      activityQuotationMeta.set(a.id, { cost: item?.cost ?? 0, qty: item?.qty ?? 1 });
+    }
+    for (const t of selectedQuotation.transfers) {
+      const item = selectedQuotation.items.find((it) => it.sourceId === t.id);
+      transferQuotationMeta.set(t.id, { cost: item?.cost ?? 0, qty: item?.qty ?? 1 });
+    }
+  }
 
   const changeStatus = async (status: BookingStatus) => {
     if (!booking || status === booking.status) return;
@@ -255,77 +401,57 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       setSavingTransfers(false);
     }
   };
-  const draftId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  // Pulls the corresponding service list from the linked Quotation (Steps 3/5/4 of the
-  // Quotation wizard) and appends it to the current draft — additive, not a replace, so
-  // it never clobbers anything already entered here.
-  const loadHotelsFromQuotation = () => {
-    if (!booking?.quotation) return;
-    const rows: AdminBookingHotel[] = booking.quotation.hotelOptions.flatMap((g) =>
-      g.hotels.map((h) => ({
-        id: draftId(),
-        hotelName: h.hotelName,
-        hotelCategory: h.category ?? "",
-        checkIn: h.checkIn || null,
-        checkOut: h.checkOut || null,
-        nights: h.nights,
-        rooms: h.rooms,
-        roomCategory: "",
-        roomType: h.roomType,
-        mealPlan: h.mealPlan,
-        occupancy: "",
-        amenities: h.amenities,
-        hotelAddress: "",
-        googleMapLink: h.googleMapUrl ?? null,
-        hotelContactNumber: "",
-        supplier: "",
-        voucherUrl: null,
-      })),
-    );
-    setHotels((prev) => [...prev, ...rows]);
-    notify(`${rows.length} hotel(s) loaded from quotation`, "success");
-  };
-
   const loadActivitiesFromQuotation = () => {
     if (!booking?.quotation) return;
-    const rows: AdminBookingActivity[] = booking.quotation.activities.map((a) => ({
-      id: draftId(),
-      activityName: a.name,
-      activityDate: null,
-      activityTime: a.activityTime,
-      duration: a.duration,
-      tourType: "Private",
-      pickupIncluded: false,
-      pickupTime: a.reportingTime,
-      pickupLocation: "",
-      meetingPoint: "",
-      dropLocation: "",
-      inclusions: [a.description, a.notes].filter(Boolean).join("\n"),
-      exclusions: "",
-      supplier: "",
-      voucherUrl: null,
-    }));
+    const existingIds = new Set(activities.map((a) => a.id));
+    const rows: AdminBookingActivity[] = booking.quotation.activities
+      .filter((a) => !existingIds.has(a.id))
+      .map((a) => ({
+        id: a.id,
+        activityName: a.name,
+        activityDate: a.activityDate || null,
+        activityTime: a.activityTime,
+        duration: a.duration,
+        tourType: "Private",
+        pickupIncluded: false,
+        pickupTime: a.reportingTime,
+        pax: a.pax || 1,
+        inclusions: [a.description, a.notes].filter(Boolean).join("\n"),
+        exclusions: "",
+        supplier: "",
+        voucherUrl: null,
+        paymentMode: "Cash",
+        bookingDate: null,
+        bookingPnr: "",
+        updatedBy: "",
+      }));
     setActivities((prev) => [...prev, ...rows]);
     notify(`${rows.length} activity(ies) loaded from quotation`, "success");
   };
 
   const loadTransfersFromQuotation = () => {
     if (!booking?.quotation) return;
-    const rows: AdminBookingTransfer[] = booking.quotation.transfers.map((t) => ({
-      id: draftId(),
-      transferType: t.name,
-      vehicleType: t.vehicleType,
-      mode: t.mode,
-      pickupAt: null,
-      pickupLocation: t.pickupLocation,
-      dropLocation: t.dropLocation,
-      driverName: "",
-      driverMobile: "",
-      vehicleNumber: "",
-      supplier: "",
-      voucherUrl: null,
-    }));
+    const existingIds = new Set(transfers.map((t) => t.id));
+    const rows: AdminBookingTransfer[] = booking.quotation.transfers
+      .filter((t) => !existingIds.has(t.id))
+      .map((t) => ({
+        id: t.id,
+        transferType: t.name,
+        vehicleType: t.vehicleType,
+        mode: t.mode,
+        pickupAt: null,
+        pickupLocation: t.pickupLocation,
+        dropLocation: t.dropLocation,
+        driverName: "",
+        driverMobile: "",
+        vehicleNumber: "",
+        supplier: "",
+        voucherUrl: null,
+        paymentMode: "Cash",
+        bookingDate: null,
+        bookingPnr: "",
+        updatedBy: "",
+      }));
     setTransfers((prev) => [...prev, ...rows]);
     notify(`${rows.length} transfer(s) loaded from quotation`, "success");
   };
@@ -432,7 +558,6 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     booking.quotation?.infants ? `${booking.quotation.infants} Infant${booking.quotation.infants > 1 ? "s" : ""}` : null,
   ].filter(Boolean);
 
-  const selectedQuotation = quotations.find((q) => q.id === detailQuotationId) ?? null;
   const quotePricing = selectedQuotation
     ? (() => {
         const cost = selectedQuotation.items.reduce((sum, i) => sum + i.qty * i.cost, 0);
@@ -663,15 +788,14 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             </TabSaveWrapper>
           )}
           {tab === "hotels" && (
-            <TabSaveWrapper
-              onSave={saveHotels}
-              saving={savingHotels}
-              label="Save Hotels"
-              extra={booking.quotation && booking.quotation.hotelOptions.some((g) => g.hotels.length > 0) ? (
-                <LoadFromQuotationButton onClick={loadHotelsFromQuotation} />
-              ) : null}
-            >
-              <BookingHotelsEditor hotels={hotels} onChange={setHotels} costSheet={booking.costSheet} onBookedCostChange={updateBookedCost} />
+            <TabSaveWrapper onSave={saveHotels} saving={savingHotels} label="Save Hotels">
+              <BookingHotelsEditor
+                hotels={hotels}
+                onChange={setHotels}
+                costSheet={booking.costSheet}
+                onBookedCostChange={updateBookedCost}
+                quotationMeta={hotelQuotationMeta}
+              />
             </TabSaveWrapper>
           )}
           {tab === "activities" && (
@@ -683,7 +807,13 @@ export default function BookingDetail({ id }: BookingDetailProps) {
                 <LoadFromQuotationButton onClick={loadActivitiesFromQuotation} />
               ) : null}
             >
-              <BookingActivitiesEditor activities={activities} onChange={setActivities} costSheet={booking.costSheet} onBookedCostChange={updateBookedCost} />
+              <BookingActivitiesEditor
+                activities={activities}
+                onChange={setActivities}
+                costSheet={booking.costSheet}
+                onBookedCostChange={updateBookedCost}
+                quotationMeta={activityQuotationMeta}
+              />
             </TabSaveWrapper>
           )}
           {tab === "transfers" && (
@@ -695,7 +825,13 @@ export default function BookingDetail({ id }: BookingDetailProps) {
                 <LoadFromQuotationButton onClick={loadTransfersFromQuotation} />
               ) : null}
             >
-              <BookingTransfersEditor transfers={transfers} onChange={setTransfers} costSheet={booking.costSheet} onBookedCostChange={updateBookedCost} />
+              <BookingTransfersEditor
+                transfers={transfers}
+                onChange={setTransfers}
+                costSheet={booking.costSheet}
+                onBookedCostChange={updateBookedCost}
+                quotationMeta={transferQuotationMeta}
+              />
             </TabSaveWrapper>
           )}
           {tab === "visa" && (

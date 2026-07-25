@@ -504,6 +504,10 @@ export interface AdminBookingHotel {
   hotelContactNumber: string;
   supplier: string;
   voucherUrl?: string | null;
+  paymentMode: PaymentMode;
+  bookingDate?: string | null;
+  bookingPnr: string;
+  updatedBy: string;
   sortOrder?: number;
 }
 
@@ -517,13 +521,15 @@ export interface AdminBookingActivity {
   tourType: TourType;
   pickupIncluded: boolean;
   pickupTime: string;
-  pickupLocation: string;
-  meetingPoint: string;
-  dropLocation: string;
+  pax: number;
   inclusions: string;
   exclusions: string;
   supplier: string;
   voucherUrl?: string | null;
+  paymentMode: PaymentMode;
+  bookingDate?: string | null;
+  bookingPnr: string;
+  updatedBy: string;
   sortOrder?: number;
 }
 
@@ -541,6 +547,10 @@ export interface AdminBookingTransfer {
   vehicleNumber: string;
   supplier: string;
   voucherUrl?: string | null;
+  paymentMode: PaymentMode;
+  bookingDate?: string | null;
+  bookingPnr: string;
+  updatedBy: string;
   sortOrder?: number;
 }
 

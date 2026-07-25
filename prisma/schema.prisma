@@ -650,6 +650,10 @@ model BookingHotel {
   hotelContactNumber String    @default("")
   supplier           String    @default("")
   voucherUrl         String?
+  paymentMode        PaymentMode @default(Cash)
+  bookingDate        DateTime?
+  bookingPnr         String    @default("")
+  updatedBy          String    @default("")
   sortOrder          Int       @default(0)
 
   @@index([bookingId])
@@ -668,13 +672,15 @@ model BookingActivity {
   tourType       TourType  @default(Private)
   pickupIncluded Boolean   @default(false)
   pickupTime     String    @default("")
-  pickupLocation String    @default("")
-  meetingPoint   String    @default("")
-  dropLocation   String    @default("")
+  pax            Int       @default(1)
   inclusions     String    @default("")
   exclusions     String    @default("")
   supplier       String    @default("")
   voucherUrl     String?
+  paymentMode    PaymentMode @default(Cash)
+  bookingDate    DateTime?
+  bookingPnr     String    @default("")
+  updatedBy      String    @default("")
   sortOrder      Int       @default(0)
 
   @@index([bookingId])
@@ -697,6 +703,10 @@ model BookingTransfer {
   vehicleNumber  String    @default("")
   supplier       String    @default("")
   voucherUrl     String?
+  paymentMode    PaymentMode @default(Cash)
+  bookingDate    DateTime?
+  bookingPnr     String    @default("")
+  updatedBy      String    @default("")
   sortOrder      Int       @default(0)
 
   @@index([bookingId])

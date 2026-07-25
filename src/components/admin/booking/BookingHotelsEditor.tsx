@@ -1,11 +1,10 @@
 "use client";
 
-import { Plus, Trash2, Copy, BedDouble } from "lucide-react";
-import DocumentUpload from "@/components/admin/booking/DocumentUpload";
-import TagInput from "@/components/admin/ui/TagInput";
-import { Field, inputCls } from "@/components/admin/ui/Field";
-import BookedCostField from "@/components/admin/booking/BookedCostField";
-import type { AdminBookingCostSheetEntry, AdminBookingHotel } from "@/types/admin";
+import { useState } from "react";
+import { Plus, Trash2 } from "lucide-react";
+import { selectCls } from "@/components/admin/ui/Field";
+import { GridField as Field, PAYMENT_MODES, cellInputCls, formatINR, readonlyBoxCls } from "@/components/admin/booking/BookingGridField";
+import type { AdminBookingCostSheetEntry, AdminBookingHotel, PaymentMode } from "@/types/admin";
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -27,81 +26,151 @@ export const newBookingHotel = (): AdminBookingHotel => ({
   hotelContactNumber: "",
   supplier: "",
   voucherUrl: null,
+  paymentMode: "Cash",
+  bookingDate: null,
+  bookingPnr: "",
+  updatedBy: "",
 });
+
+/** Read-only pricing/option context mirrored from the linked Quotation's Pricing step, keyed by the hotel row's id (reused from the Quotation hotel selection id at auto-load time). */
+export interface HotelQuotationMeta {
+  optionLabel: string;
+  currencyCode: string;
+  cost: number;
+  qty: number;
+}
 
 interface Props {
   hotels: AdminBookingHotel[];
   onChange: (hotels: AdminBookingHotel[]) => void;
   costSheet: AdminBookingCostSheetEntry[];
   onBookedCostChange: (sourceId: string, bookingCost: number) => void;
+  quotationMeta: Map<string, HotelQuotationMeta>;
 }
 
-export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBookedCostChange }: Props) {
+export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBookedCostChange, quotationMeta }: Props) {
+  const [liveBookingCost, setLiveBookingCost] = useState<Record<string, number>>({});
+
   const update = (idx: number, patch: Partial<AdminBookingHotel>) => {
     const next = [...hotels];
     next[idx] = { ...next[idx], ...patch };
     onChange(next);
   };
   const add = () => onChange([...hotels, newBookingHotel()]);
-  const duplicate = (idx: number) => {
-    const copy = { ...hotels[idx], id: newId() };
-    onChange([...hotels.slice(0, idx + 1), copy, ...hotels.slice(idx + 1)]);
-  };
   const remove = (idx: number) => onChange(hotels.filter((_, i) => i !== idx));
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-xs text-slate-500">Room type, meal plan, occupancy, amenities and the confirmed hotel voucher.</p>
+        <p className="text-xs text-slate-500">Auto-synced from the Quotation&apos;s Pricing step — D2D Cost/Total Cost are read-only here. Balance = Total Cost − Booking Cost.</p>
         <button type="button" onClick={add} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold">
           <Plus className="w-3.5 h-3.5" /> Add Hotel
         </button>
       </div>
-      {hotels.map((h, i) => (
-        <div key={h.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <BedDouble className="w-4 h-4 text-slate-400" />
-              <span className="font-bold text-slate-900">{h.hotelName || `Hotel ${i + 1}`}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button type="button" onClick={() => duplicate(i)} className="p-1.5 rounded text-slate-500 hover:bg-slate-200" aria-label="Duplicate hotel"><Copy className="w-3.5 h-3.5" /></button>
-              <button type="button" onClick={() => remove(i)} className="p-1.5 rounded text-rose-600 hover:bg-rose-50" aria-label="Delete hotel"><Trash2 className="w-3.5 h-3.5" /></button>
-            </div>
-          </div>
 
-          <div className="mb-3 max-w-[200px]">
-            <BookedCostField sourceId={h.id ?? ""} costSheet={costSheet} onChange={onBookedCostChange} />
-          </div>
+      <div className="space-y-3">
+        {hotels.map((h, i) => {
+          const meta = h.id ? quotationMeta.get(h.id) : undefined;
+          const costEntry = h.id ? costSheet.find((e) => e.sourceId === h.id) : undefined;
+          const totalCost = meta ? meta.qty * meta.cost : undefined;
+          const bookingCost = h.id && h.id in liveBookingCost ? liveBookingCost[h.id] : (costEntry?.bookingCost ?? undefined);
+          const balance = totalCost !== undefined && bookingCost !== undefined ? totalCost - bookingCost : undefined;
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Field label="Hotel Name"><input className={inputCls} value={h.hotelName} onChange={(e) => update(i, { hotelName: e.target.value })} /></Field>
-            <Field label="Hotel Category"><input className={inputCls} value={h.hotelCategory} onChange={(e) => update(i, { hotelCategory: e.target.value })} placeholder="5-Star" /></Field>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-            <Field label="Check-in"><input type="date" className={inputCls} value={h.checkIn ?? ""} onChange={(e) => update(i, { checkIn: e.target.value || null })} /></Field>
-            <Field label="Check-out"><input type="date" className={inputCls} value={h.checkOut ?? ""} onChange={(e) => update(i, { checkOut: e.target.value || null })} /></Field>
-            <Field label="Nights"><input type="number" min={0} className={inputCls} value={h.nights} onChange={(e) => update(i, { nights: Number(e.target.value) || 0 })} /></Field>
-            <Field label="Rooms"><input type="number" min={1} className={inputCls} value={h.rooms} onChange={(e) => update(i, { rooms: Number(e.target.value) || 1 })} /></Field>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-            <Field label="Room Category"><input className={inputCls} value={h.roomCategory} onChange={(e) => update(i, { roomCategory: e.target.value })} /></Field>
-            <Field label="Room Type"><input className={inputCls} value={h.roomType} onChange={(e) => update(i, { roomType: e.target.value })} placeholder="Deluxe Room" /></Field>
-            <Field label="Meal Plan"><input className={inputCls} value={h.mealPlan} onChange={(e) => update(i, { mealPlan: e.target.value })} /></Field>
-          </div>
-          <Field label="Occupancy" className="mt-3"><input className={inputCls} value={h.occupancy} onChange={(e) => update(i, { occupancy: e.target.value })} placeholder="2 Adults + 1 Child" /></Field>
-          <Field label="Amenities" className="mt-3"><TagInput value={h.amenities} onChange={(v) => update(i, { amenities: v })} placeholder="Pool, WiFi" /></Field>
-          <Field label="Hotel Address" className="mt-3"><input className={inputCls} value={h.hotelAddress} onChange={(e) => update(i, { hotelAddress: e.target.value })} /></Field>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-            <Field label="Google Map Link"><input className={inputCls} value={h.googleMapLink ?? ""} onChange={(e) => update(i, { googleMapLink: e.target.value || null })} /></Field>
-            <Field label="Hotel Contact Number"><input className={inputCls} value={h.hotelContactNumber} onChange={(e) => update(i, { hotelContactNumber: e.target.value })} /></Field>
-          </div>
-          <Field label="Supplier" className="mt-3"><input className={inputCls} value={h.supplier} onChange={(e) => update(i, { supplier: e.target.value })} /></Field>
-          <div className="mt-3">
-            <DocumentUpload label="Hotel Voucher" value={h.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} />
-          </div>
-        </div>
-      ))}
+          return (
+            <div key={h.id ?? i} className="rounded-xl border border-slate-100 p-3 space-y-3">
+              {/* Row 1 */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+                <Field label="Hotel Name" className="lg:col-span-2">
+                  <input className={cellInputCls} value={h.hotelName} onChange={(e) => update(i, { hotelName: e.target.value })} />
+                </Field>
+                <Field label="Nights">
+                  <input
+                    type="number"
+                    min={0}
+                    className={`${cellInputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                    value={h.nights}
+                    onChange={(e) => update(i, { nights: Number(e.target.value) || 0 })}
+                  />
+                </Field>
+                <Field label="Rooms">
+                  <input
+                    type="number"
+                    min={1}
+                    className={`${cellInputCls} [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                    value={h.rooms}
+                    onChange={(e) => update(i, { rooms: Number(e.target.value) || 1 })}
+                  />
+                </Field>
+                <Field label="D2D Cost">
+                  <div className={`${readonlyBoxCls} text-slate-600`}>{meta ? formatINR(meta.cost) : "—"}</div>
+                </Field>
+                <Field label="Total Cost">
+                  <div className={`${readonlyBoxCls} justify-end text-right font-semibold text-slate-900`}>
+                    {totalCost !== undefined ? formatINR(totalCost) : "—"}
+                  </div>
+                </Field>
+                <Field label="Supplier Name">
+                  <input className={cellInputCls} value={h.supplier} onChange={(e) => update(i, { supplier: e.target.value })} />
+                </Field>
+              </div>
+
+              {/* Row 2 */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <Field label="Booking Cost">
+                  {costEntry ? (
+                    <input
+                      type="number"
+                      min={0}
+                      className={cellInputCls}
+                      defaultValue={costEntry.bookingCost}
+                      onChange={(e) => setLiveBookingCost((prev) => ({ ...prev, [h.id ?? ""]: Number(e.target.value) || 0 }))}
+                      onBlur={(e) => {
+                        const next = Number(e.target.value) || 0;
+                        if (next !== costEntry.bookingCost) onBookedCostChange(h.id ?? "", next);
+                      }}
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2 py-2 text-xs text-slate-400">Save row first</div>
+                  )}
+                </Field>
+                <Field label="Balance">
+                  <div
+                    className={`${readonlyBoxCls} justify-end text-right font-semibold ${
+                      balance !== undefined && balance < 0 ? "text-rose-600" : "text-emerald-600"
+                    }`}
+                  >
+                    {balance !== undefined ? formatINR(balance) : "—"}
+                  </div>
+                </Field>
+                <Field label="Payment Mode">
+                  <select className={selectCls} value={h.paymentMode} onChange={(e) => update(i, { paymentMode: e.target.value as PaymentMode })}>
+                    {PAYMENT_MODES.map((m) => (<option key={m} value={m}>{m}</option>))}
+                  </select>
+                </Field>
+                <Field label="Booking Date">
+                  <input type="date" className={cellInputCls} value={h.bookingDate ?? ""} onChange={(e) => update(i, { bookingDate: e.target.value || null })} />
+                </Field>
+                <Field label="Booking PNR">
+                  <input className={cellInputCls} value={h.bookingPnr} onChange={(e) => update(i, { bookingPnr: e.target.value })} />
+                </Field>
+                <Field label="Updated By">
+                  <input className={cellInputCls} value={h.updatedBy} onChange={(e) => update(i, { updatedBy: e.target.value })} />
+                </Field>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => remove(i)}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-rose-600 hover:bg-rose-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Remove Hotel
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
       {hotels.length === 0 && <p className="text-center py-8 text-sm text-slate-500">No hotels yet. Click &quot;Add Hotel&quot; to begin.</p>}
     </div>
   );
