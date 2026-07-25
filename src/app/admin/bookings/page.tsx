@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Edit, Eye } from "lucide-react";
+import { Plus, Eye } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DataTable, { type Column } from "@/components/admin/ui/DataTable";
@@ -98,9 +98,6 @@ export default function BookingsAdminPage() {
         <div className="flex items-center justify-end gap-1">
           <Link href={`/admin/bookings/${r.id}`} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="View">
             <Eye className="w-4 h-4" />
-          </Link>
-          <Link href={`/admin/bookings/${r.id}/edit`} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Edit">
-            <Edit className="w-4 h-4" />
           </Link>
         </div>
       ),

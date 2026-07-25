@@ -121,7 +121,7 @@ export default function BookingPayments({ customerPayments, supplierPayments, on
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
-                <th className="px-3 py-2">Supplier</th><th className="px-3 py-2">Date</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Mode</th><th className="px-3 py-2">Settlement</th>
+                <th className="px-3 py-2">Supplier</th><th className="px-3 py-2">Date</th><th className="px-3 py-2">Reference</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Mode</th><th className="px-3 py-2">Settlement</th>
               </tr>
             </thead>
             <tbody>
@@ -129,6 +129,7 @@ export default function BookingPayments({ customerPayments, supplierPayments, on
                 <tr key={p.id ?? i} className="border-b border-slate-50">
                   <td className="px-3 py-2">{p.supplierName}</td>
                   <td className="px-3 py-2">{p.paymentDate.slice(0, 10)}</td>
+                  <td className="px-3 py-2 text-slate-500">{p.transactionReference || "—"}</td>
                   <td className="px-3 py-2 text-right font-semibold">{formatINR(p.amount)}</td>
                   <td className="px-3 py-2">{p.paymentMode}</td>
                   <td className="px-3 py-2">{p.settlementStatus}</td>

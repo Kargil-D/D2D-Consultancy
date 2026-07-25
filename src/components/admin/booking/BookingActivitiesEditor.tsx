@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, Copy, Ticket } from "lucide-react";
-import ImageUpload from "@/components/admin/ui/ImageUpload";
+import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import BookedCostField from "@/components/admin/booking/BookedCostField";
 import type { AdminBookingActivity, AdminBookingCostSheetEntry, TourType } from "@/types/admin";
@@ -100,7 +100,9 @@ export default function BookingActivitiesEditor({ activities, onChange, costShee
             <Field label="Exclusions"><textarea className={textareaCls} value={a.exclusions} onChange={(e) => update(i, { exclusions: e.target.value })} /></Field>
           </div>
           <Field label="Supplier" className="mt-3"><input className={inputCls} value={a.supplier} onChange={(e) => update(i, { supplier: e.target.value })} /></Field>
-          <Field label="Activity Voucher" className="mt-3"><ImageUpload value={a.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} label="Upload voucher" aspect="4/3" /></Field>
+          <div className="mt-3">
+            <DocumentUpload label="Activity Voucher" value={a.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} />
+          </div>
         </div>
       ))}
       {activities.length === 0 && <p className="text-center py-8 text-sm text-slate-500">No activities yet. Click &quot;Add Activity&quot; to begin.</p>}

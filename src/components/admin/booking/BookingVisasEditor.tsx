@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, Copy, Stamp } from "lucide-react";
-import ImageUpload from "@/components/admin/ui/ImageUpload";
+import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
 import type { AdminBookingVisa, VisaProcessStatus } from "@/types/admin";
 
@@ -82,7 +82,9 @@ export default function BookingVisasEditor({ visas, onChange }: Props) {
             </Field>
             <Field label="Supplier"><input className={inputCls} value={v.supplier} onChange={(e) => update(i, { supplier: e.target.value })} /></Field>
           </div>
-          <Field label="Visa Copy" className="mt-3"><ImageUpload value={v.visaCopyUrl ?? ""} onChange={(url) => update(i, { visaCopyUrl: url || null })} label="Upload visa copy" aspect="4/3" /></Field>
+          <div className="mt-3">
+            <DocumentUpload label="Visa Copy" value={v.visaCopyUrl ?? ""} onChange={(url) => update(i, { visaCopyUrl: url || null })} />
+          </div>
         </div>
       ))}
       {visas.length === 0 && <p className="text-center py-8 text-sm text-slate-500">No visas yet. Click &quot;Add Visa&quot; to begin.</p>}

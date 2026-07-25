@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, Copy, ShieldCheck } from "lucide-react";
-import ImageUpload from "@/components/admin/ui/ImageUpload";
+import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import { Field, inputCls } from "@/components/admin/ui/Field";
 import type { AdminBookingInsurance } from "@/types/admin";
 
@@ -75,7 +75,9 @@ export default function BookingInsurancesEditor({ insurances, onChange }: Props)
             <Field label="Travel Start Date"><input type="date" className={inputCls} value={ins.travelStartDate ?? ""} onChange={(e) => update(i, { travelStartDate: e.target.value || null })} /></Field>
             <Field label="Travel End Date"><input type="date" className={inputCls} value={ins.travelEndDate ?? ""} onChange={(e) => update(i, { travelEndDate: e.target.value || null })} /></Field>
           </div>
-          <Field label="Insurance Policy PDF" className="mt-3"><ImageUpload value={ins.policyPdfUrl ?? ""} onChange={(url) => update(i, { policyPdfUrl: url || null })} label="Upload policy PDF" aspect="4/3" /></Field>
+          <div className="mt-3">
+            <DocumentUpload label="Insurance Policy PDF" value={ins.policyPdfUrl ?? ""} onChange={(url) => update(i, { policyPdfUrl: url || null })} />
+          </div>
         </div>
       ))}
       {insurances.length === 0 && <p className="text-center py-8 text-sm text-slate-500">No insurance policies yet. Click &quot;Add Insurance&quot; to begin.</p>}

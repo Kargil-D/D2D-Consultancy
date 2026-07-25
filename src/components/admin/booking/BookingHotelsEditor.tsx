@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, Copy, BedDouble } from "lucide-react";
-import ImageUpload from "@/components/admin/ui/ImageUpload";
+import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import TagInput from "@/components/admin/ui/TagInput";
 import { Field, inputCls } from "@/components/admin/ui/Field";
 import BookedCostField from "@/components/admin/booking/BookedCostField";
@@ -97,7 +97,9 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
             <Field label="Hotel Contact Number"><input className={inputCls} value={h.hotelContactNumber} onChange={(e) => update(i, { hotelContactNumber: e.target.value })} /></Field>
           </div>
           <Field label="Supplier" className="mt-3"><input className={inputCls} value={h.supplier} onChange={(e) => update(i, { supplier: e.target.value })} /></Field>
-          <Field label="Hotel Voucher" className="mt-3"><ImageUpload value={h.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} label="Upload voucher" aspect="4/3" /></Field>
+          <div className="mt-3">
+            <DocumentUpload label="Hotel Voucher" value={h.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} />
+          </div>
         </div>
       ))}
       {hotels.length === 0 && <p className="text-center py-8 text-sm text-slate-500">No hotels yet. Click &quot;Add Hotel&quot; to begin.</p>}

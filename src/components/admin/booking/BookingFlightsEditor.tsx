@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, Copy, Plane } from "lucide-react";
-import ImageUpload from "@/components/admin/ui/ImageUpload";
+import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import { Field, inputCls } from "@/components/admin/ui/Field";
 import type { AdminBookingFlight } from "@/types/admin";
 
@@ -87,8 +87,8 @@ export default function BookingFlightsEditor({ flights, onChange }: Props) {
           </div>
           <Field label="Supplier" className="mt-3"><input className={inputCls} value={f.supplier} onChange={(e) => update(i, { supplier: e.target.value })} /></Field>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-            <Field label="Flight Ticket"><ImageUpload value={f.ticketUrl ?? ""} onChange={(url) => update(i, { ticketUrl: url || null })} label="Upload ticket" aspect="4/3" /></Field>
-            <Field label="Flight Voucher"><ImageUpload value={f.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} label="Upload voucher" aspect="4/3" /></Field>
+            <DocumentUpload label="Flight Ticket" value={f.ticketUrl ?? ""} onChange={(url) => update(i, { ticketUrl: url || null })} />
+            <DocumentUpload label="Flight Voucher" value={f.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} />
           </div>
         </div>
       ))}

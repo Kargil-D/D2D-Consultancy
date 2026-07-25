@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2, Copy, ArrowRightLeft } from "lucide-react";
-import ImageUpload from "@/components/admin/ui/ImageUpload";
+import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
 import BookedCostField from "@/components/admin/booking/BookedCostField";
 import type { AdminBookingCostSheetEntry, AdminBookingTransfer, TourType } from "@/types/admin";
@@ -92,7 +92,9 @@ export default function BookingTransfersEditor({ transfers, onChange, costSheet,
             <Field label="Vehicle Number"><input className={inputCls} value={t.vehicleNumber} onChange={(e) => update(i, { vehicleNumber: e.target.value })} /></Field>
           </div>
           <Field label="Supplier" className="mt-3"><input className={inputCls} value={t.supplier} onChange={(e) => update(i, { supplier: e.target.value })} /></Field>
-          <Field label="Transfer Voucher" className="mt-3"><ImageUpload value={t.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} label="Upload voucher" aspect="4/3" /></Field>
+          <div className="mt-3">
+            <DocumentUpload label="Transfer Voucher" value={t.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} />
+          </div>
         </div>
       ))}
       {transfers.length === 0 && <p className="text-center py-8 text-sm text-slate-500">No transfers yet. Click &quot;Add Transfer&quot; to begin.</p>}

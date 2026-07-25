@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { FileText, Trash2, FileDown, Link as LinkIcon } from "lucide-react";
-import ImageUpload from "@/components/admin/ui/ImageUpload";
+import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import { Field, selectCls } from "@/components/admin/ui/Field";
 import type { AdminBookingDocument, BookingDocumentType } from "@/types/admin";
 
@@ -38,7 +38,7 @@ export default function BookingDocumentsTab({ bookingId, documents, onUpload, on
             </select>
           </Field>
           <div className="md:col-span-2">
-            <ImageUpload value="" onChange={(url) => url && onUpload(type, url)} label={`Upload ${type}`} aspect="4/3" />
+            <DocumentUpload label={`Upload ${type}`} value="" onChange={(url) => url && onUpload(type, url)} />
           </div>
         </div>
         {documents.length > 0 ? (

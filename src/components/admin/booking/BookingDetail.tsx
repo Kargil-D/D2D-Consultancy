@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
-  Edit, FileDown, Mail, Copy, Link as LinkIcon, ExternalLink, Save, Download,
-  LayoutDashboard, Wallet, Plane, BedDouble, Ticket, ArrowRightLeft, Stamp, ShieldCheck,
-  CreditCard, FolderOpen, MessageCircle, History,
+  FileDown, Mail, Copy, Link as LinkIcon, ExternalLink, Save, Download,
+  Wallet, Plane, BedDouble, Ticket, ArrowRightLeft, Stamp, ShieldCheck,
+  CreditCard, FolderOpen, MessageCircle, History, TrendingUp, TrendingDown, Minus,
 } from "lucide-react";
-import { Field, inputCls } from "@/components/admin/ui/Field";
+import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
 import BookingStatusStepper from "@/components/admin/booking/BookingStatusStepper";
 import BookingFlightsEditor from "@/components/admin/booking/BookingFlightsEditor";
@@ -21,10 +21,11 @@ import BookingPayments from "@/components/admin/booking/BookingPayments";
 import BookingDocumentsTab from "@/components/admin/booking/BookingDocumentsTab";
 import BookingChatTab from "@/components/admin/booking/BookingChatTab";
 import BookingTimelineTab from "@/components/admin/booking/BookingTimelineTab";
-import { bookingsApi } from "@/lib/adminApi";
+import { bookingsApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
 import type {
   AdminBooking, AdminBookingActivity, AdminBookingFlight, AdminBookingHotel, AdminBookingInsurance,
-  AdminBookingTransfer, AdminBookingVisa, BookingDocumentType, BookingStatus, CostSheetStatus, PaymentMode, SettlementStatus,
+  AdminBookingTransfer, AdminBookingVisa, AdminQuotation, AdminSalesUser, BookingDocumentType, BookingStatus,
+  CostSheetStatus, PaymentMode, SettlementStatus,
 } from "@/types/admin";
 
 interface BookingDetailProps {
@@ -32,11 +33,14 @@ interface BookingDetailProps {
 }
 
 const bookingCode = (seq: number) => `BK-${seq.toString().padStart(4, "0")}`;
+const leadCode = (seq: number) => `LD-${seq.toString().padStart(4, "0")}`;
+const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
 
+const STATUSES: BookingStatus[] = ["Won", "Booked", "OnTrip", "Completed", "Cancelled"];
+
 const TABS = [
-  { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "costsheet", label: "Cost Sheet", icon: Wallet },
   { key: "flights", label: "Flights", icon: Plane },
   { key: "hotels", label: "Hotels", icon: BedDouble },
@@ -57,13 +61,26 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const [booking, setBooking] = useState<AdminBooking | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [tab, setTab] = useState<TabKey>("overview");
+  const [tab, setTab] = useState<TabKey>("costsheet");
 
   const [dmcName, setDmcName] = useState("");
   const [dmcEmailSentDate, setDmcEmailSentDate] = useState("");
   const [dmcResponse, setDmcResponse] = useState("");
   const [dmcRemarks, setDmcRemarks] = useState("");
   const [savingDmc, setSavingDmc] = useState(false);
+
+  // Booking Details (merged in from the former standalone Edit Booking page/route).
+  const [quotations, setQuotations] = useState<AdminQuotation[]>([]);
+  const [bookingExecutives, setBookingExecutives] = useState<AdminSalesUser[]>([]);
+  const [customerSupportUsers, setCustomerSupportUsers] = useState<AdminSalesUser[]>([]);
+  const [detailQuotationId, setDetailQuotationId] = useState("");
+  const [detailTravelDate, setDetailTravelDate] = useState("");
+  const [detailStatus, setDetailStatus] = useState<BookingStatus>("Won");
+  const [detailBookingExecutiveId, setDetailBookingExecutiveId] = useState("");
+  const [detailCustomerSupportId, setDetailCustomerSupportId] = useState("");
+  const [detailTotalAmount, setDetailTotalAmount] = useState(0);
+  const [detailRemarks, setDetailRemarks] = useState("");
+  const [savingDetails, setSavingDetails] = useState(false);
 
   // Local drafts for each service list — the editors below only touch these on every
   // keystroke; each tab has its own explicit Save button that pushes to the server,
@@ -90,6 +107,13 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       setDmcEmailSentDate(b.dmcEmailSentDate ? b.dmcEmailSentDate.slice(0, 10) : "");
       setDmcResponse(b.dmcResponse ?? "");
       setDmcRemarks(b.dmcRemarks ?? "");
+      setDetailQuotationId(b.quotationId ?? "");
+      setDetailTravelDate(b.travelDate ? b.travelDate.slice(0, 10) : "");
+      setDetailStatus(b.status);
+      setDetailBookingExecutiveId(b.bookingExecutiveId ?? "");
+      setDetailCustomerSupportId(b.customerSupportId ?? "");
+      setDetailTotalAmount(b.totalAmount);
+      setDetailRemarks(b.remarks ?? "");
       setFlights(b.flights);
       setHotels(b.hotels.map((h) => ({ ...h, checkIn: h.checkIn?.slice(0, 10) ?? null, checkOut: h.checkOut?.slice(0, 10) ?? null })));
       setActivities(b.activities.map((a) => ({ ...a, activityDate: a.activityDate?.slice(0, 10) ?? null })));
@@ -115,6 +139,33 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     reload();
   }, [reload]);
 
+  useEffect(() => {
+    (async () => {
+      const [beRes, csRes] = await Promise.all([
+        salesUsersApi.list("BookingExecutive"),
+        salesUsersApi.list("CustomerSupport"),
+      ]);
+      if (beRes.success) setBookingExecutives(beRes.data);
+      if (csRes.success) setCustomerSupportUsers(csRes.data);
+    })();
+  }, []);
+
+  // Load quotations for the booking's lead (the "Quotation" dropdown) — merge in the
+  // currently-linked quotation so it still shows even if it falls outside the list.
+  useEffect(() => {
+    if (!booking?.leadId) return;
+    quotationsApi.list({ leadId: booking.leadId, pageSize: 100 }).then((res) => {
+      if (!res.success) return;
+      setQuotations(() => {
+        const items = res.data.items;
+        if (booking.quotation && !items.some((q) => q.id === booking.quotation!.id)) {
+          return [...items, booking.quotation];
+        }
+        return items;
+      });
+    });
+  }, [booking?.leadId, booking?.quotation]);
+
   const changeStatus = async (status: BookingStatus) => {
     if (!booking || status === booking.status) return;
     setUpdatingStatus(true);
@@ -125,6 +176,27 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       reload();
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const saveDetails = async () => {
+    if (!booking) return;
+    setSavingDetails(true);
+    try {
+      const res = await bookingsApi.update(id, {
+        quotationId: detailQuotationId || null,
+        travelDate: detailTravelDate || null,
+        bookingExecutiveId: detailBookingExecutiveId || null,
+        customerSupportId: detailCustomerSupportId || null,
+        totalAmount: detailTotalAmount,
+        remarks: detailRemarks,
+      });
+      if (!res.success) return notify(res.message || "Unable to update booking", "error");
+      if (detailStatus !== booking.status) await bookingsApi.updateStatus(id, detailStatus);
+      notify("Booking details updated", "success");
+      reload();
+    } finally {
+      setSavingDetails(false);
     }
   };
 
@@ -360,11 +432,26 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     booking.quotation?.infants ? `${booking.quotation.infants} Infant${booking.quotation.infants > 1 ? "s" : ""}` : null,
   ].filter(Boolean);
 
+  const selectedQuotation = quotations.find((q) => q.id === detailQuotationId) ?? null;
+  const quotePricing = selectedQuotation
+    ? (() => {
+        const cost = selectedQuotation.items.reduce((sum, i) => sum + i.qty * i.cost, 0);
+        const marginValue = Math.round(cost * (selectedQuotation.marginPercent / 100));
+        const subtotal = cost + marginValue;
+        const gstValue = Math.round(subtotal * (selectedQuotation.gstPercent / 100));
+        const sellingPrice = subtotal + gstValue;
+        return { cost, marginValue, gstValue, sellingPrice };
+      })()
+    : null;
+  const priceDifference = quotePricing ? detailTotalAmount - quotePricing.sellingPrice : 0;
+  const priceDiffPercent = quotePricing && quotePricing.sellingPrice > 0 ? (priceDifference / quotePricing.sellingPrice) * 100 : 0;
+  const priceVerdict = priceDifference > 0 ? "profit" : priceDifference < 0 ? "loss" : "even";
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Identity + quick actions */}
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <span className="font-mono text-xs font-semibold text-slate-500">{bookingCode(booking.seq)}</span>
             <h1 className="text-2xl font-bold text-slate-900 mt-1">{booking.lead?.customerName ?? "—"}</h1>
@@ -372,19 +459,10 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               {booking.destination?.name} · {formatINR(booking.totalAmount)} · {new Date(booking.createdDate).toLocaleDateString("en-IN")}
             </p>
           </div>
-          <Link href={`/admin/bookings/${id}/edit`} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-50">
-            <Edit className="w-4 h-4" /> Edit
-          </Link>
         </div>
-        <BookingStatusStepper status={booking.status} onChange={changeStatus} disabled={updatingStatus} />
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-4 mt-5 pt-5 border-t border-slate-100 text-sm">
-          <div><p className="text-xs text-slate-400 uppercase tracking-wide">Mobile</p><p className="font-medium text-slate-800">{booking.lead?.mobile ?? "—"}</p></div>
-          <div><p className="text-xs text-slate-400 uppercase tracking-wide">Email</p><p className="font-medium text-slate-800">{booking.lead?.email ?? "—"}</p></div>
-          <div><p className="text-xs text-slate-400 uppercase tracking-wide">Travel Dates</p><p className="font-medium text-slate-800">{booking.travelDate ? booking.travelDate.slice(0, 10) : "—"}</p></div>
-          <div><p className="text-xs text-slate-400 uppercase tracking-wide">Pax</p><p className="font-medium text-slate-800">{paxParts.length > 0 ? paxParts.join(", ") : "—"}</p></div>
-          <div><p className="text-xs text-slate-400 uppercase tracking-wide">Sales Executive</p><p className="font-medium text-slate-800">{booking.quotation?.salesExecutive ? `${booking.quotation.salesExecutive.firstName} ${booking.quotation.salesExecutive.lastName}` : "—"}</p></div>
-          <div><p className="text-xs text-slate-400 uppercase tracking-wide">Operations Executive</p><p className="font-medium text-slate-800">{booking.bookingExecutive ? `${booking.bookingExecutive.firstName} ${booking.bookingExecutive.lastName}` : "—"}</p></div>
+        <div className="mt-5 pt-5 border-t border-slate-100">
+          <BookingStatusStepper status={booking.status} onChange={changeStatus} disabled={updatingStatus} />
         </div>
 
         <div className="flex flex-wrap gap-2 mt-5 pt-5 border-t border-slate-100">
@@ -415,7 +493,142 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* 1. Booking Details (editable — merged in from the former standalone Edit Booking page) */}
+      <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-slate-900">Booking Details</h2>
+          <button
+            type="button"
+            onClick={saveDetails}
+            disabled={savingDetails}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+          >
+            Update
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Won Lead">
+              <input className={inputCls} value={booking.lead ? `${leadCode(booking.lead.seq)} — ${booking.lead.customerName}` : ""} disabled />
+            </Field>
+            <Field label="Quotation" hint="Optional — the winning quote">
+              <select className={selectCls} value={detailQuotationId} onChange={(e) => setDetailQuotationId(e.target.value)}>
+                <option value="">No quotation</option>
+                {quotations.map((q) => (
+                  <option key={q.id} value={q.id}>{quoteCode(q.seq)}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Customer">
+              <input className={inputCls} value={booking.lead?.customerName ?? ""} disabled />
+            </Field>
+            <Field label="Destination">
+              <input className={inputCls} value={booking.destination?.name ?? ""} disabled />
+            </Field>
+            <Field label="Mobile">
+              <input className={inputCls} value={booking.lead?.mobile ?? ""} disabled />
+            </Field>
+            <Field label="Email">
+              <input className={inputCls} value={booking.lead?.email ?? ""} disabled />
+            </Field>
+            <Field label="Travel Date">
+              <input type="date" className={inputCls} value={detailTravelDate} onChange={(e) => setDetailTravelDate(e.target.value)} />
+            </Field>
+            <Field label="Booking Status">
+              <select className={selectCls} value={detailStatus} onChange={(e) => setDetailStatus(e.target.value as BookingStatus)}>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Pax">
+              <input className={inputCls} value={paxParts.length > 0 ? paxParts.join(", ") : ""} disabled />
+            </Field>
+            <Field label="Sales Executive">
+              <input className={inputCls} value={booking.quotation?.salesExecutive ? `${booking.quotation.salesExecutive.firstName} ${booking.quotation.salesExecutive.lastName}` : ""} disabled />
+            </Field>
+            <Field label="Assign Operations Executive">
+              <select className={selectCls} value={detailBookingExecutiveId} onChange={(e) => setDetailBookingExecutiveId(e.target.value)}>
+                <option value="">Select Operations Executive</option>
+                {bookingExecutives.map((u) => (
+                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Assign Customer Support">
+              <select className={selectCls} value={detailCustomerSupportId} onChange={(e) => setDetailCustomerSupportId(e.target.value)}>
+                <option value="">Select Customer Support</option>
+                {customerSupportUsers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Total Amount (INR)">
+              <input type="number" min={0} className={inputCls} value={detailTotalAmount} onChange={(e) => setDetailTotalAmount(Number(e.target.value) || 0)} />
+            </Field>
+            {quotePricing && (
+              <div
+                className={`rounded-xl border p-3 flex items-center justify-between gap-3 ${
+                  priceVerdict === "profit"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : priceVerdict === "loss"
+                      ? "bg-rose-50 border-rose-200 text-rose-700"
+                      : "bg-slate-50 border-slate-200 text-slate-600"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {priceVerdict === "profit" && <TrendingUp className="w-4 h-4 flex-shrink-0" />}
+                  {priceVerdict === "loss" && <TrendingDown className="w-4 h-4 flex-shrink-0" />}
+                  {priceVerdict === "even" && <Minus className="w-4 h-4 flex-shrink-0" />}
+                  <span className="text-sm font-semibold">
+                    {priceVerdict === "profit" && "Profit vs Quote"}
+                    {priceVerdict === "loss" && "Loss vs Quote"}
+                    {priceVerdict === "even" && "Matches Quote"}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <div className="font-bold">
+                    {priceVerdict !== "even" && (priceDifference > 0 ? "+" : "−")}{formatINR(Math.abs(priceDifference))}
+                  </div>
+                  {priceVerdict !== "even" && (
+                    <div className="text-xs opacity-80">{priceDiffPercent > 0 ? "+" : ""}{priceDiffPercent.toFixed(1)}%</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Field label="Remarks">
+            <textarea className={textareaCls} value={detailRemarks} onChange={(e) => setDetailRemarks(e.target.value)} rows={4} />
+          </Field>
+        </div>
+      </div>
+
+      {/* 2. Overview */}
+      <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-6">
+        <h2 className="text-lg font-bold text-slate-900">Overview</h2>
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 mb-4">DMC Communication</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="DMC Name"><input className={inputCls} value={dmcName} onChange={(e) => setDmcName(e.target.value)} /></Field>
+            <Field label="Email Sent Date"><input type="date" className={inputCls} value={dmcEmailSentDate} onChange={(e) => setDmcEmailSentDate(e.target.value)} /></Field>
+            <Field label="Response"><input className={inputCls} value={dmcResponse} onChange={(e) => setDmcResponse(e.target.value)} /></Field>
+            <Field label="Remarks"><input className={inputCls} value={dmcRemarks} onChange={(e) => setDmcRemarks(e.target.value)} /></Field>
+          </div>
+          <button type="button" onClick={saveDmc} disabled={savingDmc} className="mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+            Save DMC Details
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Recent Activity */}
+      <div className="rounded-2xl bg-white border border-slate-200 p-6">
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Recent Activity</h2>
+        <BookingTimelineTab events={booking.timeline.slice(0, 5)} />
+      </div>
+
+      {/* Remaining service tabs */}
       <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
         <div className="flex items-center overflow-x-auto px-4 py-3 gap-1 bg-slate-50/60 border-b border-slate-200">
           {TABS.map((t) => {
@@ -437,27 +650,6 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         </div>
 
         <div className="p-6">
-          {tab === "overview" && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 mb-4">DMC Communication</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="DMC Name"><input className={inputCls} value={dmcName} onChange={(e) => setDmcName(e.target.value)} /></Field>
-                  <Field label="Email Sent Date"><input type="date" className={inputCls} value={dmcEmailSentDate} onChange={(e) => setDmcEmailSentDate(e.target.value)} /></Field>
-                  <Field label="Response"><input className={inputCls} value={dmcResponse} onChange={(e) => setDmcResponse(e.target.value)} /></Field>
-                  <Field label="Remarks"><input className={inputCls} value={dmcRemarks} onChange={(e) => setDmcRemarks(e.target.value)} /></Field>
-                </div>
-                <button type="button" onClick={saveDmc} disabled={savingDmc} className="mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-                  Save DMC Details
-                </button>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 mb-3">Recent Activity</h3>
-                <BookingTimelineTab events={booking.timeline.slice(0, 5)} />
-              </div>
-            </div>
-          )}
-
           {tab === "costsheet" && (
             <BookingCostSheet
               entries={booking.costSheet.map((c) => ({ ...c, profit: c.sellingPrice - c.dmcCost }))}
