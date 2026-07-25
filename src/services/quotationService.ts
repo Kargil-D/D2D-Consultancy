@@ -160,6 +160,7 @@ function quotationScalarData(input: Partial<QuotationCreate | QuotationUpdate>) 
     ...(input.inclusionsText !== undefined && { inclusionsText: input.inclusionsText }),
     ...(input.exclusionsText !== undefined && { exclusionsText: input.exclusionsText }),
     ...(input.includeChildCosting !== undefined && { includeChildCosting: input.includeChildCosting }),
+    ...(input.advanceAmount !== undefined && { advanceAmount: input.advanceAmount }),
   } satisfies Prisma.QuotationUncheckedUpdateInput;
 }
 
@@ -448,6 +449,7 @@ export async function buildPublicQuoteData(quotation: NonNullable<Awaited<Return
     customerName: quotation.lead.customerName,
     destinationName: quotation.destination.name,
     packageName: campaign?.name ?? null,
+    importantNotes: quotation.destination.importantNotes || null,
     heroImage,
     travelDate: travelStartDate ? travelStartDate.toLocaleDateString("en-IN") : null,
     travelEndDate: travelEndDate ? travelEndDate.toLocaleDateString("en-IN") : null,

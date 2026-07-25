@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
+import BulletTextarea from "@/components/admin/ui/BulletTextarea";
 import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
 import { destinationsApi } from "@/lib/adminApi";
@@ -28,6 +29,7 @@ const emptyForm = (): Partial<AdminDestination> => ({
   displayOrder: 0,
   seoTitle: "",
   seoDescription: "",
+  importantNotes: "",
   status: "Active",
   isDomestic: false,
 });
@@ -179,6 +181,14 @@ export default function DestinationForm({ id }: DestinationFormProps) {
             <input className={inputCls} value={form.seoDescription ?? ""} onChange={(e) => onChange({ seoDescription: e.target.value })} />
           </Field>
         </div>
+
+        <Field label="Important Notes" hint="Press Enter to start a new bulleted line">
+          <BulletTextarea
+            value={form.importantNotes ?? ""}
+            onChange={(v) => onChange({ importantNotes: v })}
+            placeholder="• Passport must be valid for 6 months"
+          />
+        </Field>
 
         <div className="flex items-center gap-6">
           <label className="flex items-center gap-2 text-sm text-slate-700">

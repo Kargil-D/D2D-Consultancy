@@ -108,6 +108,7 @@ model Destination {
   displayOrder     Int     @default(0)
   seoTitle         String?
   seoDescription   String?
+  importantNotes   String?
   status           Status  @default(Active)
   isDomestic       Boolean @default(false)
 
@@ -409,6 +410,9 @@ model Quotation {
   // 80/20 discount weighting (80% of package cost / adults, 20% / children) instead of
   // splitting evenly across adults only.
   includeChildCosting Boolean @default(false)
+
+  // Advance required to confirm the booking (defaults to 20% of the selling price in the UI, editable).
+  advanceAmount Int @default(0)
 
   createdDate DateTime @default(now())
   updatedDate DateTime @updatedAt

@@ -21,10 +21,11 @@ import {
   Ticket,
   Wallet,
   ListChecks,
+  Briefcase,
 } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
-import { currenciesApi, destinationsApi, leadsApi, packagesApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
+import { bookingsApi, currenciesApi, destinationsApi, leadsApi, packagesApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
 import { useAuth } from "@/contexts/AuthContext";
 import QuotationItineraryDaysEditor, { newQuotationDay } from "@/components/admin/quotation/QuotationItineraryDaysEditor";
 import QuotationHotelOptionsEditor from "@/components/admin/quotation/QuotationHotelOptionsEditor";
@@ -142,6 +143,7 @@ interface Draft {
   includeChildCosting: boolean;
   marginPercent: number;
   gstPercent: number;
+  advanceAmount: number;
   items: AdminQuotationItem[];
 }
 
@@ -169,6 +171,7 @@ const emptyDraft = (): Draft => ({
   includeChildCosting: false,
   marginPercent: 0,
   gstPercent: 5,
+  advanceAmount: 0,
   items: [],
 });
 
@@ -285,6 +288,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           includeChildCosting: q.includeChildCosting,
           marginPercent: q.marginPercent,
           gstPercent: q.gstPercent,
+          advanceAmount: q.advanceAmount,
           items: q.items,
         });
         setStatus(q.status);
@@ -338,6 +342,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     inclusionsText: draft.inclusionsText,
     exclusionsText: draft.exclusionsText,
     includeChildCosting: draft.includeChildCosting,
+    advanceAmount: draft.advanceAmount,
   });
 
   const canSaveStep1 = !!draft.customer.customerName.trim() && !!draft.customer.mobile.trim() && !!draft.destinationId;
@@ -427,6 +432,26 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
       router.push(`/admin/quotations/${res.data.id}/edit`);
     });
 
+  /** Creates a real Booking record from this quotation (Lead, destination, travel date, selling price) and hands off to the Operations Workspace. */
+  const convertToBooking = () =>
+    withBusy("convert", async () => {
+      const savedId = await persist();
+      if (!savedId) return;
+      const res = await quotationsApi.get(savedId);
+      if (!res.success || !res.data) return notify(res.message || "Unable to load quotation", "error");
+      const bookingRes = await bookingsApi.create({
+        leadId: res.data.leadId,
+        quotationId: savedId,
+        destinationId: res.data.destinationId,
+        travelDate: res.data.travelDate ? res.data.travelDate.slice(0, 10) : null,
+        totalAmount: sellingPrice,
+        remarks: draft.advanceAmount > 0 ? `Advance amount required to confirm booking: ${formatINR(draft.advanceAmount)}.` : null,
+      });
+      if (!bookingRes.success || !bookingRes.data) return notify(bookingRes.message || "Unable to create booking", "error");
+      notify("Booking created from this quotation", "success");
+      router.push(`/admin/bookings/${bookingRes.data.id}`);
+    });
+
   // Costing helpers (Step 6 — unchanged pricing logic).
   const updateItem = (index: number, itemPatch: Partial<AdminQuotationItem>) => {
     patch({ items: draft.items.map((r, i) => (i === index ? { ...r, ...itemPatch } : r)) });
@@ -502,6 +527,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   const preGstSubtotal = totalCost + marginValue;
   const gstValue = Math.round(preGstSubtotal * (draft.gstPercent / 100));
   const sellingPrice = preGstSubtotal + gstValue;
+  const advanceSuggested = Math.round(sellingPrice * 0.2);
 
   if (loading) {
     return (
@@ -928,6 +954,31 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                   />
                   Include child count for costing
                 </label>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 flex flex-col md:flex-row md:items-end gap-4">
+                  <Field
+                    label="Advance Amount (INR)"
+                    hint={`20% of the quotation amount is required to confirm the booking — that's ${formatINR(advanceSuggested)}.`}
+                    className="flex-1 !mb-0"
+                  >
+                    <input
+                      type="number"
+                      min={0}
+                      className={inputCls}
+                      value={draft.advanceAmount}
+                      onChange={(e) => patch({ advanceAmount: Number(e.target.value) || 0 })}
+                      placeholder={String(advanceSuggested)}
+                    />
+                  </Field>
+                  <button
+                    type="button"
+                    onClick={convertToBooking}
+                    disabled={busyAction !== null}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    <Briefcase className="w-4 h-4" /> Convert into Booking
+                  </button>
+                </div>
               </div>
             )}
           </div>

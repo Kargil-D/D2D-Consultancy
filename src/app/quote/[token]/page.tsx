@@ -4,14 +4,14 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
   Anchor, ArrowLeft, Bed, Bus, Calendar, Car, CheckCircle2, Compass,
-  Fish, Heart, Home, MapPin, Phone, Plane, PlaneTakeoff, Sailboat, Ship,
+  Fish, Heart, Home, Info, MapPin, Phone, Plane, PlaneTakeoff, Sailboat, Ship,
   Shield, Sparkles, Star, Waves, CalendarDays, Users, Download,
   type LucideIcon,
 } from "lucide-react";
 import { formatINR } from "@/utils/format";
 import Logo from "@/components/common/Logo";
 import { getQuotationByShareToken, buildPublicQuoteData } from "@/services/quotationService";
-import TravelerStories from "@/components/itinerary/TravelerStories";
+import ReviewsSection from "@/components/reviews/ReviewsSection";
 import CampaignDayAccordion from "@/components/campaigns/CampaignDayAccordion";
 import CampaignHotelGallery from "@/components/campaigns/CampaignHotelGallery";
 import type { ItineraryDayDetail } from "@/types/admin";
@@ -413,7 +413,18 @@ export default async function PublicQuotePage({ params }: PageProps) {
         </div>
       </section>
 
-      <TravelerStories destination={data.destinationName} />
+      {data.importantNotes && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-6">
+            <h3 className="text-lg font-bold text-amber-800 mb-3 flex items-center gap-2">
+              <Info className="w-5 h-5" /> Important Notes
+            </h3>
+            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{data.importantNotes}</p>
+          </div>
+        </section>
+      )}
+
+      <ReviewsSection />
 
       <div className="border-t border-slate-200 bg-white py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center">

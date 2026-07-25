@@ -129,6 +129,7 @@ export const QuotationCreateSchema = z.object({
 
   // Step 7 — Pricing
   includeChildCosting: z.boolean().default(false),
+  advanceAmount: z.coerce.number().min(0).default(0),
 });
 
 export const QuotationUpdateSchema = QuotationCreateSchema.partial();

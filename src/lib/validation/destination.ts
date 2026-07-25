@@ -14,6 +14,7 @@ export const DestinationCreateSchema = z.object({
   displayOrder: z.number().int().optional(),
   seoTitle: z.string().optional().nullable(),
   seoDescription: z.string().optional().nullable(),
+  importantNotes: z.string().optional().nullable(),
   isDomestic: z.boolean().optional(),
   status: z.enum(["Active", "Inactive"]).optional(),
 });

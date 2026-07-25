@@ -32,6 +32,7 @@ export interface AdminDestination extends AuditColumns {
   displayOrder: number;
   seoTitle?: string;
   seoDescription?: string;
+  importantNotes?: string;
   status: Status;
   isDomestic: boolean;
 }
@@ -438,6 +439,7 @@ export interface AdminQuotation {
 
   // Step 7 — Pricing
   includeChildCosting: boolean;
+  advanceAmount: number;
 
   items: AdminQuotationItem[];
   createdDate: string;
