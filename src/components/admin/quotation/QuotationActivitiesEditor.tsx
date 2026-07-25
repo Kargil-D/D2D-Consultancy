@@ -11,6 +11,7 @@ export const newActivityItem = (): QuotationActivityItem => ({
   name: "",
   description: "",
   images: [],
+  activityDate: "",
   duration: "",
   reportingTime: "",
   activityTime: "",
@@ -65,9 +66,14 @@ export default function QuotationActivitiesEditor({ activities, onChange }: Quot
             </div>
           </div>
 
-          <Field label="Activity Name">
-            <input className={inputCls} value={a.name} onChange={(e) => update(i, { name: e.target.value })} placeholder="Safari World" />
-          </Field>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Field label="Activity Name">
+              <input className={inputCls} value={a.name} onChange={(e) => update(i, { name: e.target.value })} placeholder="Safari World" />
+            </Field>
+            <Field label="Activity Date">
+              <input type="date" className={inputCls} value={a.activityDate} onChange={(e) => update(i, { activityDate: e.target.value })} />
+            </Field>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
             <Field label="Duration">
               <input className={inputCls} value={a.duration} onChange={(e) => update(i, { duration: e.target.value })} placeholder="4 hours" />

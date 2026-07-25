@@ -405,6 +405,11 @@ model Quotation {
   inclusionsText String @default("")
   exclusionsText String @default("")
 
+  // Step 7 — Pricing: when set, the public quote's Price per Person split gives children an
+  // 80/20 discount weighting (80% of package cost / adults, 20% / children) instead of
+  // splitting evenly across adults only.
+  includeChildCosting Boolean @default(false)
+
   createdDate DateTime @default(now())
   updatedDate DateTime @updatedAt
   isDeleted   Boolean  @default(false)

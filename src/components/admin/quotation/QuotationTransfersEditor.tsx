@@ -15,6 +15,7 @@ export const newTransferItem = (): QuotationTransferItem => ({
   dropLocation: "",
   vehicleType: "",
   mode: "Private",
+  transferDate: "",
   duration: "",
   pickupTime: "",
   dropTime: "",
@@ -98,7 +99,10 @@ export default function QuotationTransfersEditor({ transfers, onChange }: Quotat
               <input className={inputCls} value={t.dropLocation} onChange={(e) => update(i, { dropLocation: e.target.value })} placeholder="Hotel" />
             </Field>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+            <Field label="Transfer Date">
+              <input type="date" className={inputCls} value={t.transferDate} onChange={(e) => update(i, { transferDate: e.target.value })} />
+            </Field>
             <Field label="Duration">
               <input className={inputCls} value={t.duration} onChange={(e) => update(i, { duration: e.target.value })} placeholder="45 mins" />
             </Field>

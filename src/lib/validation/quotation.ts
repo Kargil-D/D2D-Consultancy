@@ -71,6 +71,7 @@ const QuotationTransferItemSchema = z.object({
   dropLocation: z.string().optional().default(""),
   vehicleType: z.string().optional().default(""),
   mode: z.enum(["Private", "SIC"]).default("Private"),
+  transferDate: z.string().optional().default(""),
   duration: z.string().optional().default(""),
   pickupTime: z.string().optional().default(""),
   dropTime: z.string().optional().default(""),
@@ -84,6 +85,7 @@ const QuotationActivityItemSchema = z.object({
   name: z.string().optional().default(""),
   description: z.string().optional().default(""),
   images: z.array(z.string()).optional().default([]),
+  activityDate: z.string().optional().default(""),
   duration: z.string().optional().default(""),
   reportingTime: z.string().optional().default(""),
   activityTime: z.string().optional().default(""),
@@ -124,6 +126,9 @@ export const QuotationCreateSchema = z.object({
   // Step 6 — Inclusions / Exclusions
   inclusionsText: z.string().optional().default(""),
   exclusionsText: z.string().optional().default(""),
+
+  // Step 7 — Pricing
+  includeChildCosting: z.boolean().default(false),
 });
 
 export const QuotationUpdateSchema = QuotationCreateSchema.partial();

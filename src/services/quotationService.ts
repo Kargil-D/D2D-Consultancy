@@ -159,6 +159,7 @@ function quotationScalarData(input: Partial<QuotationCreate | QuotationUpdate>) 
     ...(input.activities !== undefined && { activities: input.activities as Prisma.InputJsonValue }),
     ...(input.inclusionsText !== undefined && { inclusionsText: input.inclusionsText }),
     ...(input.exclusionsText !== undefined && { exclusionsText: input.exclusionsText }),
+    ...(input.includeChildCosting !== undefined && { includeChildCosting: input.includeChildCosting }),
   } satisfies Prisma.QuotationUncheckedUpdateInput;
 }
 
@@ -261,6 +262,7 @@ export async function duplicateQuotation(id: string) {
         activities: source.activities as Prisma.InputJsonValue,
         inclusionsText: source.inclusionsText,
         exclusionsText: source.exclusionsText,
+        includeChildCosting: source.includeChildCosting,
       },
     });
     if (source.items.length > 0) {
@@ -355,6 +357,7 @@ function transfersFromCampaign(transfers: (TransferStopDetail & { typeName: stri
     dropLocation: t.to,
     vehicleType: t.typeName,
     mode: "Private",
+    transferDate: "",
     duration: "",
     pickupTime: "",
     dropTime: "",
@@ -370,6 +373,7 @@ function activitiesFromCampaign(activities: ActivityDetail[]): QuotationActivity
     name: a.title,
     description: "",
     images: [],
+    activityDate: "",
     duration: "",
     reportingTime: "",
     activityTime: "",
@@ -429,19 +433,26 @@ export async function buildPublicQuoteData(quotation: NonNullable<Awaited<Return
     if (exclusionLines.length === 0) exclusionLines = textToLines(campaign.exclusionsText || "");
   }
 
+  const days = quotation.days ?? campaign?.days ?? null;
+  const nights = quotation.nights ?? campaign?.nights ?? null;
+  const travelStartDate = quotation.travelDate ?? quotation.lead.travelDate ?? null;
+  // No separate end-date field on Quotation — derived from the trip length already captured (nights preferred, else days - 1).
+  const stayLengthDays = nights ?? (days ? days - 1 : null);
+  const travelEndDate =
+    travelStartDate && stayLengthDays != null
+      ? new Date(travelStartDate.getTime() + stayLengthDays * 24 * 60 * 60 * 1000)
+      : null;
+
   return {
     quoteCode: quoteCode(quotation.seq),
     customerName: quotation.lead.customerName,
     destinationName: quotation.destination.name,
     packageName: campaign?.name ?? null,
     heroImage,
-    travelDate: quotation.travelDate
-      ? quotation.travelDate.toLocaleDateString("en-IN")
-      : quotation.lead.travelDate
-        ? quotation.lead.travelDate.toLocaleDateString("en-IN")
-        : null,
-    days: quotation.days ?? campaign?.days ?? null,
-    nights: quotation.nights ?? campaign?.nights ?? null,
+    travelDate: travelStartDate ? travelStartDate.toLocaleDateString("en-IN") : null,
+    travelEndDate: travelEndDate ? travelEndDate.toLocaleDateString("en-IN") : null,
+    days,
+    nights,
     adults: quotation.adults,
     children: quotation.children,
     infants: quotation.infants,
@@ -455,6 +466,7 @@ export async function buildPublicQuoteData(quotation: NonNullable<Awaited<Return
     exclusionLines,
     subtotal,
     gstPercent: quotation.gstPercent,
+    includeChildCosting: quotation.includeChildCosting,
     sellingPrice,
     status: quotation.status,
   };

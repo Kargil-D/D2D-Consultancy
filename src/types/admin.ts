@@ -376,6 +376,7 @@ export interface QuotationTransferItem {
   dropLocation: string;
   vehicleType: string;
   mode: "Private" | "SIC";
+  transferDate: string;
   duration: string;
   pickupTime: string;
   dropTime: string;
@@ -389,6 +390,7 @@ export interface QuotationActivityItem {
   name: string;
   description: string;
   images: string[];
+  activityDate: string;
   duration: string;
   reportingTime: string;
   activityTime: string;
@@ -433,6 +435,9 @@ export interface AdminQuotation {
   // Step 6 — Inclusions / Exclusions
   inclusionsText: string;
   exclusionsText: string;
+
+  // Step 7 — Pricing
+  includeChildCosting: boolean;
 
   items: AdminQuotationItem[];
   createdDate: string;

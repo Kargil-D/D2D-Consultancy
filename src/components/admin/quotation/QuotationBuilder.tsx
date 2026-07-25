@@ -139,6 +139,7 @@ interface Draft {
   activities: QuotationActivityItem[];
   inclusionsText: string;
   exclusionsText: string;
+  includeChildCosting: boolean;
   marginPercent: number;
   gstPercent: number;
   items: AdminQuotationItem[];
@@ -165,6 +166,7 @@ const emptyDraft = (): Draft => ({
   activities: [],
   inclusionsText: "",
   exclusionsText: "",
+  includeChildCosting: false,
   marginPercent: 0,
   gstPercent: 5,
   items: [],
@@ -280,6 +282,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           activities: q.activities,
           inclusionsText: q.inclusionsText,
           exclusionsText: q.exclusionsText,
+          includeChildCosting: q.includeChildCosting,
           marginPercent: q.marginPercent,
           gstPercent: q.gstPercent,
           items: q.items,
@@ -334,6 +337,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     activities: draft.activities,
     inclusionsText: draft.inclusionsText,
     exclusionsText: draft.exclusionsText,
+    includeChildCosting: draft.includeChildCosting,
   });
 
   const canSaveStep1 = !!draft.customer.customerName.trim() && !!draft.customer.mobile.trim() && !!draft.destinationId;
@@ -914,6 +918,16 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                     </table>
                   </div>
                 </div>
+
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    checked={draft.includeChildCosting}
+                    onChange={(e) => patch({ includeChildCosting: e.target.checked })}
+                  />
+                  Include child count for costing
+                </label>
               </div>
             )}
           </div>

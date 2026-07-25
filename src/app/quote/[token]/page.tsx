@@ -71,6 +71,15 @@ export default async function PublicQuotePage({ params }: PageProps) {
 
   const gstAmount = data.sellingPrice - data.subtotal;
 
+  // Price per Adult / per Child — "Include child count for costing" (set on the quotation)
+  // weights the package cost 80% across adults / 20% across children instead of splitting
+  // it evenly across adults only.
+  const splitAcrossChildren = data.includeChildCosting && data.children > 0;
+  const pricePerAdult = data.adults > 0
+    ? (splitAcrossChildren ? data.subtotal * 0.8 : data.subtotal) / data.adults
+    : null;
+  const pricePerChild = splitAcrossChildren ? (data.subtotal * 0.2) / data.children : null;
+
   return (
     <main className="relative min-h-screen bg-slate-50">
       <header className="sticky top-0 inset-x-0 z-50 bg-slate-900/85 backdrop-blur-xl border-b border-white/10 shadow-sm">
@@ -162,6 +171,26 @@ export default async function PublicQuotePage({ params }: PageProps) {
                               <Bed className="w-4 h-4 text-blue-600" /><span className="font-medium">{h.roomType}</span>
                             </div>
                           )}
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {h.checkIn && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                                <CalendarDays className="w-3.5 h-3.5" /> Check-in: {h.checkIn}
+                              </span>
+                            )}
+                            {h.checkOut && (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                                <CalendarDays className="w-3.5 h-3.5" /> Check-out: {h.checkOut}
+                              </span>
+                            )}
+                            {h.nights > 0 && (
+                              <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
+                                {h.nights} Night{h.nights > 1 ? "s" : ""} / {h.nights + 1} Day{h.nights + 1 > 1 ? "s" : ""}
+                              </span>
+                            )}
+                            {h.mealPlan && (
+                              <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">{h.mealPlan}</span>
+                            )}
+                          </div>
                           {h.description && <p className="text-sm text-slate-600 mt-1">{h.description}</p>}
                         </div>
                       </div>
@@ -171,59 +200,105 @@ export default async function PublicQuotePage({ params }: PageProps) {
               </section>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {data.activities.length > 0 && (
-                <section id="activities" className="rounded-2xl border border-slate-200 bg-white p-6">
-                  <h3 className="text-lg font-bold text-slate-900 mb-4">Activities Included</h3>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
-                    {data.activities.map((a) => {
-                      const Icon = getIcon();
-                      return (
-                        <div key={a.id} className="flex flex-col items-center text-center gap-2">
-                          <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 text-blue-600">
-                            <Icon className="w-5 h-5" />
-                          </span>
-                          <span className="text-xs font-medium text-slate-700 leading-tight">{a.name}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-              {data.transfers.length > 0 && (
-                <section id="transfers" className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5">
-                  <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-br from-cyan-500/10 via-teal-500/5 to-transparent pointer-events-none" />
-                  <div className="relative mb-4 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-sm">
-                        <Plane className="w-3.5 h-3.5" />
-                      </span>
-                      Transfers
-                    </h3>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-700 bg-cyan-50 border border-cyan-100 rounded-full px-2 py-0.5">Included</span>
-                  </div>
-                  <ul className="relative space-y-3">
-                    {data.transfers.map((t) => {
-                      const typeName = t.vehicleType || t.name || "Transfer";
-                      const Icon = getTransferIcon(typeName);
-                      return (
-                        <li key={t.id} className="group relative flex items-center justify-between gap-3 text-sm rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-cyan-200 hover:shadow-sm transition p-2.5">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="relative inline-flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-sm flex-shrink-0">
-                              <Icon className="w-5 h-5" />
-                            </span>
-                            <span className="text-slate-800 font-medium truncate">{t.pickupLocation} → {t.dropLocation}</span>
+            {data.activities.length > 0 && (
+              <section id="activities">
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">Activities Included</h2>
+                <div className="space-y-5">
+                  {data.activities.map((a) => {
+                    const Icon = getIcon();
+                    return (
+                      <div key={a.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md shadow-slate-900/5">
+                        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.6fr]">
+                          <CampaignHotelGallery images={a.images} alt={a.name} />
+                          <div className="p-5 lg:p-6 flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-blue-50 text-blue-600 shrink-0">
+                                <Icon className="w-4 h-4" />
+                              </span>
+                              <h4 className="text-lg font-bold text-slate-900 leading-tight">{a.name}</h4>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {a.activityDate && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                                  <CalendarDays className="w-3.5 h-3.5" /> {a.activityDate}
+                                </span>
+                              )}
+                              {a.activityTime && (
+                                <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">Starts {a.activityTime}</span>
+                              )}
+                              {a.duration && (
+                                <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">{a.duration}</span>
+                              )}
+                              {a.pax > 0 && (
+                                <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">{a.pax} Pax</span>
+                              )}
+                            </div>
+                            {a.reportingTime && (
+                              <p className="text-sm text-slate-600">Reporting time: <span className="font-medium text-slate-800">{a.reportingTime}</span></p>
+                            )}
+                            {a.description && <p className="text-sm text-slate-600 mt-1">{a.description}</p>}
+                            {a.notes && <p className="text-xs text-slate-500 mt-1 italic">{a.notes}</p>}
                           </div>
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white text-cyan-700 text-xs font-bold border border-cyan-200 shadow-sm whitespace-nowrap flex-shrink-0">
-                            <Icon className="w-3.5 h-3.5" />{typeName}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-              )}
-            </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {data.transfers.length > 0 && (
+              <section id="transfers">
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">Transfers</h2>
+                <div className="space-y-5">
+                  {data.transfers.map((t) => {
+                    const typeName = t.vehicleType || t.name || "Transfer";
+                    const Icon = getTransferIcon(typeName);
+                    return (
+                      <div key={t.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md shadow-slate-900/5">
+                        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1.6fr]">
+                          <CampaignHotelGallery images={t.images} alt={t.name || typeName} />
+                          <div className="p-5 lg:p-6 flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-sm shrink-0">
+                                <Icon className="w-4 h-4" />
+                              </span>
+                              <h4 className="text-lg font-bold text-slate-900 leading-tight">{t.name || typeName}</h4>
+                            </div>
+                            {(t.pickupLocation || t.dropLocation) && (
+                              <p className="text-sm font-medium text-slate-700">{t.pickupLocation} → {t.dropLocation}</p>
+                            )}
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-50 text-cyan-700 text-xs font-bold">
+                                <Icon className="w-3.5 h-3.5" />{typeName}
+                              </span>
+                              <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">{t.mode}</span>
+                              {t.transferDate && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                                  <CalendarDays className="w-3.5 h-3.5" /> {t.transferDate}
+                                </span>
+                              )}
+                              {t.duration && (
+                                <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">{t.duration}</span>
+                              )}
+                            </div>
+                            {(t.pickupTime || t.dropTime) && (
+                              <p className="text-sm text-slate-600">
+                                {t.pickupTime && <>Pickup <span className="font-medium text-slate-800">{t.pickupTime}</span></>}
+                                {t.pickupTime && t.dropTime && " · "}
+                                {t.dropTime && <>Drop <span className="font-medium text-slate-800">{t.dropTime}</span></>}
+                              </p>
+                            )}
+                            {t.description && <p className="text-sm text-slate-600 mt-1">{t.description}</p>}
+                            {t.notes && <p className="text-xs text-slate-500 mt-1 italic">{t.notes}</p>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {(data.inclusionLines.length > 0 || data.exclusionLines.length > 0) && (
               <section id="inclusions" className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -258,7 +333,7 @@ export default async function PublicQuotePage({ params }: PageProps) {
               <h3 className="text-lg font-bold text-slate-900 mb-4">Price Break down</h3>
 
               {paxParts.length > 0 && (
-                <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b border-dashed border-slate-200">
+                <div className="flex items-center justify-between gap-3 pb-3 border-b border-dashed border-slate-200">
                   <span className="flex items-center gap-1.5 text-sm text-slate-600">
                     <Users className="w-4 h-4 text-blue-600" />
                     Travellers
@@ -267,7 +342,35 @@ export default async function PublicQuotePage({ params }: PageProps) {
                 </div>
               )}
 
-              <div className="space-y-2.5 text-sm">
+              {(data.travelDate || data.travelEndDate) && (
+                <div className="flex items-center justify-between gap-3 py-3 border-b border-dashed border-slate-200 text-sm">
+                  <span className="flex items-center gap-1.5 text-slate-600">
+                    <CalendarDays className="w-4 h-4 text-blue-600" />
+                    Travel Dates
+                  </span>
+                  <span className="font-semibold text-slate-900 text-right">
+                    {data.travelDate ?? "—"}
+                    {data.travelEndDate && <> &rarr; {data.travelEndDate}</>}
+                  </span>
+                </div>
+              )}
+
+              {(pricePerAdult != null || pricePerChild != null) && (
+                <div className="py-3 border-b border-dashed border-slate-200 space-y-1.5 text-sm">
+                  <div className="flex justify-between text-slate-600">
+                    <span>Price per Adult</span>
+                    <span className="font-semibold text-slate-900">{pricePerAdult != null ? formatINR(pricePerAdult) : "—"}</span>
+                  </div>
+                  {pricePerChild != null && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Price per Child</span>
+                      <span className="font-semibold text-slate-900">{formatINR(pricePerChild)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-2.5 text-sm pt-3">
                 <div className="flex justify-between text-slate-600">
                   <span>Package Cost</span>
                   <span className="font-semibold text-slate-900">{formatINR(data.subtotal)}</span>
