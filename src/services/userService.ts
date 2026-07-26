@@ -11,11 +11,16 @@ const ROLE_NAME_MAP: Record<string, UserRole> = {
 };
 
 export function toPublicUser(user: UserModel & { role: Role }): User {
+  // Only an exact "Customer" role name maps to "customer" — any other role (Admin, Employee,
+  // Sales, BookingExecutive, CustomerSupport, or a custom Role created via /admin/roles) is
+  // staff and must not fall through to "customer" here, since /admin/login relies on this to
+  // tell staff accounts apart from customer accounts.
+  const roles: UserRole[] = user.role.name === CUSTOMER_ROLE_NAME ? ["customer"] : [ROLE_NAME_MAP[user.role.name] ?? "consultant"];
   return {
     id: user.id,
     name: `${user.firstName} ${user.lastName}`.trim(),
     email: user.email,
-    roles: [ROLE_NAME_MAP[user.role.name] ?? "customer"],
+    roles,
   };
 }
 
