@@ -9,10 +9,12 @@ import {
   ClipboardList,
   Ticket,
   FileBarChart,
+  Lock,
 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DepartmentTiles from "@/components/admin/DepartmentTiles";
+import { useAuth } from "@/contexts/AuthContext";
 
 const HOME_TILES = [
   { label: "PM", icon: Boxes, href: "/admin/pm" },
@@ -20,12 +22,21 @@ const HOME_TILES = [
   { label: "Bookings", icon: CalendarCheck, href: "/admin/bookings" },
   { label: "CX", icon: Headphones },
   { label: "Finance", icon: Wallet, href: "/admin/finance" },
-  { label: "Roster", icon: ClipboardList },
   { label: "Ticketing", icon: Ticket },
   { label: "Report", icon: FileBarChart },
 ];
 
 export default function AdminHomePage() {
+  const { user } = useAuth();
+  const isAdmin = user?.roles.includes("admin") ?? false;
+
+  const rosterTile = isAdmin
+    ? { label: "Roster", icon: ClipboardList, href: "/admin/roster" }
+    : { label: "My Roster", icon: ClipboardList, href: "/admin/my-roster" };
+  const tiles = isAdmin
+    ? [...HOME_TILES, rosterTile, { label: "Locker", icon: Lock, href: "/admin/locker" }]
+    : [...HOME_TILES, rosterTile];
+
   return (
     <AdminShell title="Home">
       <Breadcrumb items={[{ label: "Home" }]} />
@@ -34,7 +45,7 @@ export default function AdminHomePage() {
         <p className="text-sm text-slate-500 mt-1">We&apos;re here to increase your productivity!</p>
       </div>
 
-      <DepartmentTiles tiles={HOME_TILES} />
+      <DepartmentTiles tiles={tiles} />
     </AdminShell>
   );
 }

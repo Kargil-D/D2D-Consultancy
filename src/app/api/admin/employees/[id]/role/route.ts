@@ -2,7 +2,7 @@ import { withApiHandler, ok } from "@/lib/apiHandler";
 import { ApiError } from "@/lib/apiError";
 import { getCurrentUser } from "@/lib/auth";
 import { EmployeeAssignRoleSchema } from "@/lib/validation/employee";
-import { assignEmployeeRole } from "@/services/employeeService";
+import { assignEmployeeRole, getEmployee } from "@/services/employeeService";
 
 export const runtime = "nodejs";
 
@@ -16,6 +16,9 @@ export const PUT = withApiHandler<Ctx>("[/api/admin/employees/[id]/role] PUT", a
   if (user.role.name !== "Admin") throw new ApiError(403, "Admin access required");
 
   const { id } = await ctx.params;
+  const target = await getEmployee(id);
+  if (target?.userId === user.id) throw new ApiError(403, "You cannot change your own role — ask another Admin.");
+
   const { roleId } = EmployeeAssignRoleSchema.parse(await req.json());
   const performedBy = `${user.firstName} ${user.lastName}`.trim();
 

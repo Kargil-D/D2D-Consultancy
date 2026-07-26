@@ -11,6 +11,7 @@ import {
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
 import StatusToggle, { StatusBadge } from "@/components/admin/ui/StatusToggle";
 import { useToast } from "@/components/admin/ui/Toast";
+import { useAuth } from "@/contexts/AuthContext";
 import MaskedSensitiveField from "@/components/admin/employee/MaskedSensitiveField";
 import ComingSoonPanel from "@/components/admin/employee/ComingSoonPanel";
 import { employeesApi, rolesApi, uploadImage } from "@/lib/adminApi";
@@ -78,6 +79,7 @@ const GENDERS = ["Male", "Female", "Other", "Prefer not to say"];
 export default function EmployeeForm({ id }: Props) {
   const router = useRouter();
   const { notify } = useToast();
+  const { user: currentUser } = useAuth();
   const [form, setForm] = useState<Partial<AdminEmployee>>(emptyForm());
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
@@ -221,6 +223,12 @@ export default function EmployeeForm({ id }: Props) {
 
   const employeeIdLabel = form.seq ? `EMP-${String(form.seq).padStart(4, "0")}` : "Assigned after saving";
 
+  // Viewing/editing your own linked record: Personal, Employment & Login (incl. Role/Link
+  // Account), Permissions, and Activity Log are locked so you can't self-modify your own
+  // employment data or role — Address/Government IDs/Bank Details/Documents/Payroll stay
+  // editable as self-service HR data. Editing someone else's record is unaffected.
+  const isSelf = !!form.userId && !!currentUser?.id && form.userId === currentUser.id;
+
   return (
     <div className="space-y-4">
       {/* Profile header */}
@@ -328,51 +336,62 @@ export default function EmployeeForm({ id }: Props) {
         <div className="p-6">
           {tab === "personal" && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isSelf && (
+                <div className="md:col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  This is your own profile — Personal and Employment &amp; Login details are locked. Ask another Admin to change them.
+                </div>
+              )}
               <Field label="Employee Code" hint="Auto-generated on save">
                 <input className={inputCls} value={form.employeeCode ?? ""} disabled placeholder="Assigned after saving" />
               </Field>
               <Field label="Full Name" required>
-                <input className={inputCls} value={form.fullName ?? ""} onChange={(e) => onChange({ fullName: e.target.value })} />
+                <input className={inputCls} value={form.fullName ?? ""} onChange={(e) => onChange({ fullName: e.target.value })} disabled={isSelf} />
               </Field>
               <Field label="Date of Birth">
-                <input type="date" className={inputCls} value={form.dateOfBirth ?? ""} onChange={(e) => onChange({ dateOfBirth: e.target.value || null })} />
+                <input type="date" className={inputCls} value={form.dateOfBirth ?? ""} onChange={(e) => onChange({ dateOfBirth: e.target.value || null })} disabled={isSelf} />
               </Field>
               <Field label="Gender">
-                <select className={selectCls} value={form.gender ?? ""} onChange={(e) => onChange({ gender: e.target.value })}>
+                <select className={selectCls} value={form.gender ?? ""} onChange={(e) => onChange({ gender: e.target.value })} disabled={isSelf}>
                   <option value="">Select</option>
                   {GENDERS.map((g) => (<option key={g} value={g}>{g}</option>))}
                 </select>
               </Field>
               <Field label="Mobile Number">
-                <input className={inputCls} value={form.mobileNumber ?? ""} onChange={(e) => onChange({ mobileNumber: e.target.value })} />
+                <input className={inputCls} value={form.mobileNumber ?? ""} onChange={(e) => onChange({ mobileNumber: e.target.value })} disabled={isSelf} />
               </Field>
               <div />
               <Field label="Personal Email">
-                <input type="email" className={inputCls} value={form.personalEmail ?? ""} onChange={(e) => onChange({ personalEmail: e.target.value })} />
+                <input type="email" className={inputCls} value={form.personalEmail ?? ""} onChange={(e) => onChange({ personalEmail: e.target.value })} disabled={isSelf} />
               </Field>
               <Field label="Official Email">
-                <input type="email" className={inputCls} value={form.officialEmail ?? ""} onChange={(e) => onChange({ officialEmail: e.target.value })} />
+                <input type="email" className={inputCls} value={form.officialEmail ?? ""} onChange={(e) => onChange({ officialEmail: e.target.value })} disabled={isSelf} />
               </Field>
             </div>
           )}
 
           {tab === "employment" && (
             <div className="space-y-6">
+              {isSelf && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  This is your own profile — Employment and Login details, including your Role, are locked. Ask another Admin to change them.
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Field label="Designation">
-                  <input className={inputCls} value={form.designation ?? ""} onChange={(e) => onChange({ designation: e.target.value })} />
+                  <input className={inputCls} value={form.designation ?? ""} onChange={(e) => onChange({ designation: e.target.value })} disabled={isSelf} />
                 </Field>
                 <Field label="Department">
-                  <input className={inputCls} value={form.department ?? ""} onChange={(e) => onChange({ department: e.target.value })} />
+                  <input className={inputCls} value={form.department ?? ""} onChange={(e) => onChange({ department: e.target.value })} disabled={isSelf} />
                 </Field>
                 <Field label="Branch">
-                  <input className={inputCls} value={form.branch ?? ""} onChange={(e) => onChange({ branch: e.target.value })} />
+                  <input className={inputCls} value={form.branch ?? ""} onChange={(e) => onChange({ branch: e.target.value })} disabled={isSelf} />
                 </Field>
                 <Field label="Reporting Manager">
                   <select
                     className={selectCls}
                     value={form.reportingManagerId ?? ""}
                     onChange={(e) => onChange({ reportingManagerId: e.target.value || null })}
+                    disabled={isSelf}
                   >
                     <option value="">None</option>
                     {managers.map((m) => (
@@ -384,15 +403,15 @@ export default function EmployeeForm({ id }: Props) {
                   </select>
                 </Field>
                 <Field label="Employment Type">
-                  <select className={selectCls} value={form.employmentType ?? "Permanent"} onChange={(e) => onChange({ employmentType: e.target.value as EmploymentType })}>
+                  <select className={selectCls} value={form.employmentType ?? "Permanent"} onChange={(e) => onChange({ employmentType: e.target.value as EmploymentType })} disabled={isSelf}>
                     {EMPLOYMENT_TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
                   </select>
                 </Field>
                 <Field label="Joining Date">
-                  <input type="date" className={inputCls} value={form.joiningDate ?? ""} onChange={(e) => onChange({ joiningDate: e.target.value || null })} />
+                  <input type="date" className={inputCls} value={form.joiningDate ?? ""} onChange={(e) => onChange({ joiningDate: e.target.value || null })} disabled={isSelf} />
                 </Field>
                 <Field label="Confirmation Date">
-                  <input type="date" className={inputCls} value={form.confirmationDate ?? ""} onChange={(e) => onChange({ confirmationDate: e.target.value || null })} />
+                  <input type="date" className={inputCls} value={form.confirmationDate ?? ""} onChange={(e) => onChange({ confirmationDate: e.target.value || null })} disabled={isSelf} />
                 </Field>
               </div>
 
@@ -402,10 +421,10 @@ export default function EmployeeForm({ id }: Props) {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <Field label="Username">
-                    <input className={inputCls} value={form.username ?? ""} onChange={(e) => onChange({ username: e.target.value })} />
+                    <input className={inputCls} value={form.username ?? ""} onChange={(e) => onChange({ username: e.target.value })} disabled={isSelf} />
                   </Field>
                   <Field label="MFA Enabled" hint="No MFA system exists in this app yet — reference only">
-                    <select className={selectCls} value={form.mfaEnabled ? "yes" : "no"} onChange={(e) => onChange({ mfaEnabled: e.target.value === "yes" })}>
+                    <select className={selectCls} value={form.mfaEnabled ? "yes" : "no"} onChange={(e) => onChange({ mfaEnabled: e.target.value === "yes" })} disabled={isSelf}>
                       <option value="no">No</option>
                       <option value="yes">Yes</option>
                     </select>
@@ -429,7 +448,8 @@ export default function EmployeeForm({ id }: Props) {
                       <button
                         type="button"
                         onClick={unlinkAccount}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                        disabled={isSelf}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:hover:bg-transparent"
                       >
                         <Unlink className="w-3.5 h-3.5" /> Unlink
                       </button>
@@ -439,7 +459,7 @@ export default function EmployeeForm({ id }: Props) {
                         <select
                           className={selectCls}
                           value={form.user.role.id}
-                          disabled={assigningRole}
+                          disabled={assigningRole || isSelf}
                           onChange={(e) => assignRole(e.target.value)}
                         >
                           {!roleOptions.some((r) => r.id === form.user!.role.id) && (
@@ -463,11 +483,12 @@ export default function EmployeeForm({ id }: Props) {
                         placeholder="user@d2dholidays.com"
                         value={linkEmail}
                         onChange={(e) => setLinkEmail(e.target.value)}
+                        disabled={isSelf}
                       />
                       <button
                         type="button"
                         onClick={linkAccount}
-                        disabled={linking || !linkEmail.trim()}
+                        disabled={isSelf || linking || !linkEmail.trim()}
                         className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold disabled:opacity-50 flex-shrink-0"
                       >
                         <Link2 className="w-3.5 h-3.5" /> Link

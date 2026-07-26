@@ -113,7 +113,7 @@ export default function EmployeesAdminPage() {
 
   return (
     <AdminShell title="Employees">
-      <Breadcrumb items={[{ label: "PM", href: "/admin/pm" }, { label: "Employees" }]} />
+      <Breadcrumb items={[{ label: "Locker", href: "/admin/locker" }, { label: "Employees" }]} />
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Employees</h1>

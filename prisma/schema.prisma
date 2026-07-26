@@ -399,7 +399,8 @@ model Employee {
   emergencyRelationship String @default("")
   emergencyMobile       String @default("")
 
-  auditLogs EmployeeAuditLog[]
+  auditLogs    EmployeeAuditLog[]
+  rosterEntries RosterEntry[]
 
   createdBy   String?
   createdDate DateTime @default(now())
@@ -410,6 +411,29 @@ model Employee {
   @@index([status])
   @@index([reportingManagerId])
   @@map("employees")
+}
+
+enum RosterStatus {
+  Present
+  Absent
+}
+
+/// Simple daily attendance roster — Present/Absent per employee per day, no shift types.
+model RosterEntry {
+  id         String       @id @default(uuid())
+  employeeId String
+  employee   Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date       DateTime     @db.Date
+  status     RosterStatus
+  remarks    String       @default("")
+  markedBy   String       @default("")
+
+  createdDate DateTime @default(now())
+  updatedDate DateTime @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([date])
+  @@map("roster_entries")
 }
 
 /// Minimal audit trail for the Employee module's sensitive fields (Aadhaar/bank account
@@ -473,10 +497,40 @@ model Lead {
   activities LeadActivity[]
   quotations Quotation[]
   bookings   Booking[]
+  assignmentLogs LeadAssignmentLog[]
 
   @@index([destinationId])
   @@index([assignedToId])
   @@map("leads")
+}
+
+enum LeadAssignmentMethod {
+  Manual
+  Reassign
+  BulkReassign
+  RoundRobin
+}
+
+/// One row per assign/reassign event on a Lead — powers the Lead Assignment Board's live
+/// feed, round-robin pointer, and "reassigned today" count. fromUserId/toUserId/performedBy
+/// are plain snapshot strings (not relations) so the log survives even if a User is later
+/// removed, mirroring EmployeeAuditLog's performedBy pattern.
+model LeadAssignmentLog {
+  id           String               @id @default(uuid())
+  leadId       String
+  lead         Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  fromUserId   String?
+  fromUserName String?
+  toUserId     String
+  toUserName   String
+  method       LeadAssignmentMethod @default(Manual)
+  performedBy  String
+  createdDate  DateTime             @default(now())
+
+  @@index([leadId])
+  @@index([toUserId])
+  @@index([createdDate])
+  @@map("lead_assignment_logs")
 }
 
 model LeadActivity {

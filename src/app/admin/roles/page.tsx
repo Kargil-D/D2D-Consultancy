@@ -111,7 +111,7 @@ export default function RolesAdminPage() {
 
   return (
     <AdminShell title="Roles">
-      <Breadcrumb items={[{ label: "PM", href: "/admin/pm" }, { label: "Roles" }]} />
+      <Breadcrumb items={[{ label: "Locker", href: "/admin/locker" }, { label: "Roles" }]} />
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Roles</h1>

@@ -9,7 +9,7 @@ export default function NewRolePage() {
     <AdminShell title="New Role">
       <Breadcrumb
         items={[
-          { label: "PM", href: "/admin/pm" },
+          { label: "Locker", href: "/admin/locker" },
           { label: "Roles", href: "/admin/roles" },
           { label: "New Role" },
         ]}

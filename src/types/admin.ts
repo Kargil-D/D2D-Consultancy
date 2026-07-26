@@ -266,6 +266,38 @@ export interface AdminEmployeeAuditLog {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Roster (attendance) — Present/Absent per employee per day, no shift types  */
+/* -------------------------------------------------------------------------- */
+export type RosterStatus = "Present" | "Absent";
+
+export interface AdminRosterEmployeeRow {
+  id: string;
+  fullName: string;
+  employeeCode: string;
+  designation: string;
+  department: string;
+  /** date (YYYY-MM-DD) -> status, sparse — a missing key means unmarked. */
+  days: Record<string, RosterStatus>;
+  presentCount: number;
+  absentCount: number;
+}
+
+export interface AdminRosterGrid {
+  year: number;
+  month: number;
+  daysInMonth: number;
+  employees: AdminRosterEmployeeRow[];
+  summary: { present: number; absent: number };
+}
+
+export interface AdminMyRoster {
+  year: number;
+  month: number;
+  daysInMonth: number;
+  days: Record<string, RosterStatus>;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Roles & Permissions                                                        */
 /* -------------------------------------------------------------------------- */
 /**
@@ -425,6 +457,75 @@ export interface AdminSalesUser {
   firstName: string;
   lastName: string;
   email: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Lead Assignment Board                                                      */
+/* -------------------------------------------------------------------------- */
+
+export type LeadAssignmentMethod = "Manual" | "Reassign" | "BulkReassign" | "RoundRobin";
+
+export interface AdminLeadBoardEmployee {
+  id: string;
+  userId: string;
+  fullName: string;
+  employeeCode: string;
+  designation: string;
+  rosterStatus: "Present" | "Absent" | null;
+  assignedLeads: number;
+  completedLeads: number;
+  pendingLeads: number;
+  capacity: number;
+  utilization: number;
+}
+
+export interface AdminLeadBoardUnassignedLead {
+  id: string;
+  seq: number;
+  customerName: string;
+  destinationName: string;
+  source: LeadSource;
+  createdDate: string;
+}
+
+export interface AdminLeadBoardFeedEntry {
+  id: string;
+  leadId: string;
+  fromUserName: string | null;
+  toUserName: string;
+  method: LeadAssignmentMethod;
+  performedBy: string;
+  createdDate: string;
+}
+
+export interface AdminLeadBoardRoundRobin {
+  nextEmployeeId: string;
+  nextEmployeeName: string;
+  nextEmployeeDesignation: string;
+  sequence: number;
+  total: number;
+  lastAssignedLeadSeq: number | null;
+  lastAssignedToName: string | null;
+  lastAssignedAt: string | null;
+}
+
+export interface AdminLeadBoard {
+  date: string;
+  summary: {
+    employeesWorking: number;
+    totalEmployees: number;
+    newLeadsToday: number;
+    assignedLeads: number;
+    unassignedLeads: number;
+    reassignedToday: number;
+    employeesOnLeave: number;
+  };
+  employees: AdminLeadBoardEmployee[];
+  unassignedLeadsList: AdminLeadBoardUnassignedLead[];
+  feed: AdminLeadBoardFeedEntry[];
+  roundRobin: AdminLeadBoardRoundRobin | null;
+  workloadSummary: { wellBalanced: number; high: number; low: number };
+  trend: { date: string; count: number }[];
 }
 
 /* -------------------------------------------------------------------------- */

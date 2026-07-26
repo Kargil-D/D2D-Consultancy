@@ -7,6 +7,9 @@ import { listEmployees, listActiveEmployeesForPicker, createEmployee } from "@/s
 export const runtime = "nodejs";
 
 export const GET = withApiHandler("[/api/admin/employees] GET", async (req) => {
+  const user = await getCurrentUser(req);
+  if (user.role.name !== "Admin") throw new ApiError(403, "Admin access required");
+
   const url = new URL(req.url);
 
   if (url.searchParams.get("picker") === "true") {

@@ -15,7 +15,7 @@ export default async function EditEmployeePage({ params }: PageProps) {
     <AdminShell title="Edit Employee">
       <Breadcrumb
         items={[
-          { label: "PM", href: "/admin/pm" },
+          { label: "Locker", href: "/admin/locker" },
           { label: "Employees", href: "/admin/employees" },
           { label: "Edit Employee" },
         ]}

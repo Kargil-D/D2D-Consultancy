@@ -29,11 +29,15 @@ import type {
   AdminHotelMaster,
   AdminItinerary,
   AdminLead,
+  AdminLeadBoard,
   AdminPackage,
   AdminQuotation,
   AdminReview,
   AdminRole,
   AdminRolePickerOption,
+  AdminRosterGrid,
+  AdminMyRoster,
+  RosterStatus,
   AdminSalesUser,
   AdminTransfer,
   AdminTransferType,
@@ -690,6 +694,11 @@ export const employeesApi = {
     const res = await fetch(`/api/admin/employees/${id}`);
     return (await res.json()) as ApiResponse<AdminEmployee | null>;
   },
+  /** Resolves the Employee record linked to whoever is currently logged in — powers "Profile Settings". */
+  me: async (): Promise<ApiResponse<AdminEmployee | null>> => {
+    const res = await fetch(`/api/admin/employees/me`);
+    return (await res.json()) as ApiResponse<AdminEmployee | null>;
+  },
   create: async (payload: Partial<AdminEmployee>): Promise<ApiResponse<AdminEmployee>> => {
     const res = await fetch(`/api/admin/employees`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminEmployee>;
@@ -787,6 +796,62 @@ export const reviewsApi = repo<AdminReview>("reviews", [
 export const enquiryConfigApi = repo<AdminEnquiryConfig>("enquiryConfig", [
   "destinationId",
 ]);
+
+export const rosterApi = {
+  grid: async (params: { year: number; month: number; department?: string; search?: string }): Promise<ApiResponse<AdminRosterGrid>> => {
+    const q = new URLSearchParams({ year: String(params.year), month: String(params.month) });
+    if (params.department) q.set("department", params.department);
+    if (params.search) q.set("search", params.search);
+    const res = await fetch(`/api/admin/roster?${q.toString()}`);
+    return (await res.json()) as ApiResponse<AdminRosterGrid>;
+  },
+  /** status: null clears the day back to unmarked. */
+  mark: async (employeeId: string, date: string, status: RosterStatus | null): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/roster`, {
+      method: "PUT",
+      body: JSON.stringify({ employeeId, date, status }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  bulkMark: async (employeeIds: string[], date: string, status: RosterStatus): Promise<ApiResponse<{ updated: number }>> => {
+    const res = await fetch(`/api/admin/roster/bulk`, {
+      method: "POST",
+      body: JSON.stringify({ employeeIds, date, status }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return (await res.json()) as ApiResponse<{ updated: number }>;
+  },
+  /** Self-view — always your own roster, never a picker. */
+  mine: async (year: number, month: number): Promise<ApiResponse<AdminMyRoster>> => {
+    const res = await fetch(`/api/roster/me?year=${year}&month=${month}`);
+    return (await res.json()) as ApiResponse<AdminMyRoster>;
+  },
+};
+
+export const leadAssignmentApi = {
+  board: async (date?: string): Promise<ApiResponse<AdminLeadBoard>> => {
+    const q = date ? `?date=${encodeURIComponent(date)}` : "";
+    const res = await fetch(`/api/admin/lead-assignment${q}`);
+    return (await res.json()) as ApiResponse<AdminLeadBoard>;
+  },
+  assign: async (leadId: string, toUserId: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/lead-assignment/assign`, {
+      method: "POST",
+      body: JSON.stringify({ leadId, toUserId }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  bulkAssign: async (leadIds: string[], toUserId: string): Promise<ApiResponse<{ updated: number }>> => {
+    const res = await fetch(`/api/admin/lead-assignment/bulk-assign`, {
+      method: "POST",
+      body: JSON.stringify({ leadIds, toUserId }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return (await res.json()) as ApiResponse<{ updated: number }>;
+  },
+};
 
 /* -------------------------------------------------------------------------- */
 /*  Image upload (mock — converts file to data URL)                            */

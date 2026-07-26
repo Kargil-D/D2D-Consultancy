@@ -15,7 +15,7 @@ export default async function EditRolePage({ params }: PageProps) {
     <AdminShell title="Edit Role">
       <Breadcrumb
         items={[
-          { label: "PM", href: "/admin/pm" },
+          { label: "Locker", href: "/admin/locker" },
           { label: "Roles", href: "/admin/roles" },
           { label: "Edit Role" },
         ]}

@@ -2,7 +2,7 @@ import { withApiHandler, ok } from "@/lib/apiHandler";
 import { ApiError } from "@/lib/apiError";
 import { getCurrentUser } from "@/lib/auth";
 import { EmployeeLinkAccountSchema } from "@/lib/validation/employee";
-import { linkEmployeeToUser, unlinkEmployeeUser } from "@/services/employeeService";
+import { linkEmployeeToUser, unlinkEmployeeUser, getEmployee } from "@/services/employeeService";
 
 export const runtime = "nodejs";
 
@@ -32,6 +32,9 @@ export const DELETE = withApiHandler<Ctx>("[/api/admin/employees/[id]/link-accou
   if (user.role.name !== "Admin") throw new ApiError(403, "Admin access required");
 
   const { id } = await ctx.params;
+  const target = await getEmployee(id);
+  if (target?.userId === user.id) throw new ApiError(403, "You cannot unlink your own login account — ask another Admin.");
+
   const performedBy = `${user.firstName} ${user.lastName}`.trim();
   const updated = await unlinkEmployeeUser(id, performedBy);
   return ok(updated, "Login account unlinked");

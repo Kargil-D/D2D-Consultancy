@@ -9,7 +9,7 @@ export default function NewEmployeePage() {
     <AdminShell title="New Employee">
       <Breadcrumb
         items={[
-          { label: "PM", href: "/admin/pm" },
+          { label: "Locker", href: "/admin/locker" },
           { label: "Employees", href: "/admin/employees" },
           { label: "New Employee" },
         ]}

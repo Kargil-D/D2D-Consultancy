@@ -69,6 +69,12 @@ export function listActiveEmployeesForPicker(excludeId?: string) {
   });
 }
 
+/** Resolves the Employee HR record linked to a given login User — powers "Profile Settings" in the admin header. */
+export async function getEmployeeByUserId(userId: string) {
+  const row = await prisma.employee.findFirst({ where: { userId, isDeleted: false }, include: EMPLOYEE_INCLUDE });
+  return row ? toMasked(row) : null;
+}
+
 export async function getEmployee(id: string) {
   const row = await prisma.employee.findUnique({ where: { id }, include: EMPLOYEE_INCLUDE });
   return row ? toMasked(row) : null;
