@@ -97,7 +97,7 @@ export default function CampaignForm({ id }: CampaignFormProps) {
 
         const itList = await itinerariesApi.list({ filter: { packageId: id }, pageSize: 1 });
         const existing = itList.success ? itList.data.items[0] : undefined;
-        setItinerary(existing ?? { packageId: id, title: "", overview: "", days: [], status: "Active", isPublished: false });
+        setItinerary(existing ?? { packageId: id, title: "", overview: "", days: [], status: "Active" });
 
         const hotelList = await hotelsApi.list({ filter: { packageId: id }, pageSize: 1 });
         const existingHotels = hotelList.success ? hotelList.data.items[0] : undefined;
@@ -398,12 +398,7 @@ export default function CampaignForm({ id }: CampaignFormProps) {
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs text-slate-500">
-                      Day-by-day plan for this campaign.{" "}
-                      <Link href="/admin/itineraries" className="text-blue-600 hover:underline">
-                        Manage inclusions, terms, FAQs & gallery →
-                      </Link>
-                    </p>
+                    <p className="text-xs text-slate-500">Day-by-day plan for this campaign.</p>
                     <button
                       type="button"
                       onClick={saveItinerary}
@@ -458,12 +453,7 @@ export default function CampaignForm({ id }: CampaignFormProps) {
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs text-slate-500">
-                      Hotel stays for this campaign.{" "}
-                      <Link href="/admin/hotels" className="text-blue-600 hover:underline">
-                        Manage all hotel plans →
-                      </Link>
-                    </p>
+                    <p className="text-xs text-slate-500">Hotel stays for this campaign.</p>
                     <button
                       type="button"
                       onClick={saveHotelPlan}

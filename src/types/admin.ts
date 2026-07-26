@@ -110,18 +110,7 @@ export interface AdminItinerary extends AuditColumns {
   overview: string;
   totalDays: number;
   days: ItineraryDayDetail[];
-  packageIncludes: string[];
-  packageExcludes: string[];
-  termsAndConditions: string;
-  cancellationPolicy: string;
-  faqs: { question: string; answer: string }[];
-  galleryImages: string[];
-  mapLocation?: string;
-  customerNotes?: string;
-  ctaButtonText: string;
-  ctaRedirect: string;
   status: Status;
-  isPublished: boolean;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -183,6 +172,145 @@ export interface AdminHotelMaster extends AuditColumns {
   googleMapUrl?: string | null;
   website?: string | null;
   status: Status;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Employee Master                                                             */
+/* -------------------------------------------------------------------------- */
+export type EmploymentType = "Permanent" | "Contract" | "Intern";
+
+export interface AdminEmployeeManagerOption {
+  id: string;
+  fullName: string;
+  designation: string;
+  employeeCode?: string;
+}
+
+/** The Employee's linked login account, if any — see AdminEmployee.userId. Role here is the real, enforced Role (see AdminRole), not a label. */
+export interface AdminEmployeeLinkedUser {
+  id: string;
+  email: string;
+  isActive: boolean;
+  lastLogin?: string | null;
+  role: { id: string; name: string; status: Status };
+}
+
+/**
+ * aadhaarNumber/accountNumber are write-only — send them to create/update only when the
+ * user is setting a new value. Reads always come back as aadhaarNumberMasked/accountNumberMasked
+ * (e.g. "XXXX XXXX 1234"); the plaintext is only ever available via employeesApi.reveal().
+ */
+export interface AdminEmployee extends AuditColumns {
+  id: string;
+  seq: number;
+  employeeCode: string;
+
+  fullName: string;
+  dateOfBirth?: string | null;
+  gender: string;
+  mobileNumber: string;
+  personalEmail?: string | null;
+  officialEmail?: string | null;
+  profilePhotoUrl?: string | null;
+
+  designation: string;
+  department: string;
+  branch: string;
+  reportingManagerId?: string | null;
+  reportingManager?: AdminEmployeeManagerOption | null;
+  employmentType: EmploymentType;
+  joiningDate?: string | null;
+  confirmationDate?: string | null;
+  status: Status;
+
+  username?: string | null;
+  userId?: string | null;
+  user?: AdminEmployeeLinkedUser | null;
+  lastLogin?: string | null;
+  mfaEnabled: boolean;
+
+  currentAddress: string;
+  permanentAddress: string;
+  city: string;
+  state: string;
+  pinCode: string;
+  country: string;
+
+  aadhaarNumberMasked: string;
+  aadhaarNumber?: string;
+  panNumber?: string | null;
+  passportNumber?: string | null;
+  drivingLicenceNumber?: string | null;
+
+  accountHolderName: string;
+  bankName: string;
+  bankBranchName: string;
+  accountNumberMasked: string;
+  accountNumber?: string;
+  ifscCode: string;
+  upiId?: string | null;
+  salaryPaymentMode: PaymentMode;
+
+  emergencyContactName: string;
+  emergencyRelationship: string;
+  emergencyMobile: string;
+}
+
+export interface AdminEmployeeAuditLog {
+  id: string;
+  employeeId: string;
+  action: string;
+  field?: string | null;
+  performedBy: string;
+  performedAt: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Roles & Permissions                                                        */
+/* -------------------------------------------------------------------------- */
+/**
+ * The app's real admin screens (see DepartmentTiles usage in src/app/admin/{page,pm,sales,finance}/page.tsx),
+ * excluding placeholder department tiles with no href yet (CX, Roster, Ticketing, Report).
+ * Policy labels today — Role.status is the only piece actually enforced (gates login);
+ * per-module route gating is a separate follow-up, not yet wired to these flags.
+ */
+export type AdminModule =
+  | "Dashboard"
+  | "Destinations"
+  | "Campaigns"
+  | "TransferTypes"
+  | "HotelMaster"
+  | "CurrencyMaster"
+  | "Employees"
+  | "Roles"
+  | "HeroSection"
+  | "Reviews"
+  | "EnquiryConfig"
+  | "Leads"
+  | "Quotations"
+  | "Bookings";
+
+export interface AdminRolePermission {
+  module: AdminModule;
+  canView: boolean;
+  canAdd: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
+export interface AdminRole {
+  id: string;
+  name: string;
+  description: string;
+  status: Status;
+  permissions: AdminRolePermission[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AdminRolePickerOption {
+  id: string;
+  name: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -442,6 +570,8 @@ export interface AdminQuotation {
   advanceAmount: number;
 
   items: AdminQuotationItem[];
+  /** Non-deleted Bookings already converted from this Quotation — see "Convert into Booking" in QuotationBuilder. */
+  bookings?: { id: string; status: BookingStatus }[];
   createdDate: string;
   updatedDate: string;
 }
@@ -462,6 +592,7 @@ export interface AdminBookingDocument {
   id: string;
   type: BookingDocumentType;
   url: string;
+  description?: string | null;
   uploadedDate: string;
 }
 
@@ -504,6 +635,7 @@ export interface AdminBookingHotel {
   hotelContactNumber: string;
   supplier: string;
   voucherUrl?: string | null;
+  bookedCurrency: string;
   paymentMode: PaymentMode;
   bookingDate?: string | null;
   bookingPnr: string;
@@ -522,10 +654,10 @@ export interface AdminBookingActivity {
   pickupIncluded: boolean;
   pickupTime: string;
   pax: number;
-  inclusions: string;
-  exclusions: string;
   supplier: string;
   voucherUrl?: string | null;
+  invoiceUrl?: string | null;
+  bookedCurrency: string;
   paymentMode: PaymentMode;
   bookingDate?: string | null;
   bookingPnr: string;
@@ -547,6 +679,8 @@ export interface AdminBookingTransfer {
   vehicleNumber: string;
   supplier: string;
   voucherUrl?: string | null;
+  invoiceUrl?: string | null;
+  bookedCurrency: string;
   paymentMode: PaymentMode;
   bookingDate?: string | null;
   bookingPnr: string;
@@ -582,14 +716,13 @@ export interface AdminBookingInsurance {
   sortOrder?: number;
 }
 
-/** FRD §3 — Cost Sheet. `profit` is computed (sellingPrice - dmcCost), never stored. */
+/** FRD §3 — Cost Sheet. `profit` is computed (sellingPrice - bookingCost), never stored. */
 export interface AdminBookingCostSheetEntry {
   id: string;
   serviceType: BookingServiceType;
   sourceId: string;
   supplierName: string;
   serviceName: string;
-  dmcCost: number;
   bookingCost: number;
   settlementCost: number;
   sellingPrice: number;

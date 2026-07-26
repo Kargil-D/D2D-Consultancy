@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
+import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
 import { useToast } from "@/components/admin/ui/Toast";
 import { bookingsApi, leadsApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
 import type { AdminLead, AdminQuotation, AdminSalesUser, BookingStatus } from "@/types/admin";
@@ -229,20 +230,20 @@ export default function BookingForm({ id }: BookingFormProps) {
             </select>
           </Field>
           <Field label="Assign Operations Executive">
-            <select className={selectCls} value={bookingExecutiveId} onChange={(e) => setBookingExecutiveId(e.target.value)}>
-              <option value="">Select Operations Executive</option>
-              {bookingExecutives.map((u) => (
-                <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-              ))}
-            </select>
+            <UserSearchSelect
+              users={bookingExecutives}
+              value={bookingExecutiveId}
+              onChange={setBookingExecutiveId}
+              placeholder="Search Operations Executive…"
+            />
           </Field>
           <Field label="Assign Customer Support">
-            <select className={selectCls} value={customerSupportId} onChange={(e) => setCustomerSupportId(e.target.value)}>
-              <option value="">Select Customer Support</option>
-              {customerSupportUsers.map((u) => (
-                <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-              ))}
-            </select>
+            <UserSearchSelect
+              users={customerSupportUsers}
+              value={customerSupportId}
+              onChange={setCustomerSupportId}
+              placeholder="Search Customer Support…"
+            />
           </Field>
           <Field label="Total Amount (INR)">
             <input type="number" min={0} className={inputCls} value={totalAmount} onChange={(e) => setTotalAmount(Number(e.target.value) || 0)} />

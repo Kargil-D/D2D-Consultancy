@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
 import {
   Plus,
   Trash2,
@@ -186,6 +187,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [status, setStatus] = useState<string>("Draft");
   const [shareToken, setShareToken] = useState<string | null>(null);
+  const [existingBookingId, setExistingBookingId] = useState<string | null>(null);
 
   const [destinations, setDestinations] = useState<AdminDestination[]>([]);
   const [campaigns, setCampaigns] = useState<AdminPackage[]>([]);
@@ -293,6 +295,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
         });
         setStatus(q.status);
         setShareToken(q.shareToken ?? null);
+        setExistingBookingId(q.bookings && q.bookings.length > 0 ? q.bookings[0].id : null);
       } else {
         notify(res.message || "Unable to load quotation", "error");
       }
@@ -668,12 +671,12 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                   <h3 className="text-sm font-bold text-slate-900 mb-3">Other Details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Field label="Sales Executive" hint="Defaults to you">
-                      <select className={selectCls} value={draft.salesExecutiveId} onChange={(e) => patch({ salesExecutiveId: e.target.value })}>
-                        <option value="">Unassigned</option>
-                        {salesUsers.map((u) => (
-                          <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                        ))}
-                      </select>
+                      <UserSearchSelect
+                        users={salesUsers}
+                        value={draft.salesExecutiveId}
+                        onChange={(v) => patch({ salesExecutiveId: v })}
+                        placeholder="Search Sales Executive…"
+                      />
                     </Field>
                     <Field label="Lead Source">
                       <select className={selectCls} value={draft.source} onChange={(e) => patch({ source: e.target.value as LeadSource })}>
@@ -970,14 +973,23 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                       placeholder={String(advanceSuggested)}
                     />
                   </Field>
-                  <button
-                    type="button"
-                    onClick={convertToBooking}
-                    disabled={busyAction !== null}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
-                  >
-                    <Briefcase className="w-4 h-4" /> Convert into Booking
-                  </button>
+                  {existingBookingId ? (
+                    <Link
+                      href={`/admin/bookings/${existingBookingId}`}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm font-semibold whitespace-nowrap"
+                    >
+                      <Check className="w-4 h-4" /> Booking Converted
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={convertToBooking}
+                      disabled={busyAction !== null}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      <Briefcase className="w-4 h-4" /> Convert into Booking
+                    </button>
+                  )}
                 </div>
               </div>
             )}

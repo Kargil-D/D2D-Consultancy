@@ -149,9 +149,9 @@ export async function updateDmcInfo(
 }
 
 /** Appends a Customer Document — multiple files per type are allowed now (no more upsert-by-type). */
-export async function addCustomerDocument(bookingId: string, type: BookingDocumentType, url: string) {
+export async function addCustomerDocument(bookingId: string, type: BookingDocumentType, url: string, description?: string | null) {
   return prisma.$transaction(async (tx) => {
-    const doc = await tx.bookingDocument.create({ data: { bookingId, type, url } });
+    const doc = await tx.bookingDocument.create({ data: { bookingId, type, url, description: description || null } });
     await logTimeline(tx, bookingId, `Document uploaded: ${type}`);
     return doc;
   });
@@ -264,6 +264,7 @@ export async function replaceHotels(bookingId: string, rows: BookingHotelInput[]
         nights: r.nights, rooms: r.rooms, roomCategory: r.roomCategory, roomType: r.roomType, mealPlan: r.mealPlan,
         occupancy: r.occupancy, amenities: r.amenities, hotelAddress: r.hotelAddress, googleMapLink: r.googleMapLink ?? null,
         hotelContactNumber: r.hotelContactNumber, supplier: r.supplier, voucherUrl: r.voucherUrl ?? null,
+        bookedCurrency: r.bookedCurrency,
         paymentMode: r.paymentMode, bookingDate: r.bookingDate ?? null, bookingPnr: r.bookingPnr, updatedBy: r.updatedBy,
       };
       await tx.bookingHotel.upsert({ where: { id }, update: data, create: { id, ...data } });
@@ -284,8 +285,8 @@ export async function replaceActivities(bookingId: string, rows: BookingActivity
         bookingId, sortOrder: i,
         activityName: r.activityName, activityDate: r.activityDate ?? null, activityTime: r.activityTime, duration: r.duration,
         tourType: r.tourType, pickupIncluded: r.pickupIncluded, pickupTime: r.pickupTime, pax: r.pax,
-        inclusions: r.inclusions, exclusions: r.exclusions,
-        supplier: r.supplier, voucherUrl: r.voucherUrl ?? null,
+        supplier: r.supplier, voucherUrl: r.voucherUrl ?? null, invoiceUrl: r.invoiceUrl ?? null,
+        bookedCurrency: r.bookedCurrency,
         paymentMode: r.paymentMode, bookingDate: r.bookingDate ?? null, bookingPnr: r.bookingPnr, updatedBy: r.updatedBy,
       };
       await tx.bookingActivity.upsert({ where: { id }, update: data, create: { id, ...data } });
@@ -306,7 +307,8 @@ export async function replaceTransfers(bookingId: string, rows: BookingTransferI
         bookingId, sortOrder: i,
         transferType: r.transferType, vehicleType: r.vehicleType, mode: r.mode, pickupAt: r.pickupAt ?? null,
         pickupLocation: r.pickupLocation, dropLocation: r.dropLocation, driverName: r.driverName, driverMobile: r.driverMobile,
-        vehicleNumber: r.vehicleNumber, supplier: r.supplier, voucherUrl: r.voucherUrl ?? null,
+        vehicleNumber: r.vehicleNumber, supplier: r.supplier, voucherUrl: r.voucherUrl ?? null, invoiceUrl: r.invoiceUrl ?? null,
+        bookedCurrency: r.bookedCurrency,
         paymentMode: r.paymentMode, bookingDate: r.bookingDate ?? null, bookingPnr: r.bookingPnr, updatedBy: r.updatedBy,
       };
       await tx.bookingTransfer.upsert({ where: { id }, update: data, create: { id, ...data } });
@@ -359,7 +361,6 @@ export async function replaceInsurances(bookingId: string, rows: BookingInsuranc
 interface CostSheetPatch {
   id: string;
   supplierName?: string;
-  dmcCost?: number;
   bookingCost?: number;
   settlementCost?: number;
   sellingPrice?: number;
@@ -375,7 +376,6 @@ export async function saveCostSheet(bookingId: string, rows: CostSheetPatch[]) {
         where: { id: row.id },
         data: {
           ...(row.supplierName !== undefined && { supplierName: row.supplierName }),
-          ...(row.dmcCost !== undefined && { dmcCost: row.dmcCost }),
           ...(row.bookingCost !== undefined && { bookingCost: row.bookingCost }),
           ...(row.settlementCost !== undefined && { settlementCost: row.settlementCost }),
           ...(row.sellingPrice !== undefined && { sellingPrice: row.sellingPrice }),

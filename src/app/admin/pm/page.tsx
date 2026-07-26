@@ -4,12 +4,12 @@ import {
   LayoutDashboard,
   MapPinned,
   Package,
-  CalendarRange,
-  Hotel,
   ArrowRightLeft,
   Sparkles,
   Star,
   MessageSquare,
+  Users,
+  ShieldCheck,
 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
@@ -19,9 +19,9 @@ const PM_TILES = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard-stats" },
   { label: "Destinations", icon: MapPinned, href: "/admin/destinations" },
   { label: "Campaigns", icon: Package, href: "/admin/packages-master" },
-  { label: "Itineraries", icon: CalendarRange, href: "/admin/itineraries" },
-  { label: "Hotels", icon: Hotel, href: "/admin/hotels" },
   { label: "Transfer Types", icon: ArrowRightLeft, href: "/admin/transfers" },
+  { label: "Employees", icon: Users, href: "/admin/employees" },
+  { label: "Roles", icon: ShieldCheck, href: "/admin/roles" },
   { label: "Hero Section", icon: Sparkles, href: "/admin/hero" },
   { label: "Reviews", icon: Star, href: "/admin/reviews" },
   { label: "Enquiry Config", icon: MessageSquare, href: "/admin/enquiry-config" },

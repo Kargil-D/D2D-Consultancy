@@ -30,6 +30,9 @@ export async function rotateRefreshToken(rawToken: string) {
   if (!record || record.revokedAt || record.expiresAt < new Date()) {
     throw new ApiError(401, "Session expired. Please log in again.");
   }
+  if (record.user.role.status === "Inactive") {
+    throw new ApiError(401, "This role has been deactivated. Please contact an administrator.");
+  }
 
   await prisma.refreshToken.update({ where: { id: record.id }, data: { revokedAt: new Date() } });
   return issueTokenPair(record.user);

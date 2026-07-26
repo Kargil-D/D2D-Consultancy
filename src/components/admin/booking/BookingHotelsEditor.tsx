@@ -26,6 +26,7 @@ export const newBookingHotel = (): AdminBookingHotel => ({
   hotelContactNumber: "",
   supplier: "",
   voucherUrl: null,
+  bookedCurrency: "INR",
   paymentMode: "Cash",
   bookingDate: null,
   bookingPnr: "",
@@ -45,11 +46,14 @@ interface Props {
   onChange: (hotels: AdminBookingHotel[]) => void;
   costSheet: AdminBookingCostSheetEntry[];
   onBookedCostChange: (sourceId: string, bookingCost: number) => void;
+  onSettlementCostChange: (sourceId: string, settlementCost: number) => void;
   quotationMeta: Map<string, HotelQuotationMeta>;
+  currencyOptions: string[];
 }
 
-export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBookedCostChange, quotationMeta }: Props) {
+export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBookedCostChange, onSettlementCostChange, quotationMeta, currencyOptions }: Props) {
   const [liveBookingCost, setLiveBookingCost] = useState<Record<string, number>>({});
+  const [liveSettlementCost, setLiveSettlementCost] = useState<Record<string, number>>({});
 
   const update = (idx: number, patch: Partial<AdminBookingHotel>) => {
     const next = [...hotels];
@@ -62,7 +66,7 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-xs text-slate-500">Auto-synced from the Quotation&apos;s Pricing step — D2D Cost/Total Cost are read-only here. Balance = Total Cost − Booking Cost.</p>
+        <p className="text-xs text-slate-500">Auto-synced from the Quotation&apos;s Pricing step — D2D Cost is read-only here. Balance = Booked Cost − Settlement Cost.</p>
         <button type="button" onClick={add} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold">
           <Plus className="w-3.5 h-3.5" /> Add Hotel
         </button>
@@ -74,12 +78,13 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
           const costEntry = h.id ? costSheet.find((e) => e.sourceId === h.id) : undefined;
           const totalCost = meta ? meta.qty * meta.cost : undefined;
           const bookingCost = h.id && h.id in liveBookingCost ? liveBookingCost[h.id] : (costEntry?.bookingCost ?? undefined);
-          const balance = totalCost !== undefined && bookingCost !== undefined ? totalCost - bookingCost : undefined;
+          const settlementCost = h.id && h.id in liveSettlementCost ? liveSettlementCost[h.id] : (costEntry?.settlementCost ?? undefined);
+          const balance = bookingCost !== undefined && settlementCost !== undefined ? bookingCost - settlementCost : undefined;
 
           return (
             <div key={h.id ?? i} className="rounded-xl border border-slate-100 p-3 space-y-3">
               {/* Row 1 */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <Field label="Hotel Name" className="lg:col-span-2">
                   <input className={cellInputCls} value={h.hotelName} onChange={(e) => update(i, { hotelName: e.target.value })} />
                 </Field>
@@ -102,9 +107,6 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
                   />
                 </Field>
                 <Field label="D2D Cost">
-                  <div className={`${readonlyBoxCls} text-slate-600`}>{meta ? formatINR(meta.cost) : "—"}</div>
-                </Field>
-                <Field label="Total Cost">
                   <div className={`${readonlyBoxCls} justify-end text-right font-semibold text-slate-900`}>
                     {totalCost !== undefined ? formatINR(totalCost) : "—"}
                   </div>
@@ -115,8 +117,8 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
               </div>
 
               {/* Row 2 */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                <Field label="Booking Cost">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3">
+                <Field label="Booked Cost">
                   {costEntry ? (
                     <input
                       type="number"
@@ -127,6 +129,28 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
                       onBlur={(e) => {
                         const next = Number(e.target.value) || 0;
                         if (next !== costEntry.bookingCost) onBookedCostChange(h.id ?? "", next);
+                      }}
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2 py-2 text-xs text-slate-400">Save row first</div>
+                  )}
+                </Field>
+                <Field label="Booked Currency">
+                  <select className={selectCls} value={h.bookedCurrency} onChange={(e) => update(i, { bookedCurrency: e.target.value })}>
+                    {currencyOptions.map((c) => (<option key={c} value={c}>{c}</option>))}
+                  </select>
+                </Field>
+                <Field label="Settlement Cost">
+                  {costEntry ? (
+                    <input
+                      type="number"
+                      min={0}
+                      className={cellInputCls}
+                      defaultValue={costEntry.settlementCost}
+                      onChange={(e) => setLiveSettlementCost((prev) => ({ ...prev, [h.id ?? ""]: Number(e.target.value) || 0 }))}
+                      onBlur={(e) => {
+                        const next = Number(e.target.value) || 0;
+                        if (next !== costEntry.settlementCost) onSettlementCostChange(h.id ?? "", next);
                       }}
                     />
                   ) : (

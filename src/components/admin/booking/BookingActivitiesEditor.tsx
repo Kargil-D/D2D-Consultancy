@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Plus, Trash2, Copy, Ticket } from "lucide-react";
 import DocumentUpload from "@/components/admin/booking/DocumentUpload";
-import { selectCls, textareaCls } from "@/components/admin/ui/Field";
+import GenerateVoucherLink from "@/components/admin/booking/GenerateVoucherLink";
+import { selectCls } from "@/components/admin/ui/Field";
 import { GridField as Field, PAYMENT_MODES, cellInputCls, formatINR, readonlyBoxCls } from "@/components/admin/booking/BookingGridField";
 import type { AdminBookingActivity, AdminBookingCostSheetEntry, PaymentMode, TourType } from "@/types/admin";
 
@@ -19,10 +20,10 @@ export const newBookingActivity = (): AdminBookingActivity => ({
   pickupIncluded: false,
   pickupTime: "",
   pax: 1,
-  inclusions: "",
-  exclusions: "",
   supplier: "",
   voucherUrl: null,
+  invoiceUrl: null,
+  bookedCurrency: "INR",
   paymentMode: "Cash",
   bookingDate: null,
   bookingPnr: "",
@@ -36,15 +37,21 @@ export interface ActivityQuotationMeta {
 }
 
 interface Props {
+  bookingId: string;
   activities: AdminBookingActivity[];
   onChange: (activities: AdminBookingActivity[]) => void;
   costSheet: AdminBookingCostSheetEntry[];
   onBookedCostChange: (sourceId: string, bookingCost: number) => void;
+  onSettlementCostChange: (sourceId: string, settlementCost: number) => void;
   quotationMeta?: Map<string, ActivityQuotationMeta>;
+  currencyOptions: string[];
 }
 
-export default function BookingActivitiesEditor({ activities, onChange, costSheet, onBookedCostChange, quotationMeta }: Props) {
+export default function BookingActivitiesEditor({
+  bookingId, activities, onChange, costSheet, onBookedCostChange, onSettlementCostChange, quotationMeta, currencyOptions,
+}: Props) {
   const [liveBookingCost, setLiveBookingCost] = useState<Record<string, number>>({});
+  const [liveSettlementCost, setLiveSettlementCost] = useState<Record<string, number>>({});
 
   const update = (idx: number, patch: Partial<AdminBookingActivity>) => {
     const next = [...activities];
@@ -61,7 +68,7 @@ export default function BookingActivitiesEditor({ activities, onChange, costShee
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-xs text-slate-500">Auto-synced from the Quotation&apos;s Pricing step — D2D Cost/Total Cost are read-only here. Balance = Total Cost − Booking Cost.</p>
+        <p className="text-xs text-slate-500">Auto-synced from the Quotation&apos;s Pricing step — D2D Cost is read-only here. Balance = Booked Cost − Settlement Cost.</p>
         <button type="button" onClick={add} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold">
           <Plus className="w-3.5 h-3.5" /> Add Activity
         </button>
@@ -73,7 +80,8 @@ export default function BookingActivitiesEditor({ activities, onChange, costShee
           const costEntry = a.id ? costSheet.find((e) => e.sourceId === a.id) : undefined;
           const totalCost = meta ? meta.qty * meta.cost : undefined;
           const bookingCost = a.id && a.id in liveBookingCost ? liveBookingCost[a.id] : (costEntry?.bookingCost ?? undefined);
-          const balance = totalCost !== undefined && bookingCost !== undefined ? totalCost - bookingCost : undefined;
+          const settlementCost = a.id && a.id in liveSettlementCost ? liveSettlementCost[a.id] : (costEntry?.settlementCost ?? undefined);
+          const balance = bookingCost !== undefined && settlementCost !== undefined ? bookingCost - settlementCost : undefined;
 
           return (
             <div key={a.id ?? i} className="rounded-xl border border-slate-100 p-3 space-y-3">
@@ -133,23 +141,13 @@ export default function BookingActivitiesEditor({ activities, onChange, costShee
               </div>
 
               {/* Row 3 — cost */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Field label="D2D Cost">
-                  <div className={`${readonlyBoxCls} text-slate-600`}>{meta ? formatINR(meta.cost) : "—"}</div>
-                </Field>
-                <Field label="Total Cost">
                   <div className={`${readonlyBoxCls} justify-end text-right font-semibold text-slate-900`}>
                     {totalCost !== undefined ? formatINR(totalCost) : "—"}
                   </div>
                 </Field>
-                <Field label="Supplier Name">
-                  <input className={cellInputCls} value={a.supplier} onChange={(e) => update(i, { supplier: e.target.value })} />
-                </Field>
-              </div>
-
-              {/* Row 4 — booking & payment */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                <Field label="Booking Cost">
+                <Field label="Booked Cost">
                   {costEntry ? (
                     <input
                       type="number"
@@ -160,6 +158,35 @@ export default function BookingActivitiesEditor({ activities, onChange, costShee
                       onBlur={(e) => {
                         const next = Number(e.target.value) || 0;
                         if (next !== costEntry.bookingCost) onBookedCostChange(a.id ?? "", next);
+                      }}
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2 py-2 text-xs text-slate-400">Save row first</div>
+                  )}
+                </Field>
+                <Field label="Booked Currency">
+                  <select className={selectCls} value={a.bookedCurrency} onChange={(e) => update(i, { bookedCurrency: e.target.value })}>
+                    {currencyOptions.map((c) => (<option key={c} value={c}>{c}</option>))}
+                  </select>
+                </Field>
+                <Field label="Supplier Name">
+                  <input className={cellInputCls} value={a.supplier} onChange={(e) => update(i, { supplier: e.target.value })} />
+                </Field>
+              </div>
+
+              {/* Row 4 — booking & payment */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <Field label="Settlement Cost">
+                  {costEntry ? (
+                    <input
+                      type="number"
+                      min={0}
+                      className={cellInputCls}
+                      defaultValue={costEntry.settlementCost}
+                      onChange={(e) => setLiveSettlementCost((prev) => ({ ...prev, [a.id ?? ""]: Number(e.target.value) || 0 }))}
+                      onBlur={(e) => {
+                        const next = Number(e.target.value) || 0;
+                        if (next !== costEntry.settlementCost) onSettlementCostChange(a.id ?? "", next);
                       }}
                     />
                   ) : (
@@ -191,17 +218,10 @@ export default function BookingActivitiesEditor({ activities, onChange, costShee
                 </Field>
               </div>
 
-              {/* Row 5 — inclusions/exclusions */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Field label="Inclusions">
-                  <textarea className={textareaCls} value={a.inclusions} onChange={(e) => update(i, { inclusions: e.target.value })} />
-                </Field>
-                <Field label="Exclusions">
-                  <textarea className={textareaCls} value={a.exclusions} onChange={(e) => update(i, { exclusions: e.target.value })} />
-                </Field>
+                <GenerateVoucherLink label="Activity Voucher" href={costEntry && a.id ? `/api/admin/bookings/${bookingId}/activities/${a.id}/voucher` : undefined} />
+                <DocumentUpload label="Activity Invoice" value={a.invoiceUrl ?? ""} onChange={(url) => update(i, { invoiceUrl: url || null })} />
               </div>
-
-              <DocumentUpload label="Activity Voucher" value={a.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} />
             </div>
           );
         })}

@@ -19,7 +19,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       serviceType: c.serviceType,
       serviceName: c.serviceName,
       supplierName: c.supplierName,
-      amount: kind === "customer" ? c.sellingPrice : c.dmcCost,
+      amount: kind === "customer" ? c.sellingPrice : c.bookingCost,
     }));
     const total = lines.reduce((sum, l) => sum + l.amount, 0);
 

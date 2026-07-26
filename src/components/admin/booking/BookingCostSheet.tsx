@@ -2,19 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { Save } from "lucide-react";
-import { inputCls, selectCls } from "@/components/admin/ui/Field";
+import { inputCls } from "@/components/admin/ui/Field";
 import type { AdminBookingCostSheetEntry, CostSheetStatus } from "@/types/admin";
 
 interface Props {
   entries: AdminBookingCostSheetEntry[];
-  onSave: (rows: { id: string; supplierName?: string; dmcCost?: number; bookingCost?: number; settlementCost?: number; sellingPrice?: number; status?: CostSheetStatus; remarks?: string | null }[]) => Promise<void>;
+  /** Selling Price mirrors D2D Cost (qty × cost from the linked Quotation) for services that have one — Flight/Visa/Insurance aren't in this map and keep a manually-entered Selling Price. */
+  d2dCostBySourceId: Map<string, number>;
+  onSave: (rows: { id: string; supplierName?: string; bookingCost?: number; settlementCost?: number; sellingPrice?: number; status?: CostSheetStatus; remarks?: string | null }[]) => Promise<void>;
 }
 
-const STATUSES: CostSheetStatus[] = ["Pending", "Confirmed", "Invoiced", "Settled"];
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
 
-export default function BookingCostSheet({ entries, onSave }: Props) {
+export default function BookingCostSheet({ entries, d2dCostBySourceId, onSave }: Props) {
   const [rows, setRows] = useState(entries);
   const [saving, setSaving] = useState(false);
 
@@ -22,21 +23,21 @@ export default function BookingCostSheet({ entries, onSave }: Props) {
   useEffect(() => setRows(entries), [entries]);
 
   const update = (idx: number, patch: Partial<AdminBookingCostSheetEntry>) => {
-    setRows((r) => r.map((row, i) => (i === idx ? { ...row, ...patch, profit: (patch.sellingPrice ?? row.sellingPrice) - (patch.dmcCost ?? row.dmcCost) } : row)));
+    setRows((r) => r.map((row, i) => (i === idx ? { ...row, ...patch, profit: (patch.sellingPrice ?? row.sellingPrice) - (patch.bookingCost ?? row.bookingCost) } : row)));
   };
 
   const save = async () => {
     setSaving(true);
     try {
-      await onSave(rows.map((r) => ({ id: r.id, supplierName: r.supplierName, dmcCost: r.dmcCost, bookingCost: r.bookingCost, settlementCost: r.settlementCost, sellingPrice: r.sellingPrice, status: r.status, remarks: r.remarks })));
+      await onSave(rows.map((r) => ({ id: r.id, supplierName: r.supplierName, bookingCost: r.bookingCost, settlementCost: r.settlementCost, sellingPrice: r.sellingPrice, status: r.status, remarks: r.remarks })));
     } finally {
       setSaving(false);
     }
   };
 
   const totals = rows.reduce(
-    (acc, r) => ({ dmcCost: acc.dmcCost + r.dmcCost, bookingCost: acc.bookingCost + r.bookingCost, settlementCost: acc.settlementCost + r.settlementCost, sellingPrice: acc.sellingPrice + r.sellingPrice, profit: acc.profit + r.profit }),
-    { dmcCost: 0, bookingCost: 0, settlementCost: 0, sellingPrice: 0, profit: 0 },
+    (acc, r) => ({ bookingCost: acc.bookingCost + r.bookingCost, settlementCost: acc.settlementCost + r.settlementCost, sellingPrice: acc.sellingPrice + r.sellingPrice, profit: acc.profit + r.profit }),
+    { bookingCost: 0, settlementCost: 0, sellingPrice: 0, profit: 0 },
   );
 
   return (
@@ -53,12 +54,10 @@ export default function BookingCostSheet({ entries, onSave }: Props) {
             <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
               <th className="px-3 py-2">Service</th>
               <th className="px-3 py-2 w-36">Supplier</th>
-              <th className="px-3 py-2 w-28">DMC Cost</th>
               <th className="px-3 py-2 w-28">Booking Cost</th>
               <th className="px-3 py-2 w-28">Settlement</th>
               <th className="px-3 py-2 w-28">Selling Price</th>
               <th className="px-3 py-2 w-24 text-right">Profit</th>
-              <th className="px-3 py-2 w-32">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -69,16 +68,16 @@ export default function BookingCostSheet({ entries, onSave }: Props) {
                   <div>{r.serviceName || "—"}</div>
                 </td>
                 <td className="px-3 py-2"><input className={inputCls} value={r.supplierName} onChange={(e) => update(i, { supplierName: e.target.value })} /></td>
-                <td className="px-3 py-2"><input type="number" min={0} className={inputCls} value={r.dmcCost} onChange={(e) => update(i, { dmcCost: Number(e.target.value) || 0 })} /></td>
                 <td className="px-3 py-2"><input type="number" min={0} className={inputCls} value={r.bookingCost} onChange={(e) => update(i, { bookingCost: Number(e.target.value) || 0 })} /></td>
                 <td className="px-3 py-2"><input type="number" min={0} className={inputCls} value={r.settlementCost} onChange={(e) => update(i, { settlementCost: Number(e.target.value) || 0 })} /></td>
-                <td className="px-3 py-2"><input type="number" min={0} className={inputCls} value={r.sellingPrice} onChange={(e) => update(i, { sellingPrice: Number(e.target.value) || 0 })} /></td>
-                <td className={`px-3 py-2 text-right font-semibold ${r.profit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{formatINR(r.profit)}</td>
                 <td className="px-3 py-2">
-                  <select className={selectCls} value={r.status} onChange={(e) => update(i, { status: e.target.value as CostSheetStatus })}>
-                    {STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
-                  </select>
+                  {d2dCostBySourceId.has(r.sourceId) ? (
+                    <div className={`${inputCls} bg-slate-50 text-slate-600 flex items-center`}>{formatINR(r.sellingPrice)}</div>
+                  ) : (
+                    <input type="number" min={0} className={inputCls} value={r.sellingPrice} onChange={(e) => update(i, { sellingPrice: Number(e.target.value) || 0 })} />
+                  )}
                 </td>
+                <td className={`px-3 py-2 text-right font-semibold ${r.profit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{formatINR(r.profit)}</td>
               </tr>
             ))}
           </tbody>
@@ -86,12 +85,10 @@ export default function BookingCostSheet({ entries, onSave }: Props) {
             <tfoot>
               <tr className="border-t-2 border-slate-200 font-bold text-slate-900">
                 <td className="px-3 py-2" colSpan={2}>Total</td>
-                <td className="px-3 py-2">{formatINR(totals.dmcCost)}</td>
                 <td className="px-3 py-2">{formatINR(totals.bookingCost)}</td>
                 <td className="px-3 py-2">{formatINR(totals.settlementCost)}</td>
                 <td className="px-3 py-2">{formatINR(totals.sellingPrice)}</td>
                 <td className={`px-3 py-2 text-right ${totals.profit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{formatINR(totals.profit)}</td>
-                <td />
               </tr>
             </tfoot>
           )}

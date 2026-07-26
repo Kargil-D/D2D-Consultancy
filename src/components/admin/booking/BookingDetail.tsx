@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   FileDown, Mail, Copy, Link as LinkIcon, ExternalLink, Save, Download,
   Wallet, Plane, BedDouble, Ticket, ArrowRightLeft, Stamp, ShieldCheck,
-  CreditCard, FolderOpen, MessageCircle, History, TrendingUp, TrendingDown, Minus,
+  CreditCard, FolderOpen, MessageCircle, History,
 } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
@@ -21,11 +21,12 @@ import BookingPayments from "@/components/admin/booking/BookingPayments";
 import BookingDocumentsTab from "@/components/admin/booking/BookingDocumentsTab";
 import BookingChatTab from "@/components/admin/booking/BookingChatTab";
 import BookingTimelineTab from "@/components/admin/booking/BookingTimelineTab";
-import { bookingsApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
+import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
+import { bookingsApi, quotationsApi, salesUsersApi, currenciesApi } from "@/lib/adminApi";
 import type {
   AdminBooking, AdminBookingActivity, AdminBookingFlight, AdminBookingHotel, AdminBookingInsurance,
   AdminBookingTransfer, AdminBookingVisa, AdminQuotation, AdminSalesUser, BookingDocumentType, BookingStatus,
-  CostSheetStatus, PaymentMode, SettlementStatus,
+  CostSheetStatus, PaymentMode,
 } from "@/types/admin";
 
 interface BookingDetailProps {
@@ -92,6 +93,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const activitiesAutoLoadedRef = useRef(false);
   const [transfers, setTransfers] = useState<AdminBookingTransfer[]>([]);
   const transfersAutoLoadedRef = useRef(false);
+  const [currencyOptions, setCurrencyOptions] = useState<string[]>(["INR"]);
   const [visas, setVisas] = useState<AdminBookingVisa[]>([]);
   const [insurances, setInsurances] = useState<AdminBookingInsurance[]>([]);
   const [savingFlights, setSavingFlights] = useState(false);
@@ -151,6 +153,12 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       if (beRes.success) setBookingExecutives(beRes.data);
       if (csRes.success) setCustomerSupportUsers(csRes.data);
     })();
+    currenciesApi.list({ pageSize: 100, filter: { status: "Active" } }).then((res) => {
+      if (res.success) {
+        const codes = res.data.items.map((c) => c.code);
+        setCurrencyOptions(codes.includes("INR") ? codes : ["INR", ...codes]);
+      }
+    });
   }, []);
 
   // Load quotations for the booking's lead (the "Quotation" dropdown) — merge in the
@@ -210,6 +218,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         hotelContactNumber: "",
         supplier: "",
         voucherUrl: null,
+        bookedCurrency: "INR",
         paymentMode: "Cash",
         bookingDate: null,
         bookingPnr: "",
@@ -255,10 +264,10 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       pickupIncluded: false,
       pickupTime: a.reportingTime,
       pax: a.pax || 1,
-      inclusions: [a.description, a.notes].filter(Boolean).join("\n"),
-      exclusions: "",
       supplier: "",
       voucherUrl: null,
+      invoiceUrl: null,
+      bookedCurrency: "INR",
       paymentMode: "Cash",
       bookingDate: null,
       bookingPnr: "",
@@ -291,6 +300,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       vehicleNumber: "",
       supplier: "",
       voucherUrl: null,
+      invoiceUrl: null,
+      bookedCurrency: "INR",
       paymentMode: "Cash",
       bookingDate: null,
       bookingPnr: "",
@@ -311,6 +322,14 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       transferQuotationMeta.set(t.id, { cost: item?.cost ?? 0, qty: item?.qty ?? 1 });
     }
   }
+
+  // Selling Price on the Cost Sheet mirrors D2D Cost (qty × cost) for services that have one
+  // (Hotel/Activity/Transfer, sourced from the linked Quotation) — Flight/Visa/Insurance have
+  // no quotation cost mirroring yet, so those rows keep a manually-entered Selling Price.
+  const d2dCostBySourceId = new Map<string, number>();
+  for (const [id, m] of hotelQuotationMeta) d2dCostBySourceId.set(id, m.qty * m.cost);
+  for (const [id, m] of activityQuotationMeta) d2dCostBySourceId.set(id, m.qty * m.cost);
+  for (const [id, m] of transferQuotationMeta) d2dCostBySourceId.set(id, m.qty * m.cost);
 
   const changeStatus = async (status: BookingStatus) => {
     if (!booking || status === booking.status) return;
@@ -416,10 +435,10 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         pickupIncluded: false,
         pickupTime: a.reportingTime,
         pax: a.pax || 1,
-        inclusions: [a.description, a.notes].filter(Boolean).join("\n"),
-        exclusions: "",
         supplier: "",
         voucherUrl: null,
+        invoiceUrl: null,
+        bookedCurrency: "INR",
         paymentMode: "Cash",
         bookingDate: null,
         bookingPnr: "",
@@ -447,6 +466,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         vehicleNumber: "",
         supplier: "",
         voucherUrl: null,
+        invoiceUrl: null,
+        bookedCurrency: "INR",
         paymentMode: "Cash",
         bookingDate: null,
         bookingPnr: "",
@@ -464,6 +485,14 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     if (!entry) return;
     const res = await bookingsApi.saveCostSheet(id, [{ id: entry.id, bookingCost }]);
     if (!res.success) return notify(res.message || "Unable to save booked cost", "error");
+    reload();
+  };
+
+  const updateSettlementCost = async (sourceId: string, settlementCost: number) => {
+    const entry = booking?.costSheet.find((e) => e.sourceId === sourceId);
+    if (!entry) return;
+    const res = await bookingsApi.saveCostSheet(id, [{ id: entry.id, settlementCost }]);
+    if (!res.success) return notify(res.message || "Unable to save settlement cost", "error");
     reload();
   };
 
@@ -490,7 +519,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     }
   };
 
-  const saveCostSheet = async (rows: { id: string; supplierName?: string; dmcCost?: number; bookingCost?: number; settlementCost?: number; sellingPrice?: number; status?: CostSheetStatus; remarks?: string | null }[]) => {
+  const saveCostSheet = async (rows: { id: string; supplierName?: string; bookingCost?: number; settlementCost?: number; sellingPrice?: number; status?: CostSheetStatus; remarks?: string | null }[]) => {
     const res = await bookingsApi.saveCostSheet(id, rows);
     if (!res.success) return notify(res.message || "Unable to save cost sheet", "error");
     notify("Cost sheet saved", "success");
@@ -503,15 +532,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     notify("Customer payment recorded", "success");
     reload();
   };
-  const addSupplierPayment = async (payload: { supplierName: string; paymentDate: string; amount: number; paymentMode: PaymentMode; transactionReference?: string; settlementStatus: SettlementStatus }) => {
-    const res = await bookingsApi.addSupplierPayment(id, payload);
-    if (!res.success) return notify(res.message || "Unable to record payment", "error");
-    notify("Supplier payment recorded", "success");
-    reload();
-  };
-
-  const uploadDocument = async (type: BookingDocumentType, url: string) => {
-    const res = await bookingsApi.uploadDocument(id, type, url);
+  const uploadDocument = async (type: BookingDocumentType, url: string, description?: string) => {
+    const res = await bookingsApi.uploadDocument(id, type, url, description);
     if (!res.success) return notify(res.message || "Unable to upload document", "error");
     notify("Document uploaded", "success");
     reload();
@@ -558,6 +580,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     booking.quotation?.infants ? `${booking.quotation.infants} Infant${booking.quotation.infants > 1 ? "s" : ""}` : null,
   ].filter(Boolean);
 
+  // Margin/Deal Price mirror the linked Quotation's own pricing step (cost -> +margin -> +GST = grand total);
+  // Total Paid is the Payments tab's Customer Payments total (same figure shown there).
   const quotePricing = selectedQuotation
     ? (() => {
         const cost = selectedQuotation.items.reduce((sum, i) => sum + i.qty * i.cost, 0);
@@ -565,12 +589,10 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         const subtotal = cost + marginValue;
         const gstValue = Math.round(subtotal * (selectedQuotation.gstPercent / 100));
         const sellingPrice = subtotal + gstValue;
-        return { cost, marginValue, gstValue, sellingPrice };
+        return { marginValue, sellingPrice };
       })()
     : null;
-  const priceDifference = quotePricing ? detailTotalAmount - quotePricing.sellingPrice : 0;
-  const priceDiffPercent = quotePricing && quotePricing.sellingPrice > 0 ? (priceDifference / quotePricing.sellingPrice) * 100 : 0;
-  const priceVerdict = priceDifference > 0 ? "profit" : priceDifference < 0 ? "loss" : "even";
+  const totalPaid = booking.customerPayments.reduce((sum, p) => sum + p.amount, 0);
 
   return (
     <div className="space-y-6">
@@ -584,6 +606,24 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               {booking.destination?.name} · {formatINR(booking.totalAmount)} · {new Date(booking.createdDate).toLocaleDateString("en-IN")}
             </p>
           </div>
+          {quotePricing && (
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Margin</div>
+                <div className="text-lg font-bold text-slate-900">{formatINR(quotePricing.marginValue)}</div>
+              </div>
+              <div className="w-px h-9 bg-slate-200" />
+              <div className="text-right">
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Deal Price</div>
+                <div className="text-lg font-bold text-slate-900">{formatINR(quotePricing.sellingPrice)}</div>
+              </div>
+              <div className="w-px h-9 bg-slate-200" />
+              <div className="text-right">
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Paid</div>
+                <div className="text-lg font-bold text-emerald-600">{formatINR(totalPaid)}</div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 pt-5 border-t border-slate-100">
@@ -674,54 +714,24 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               <input className={inputCls} value={booking.quotation?.salesExecutive ? `${booking.quotation.salesExecutive.firstName} ${booking.quotation.salesExecutive.lastName}` : ""} disabled />
             </Field>
             <Field label="Assign Operations Executive">
-              <select className={selectCls} value={detailBookingExecutiveId} onChange={(e) => setDetailBookingExecutiveId(e.target.value)}>
-                <option value="">Select Operations Executive</option>
-                {bookingExecutives.map((u) => (
-                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                ))}
-              </select>
+              <UserSearchSelect
+                users={bookingExecutives}
+                value={detailBookingExecutiveId}
+                onChange={setDetailBookingExecutiveId}
+                placeholder="Search Operations Executive…"
+              />
             </Field>
             <Field label="Assign Customer Support">
-              <select className={selectCls} value={detailCustomerSupportId} onChange={(e) => setDetailCustomerSupportId(e.target.value)}>
-                <option value="">Select Customer Support</option>
-                {customerSupportUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                ))}
-              </select>
+              <UserSearchSelect
+                users={customerSupportUsers}
+                value={detailCustomerSupportId}
+                onChange={setDetailCustomerSupportId}
+                placeholder="Search Customer Support…"
+              />
             </Field>
             <Field label="Total Amount (INR)">
               <input type="number" min={0} className={inputCls} value={detailTotalAmount} onChange={(e) => setDetailTotalAmount(Number(e.target.value) || 0)} />
             </Field>
-            {quotePricing && (
-              <div
-                className={`rounded-xl border p-3 flex items-center justify-between gap-3 ${
-                  priceVerdict === "profit"
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                    : priceVerdict === "loss"
-                      ? "bg-rose-50 border-rose-200 text-rose-700"
-                      : "bg-slate-50 border-slate-200 text-slate-600"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {priceVerdict === "profit" && <TrendingUp className="w-4 h-4 flex-shrink-0" />}
-                  {priceVerdict === "loss" && <TrendingDown className="w-4 h-4 flex-shrink-0" />}
-                  {priceVerdict === "even" && <Minus className="w-4 h-4 flex-shrink-0" />}
-                  <span className="text-sm font-semibold">
-                    {priceVerdict === "profit" && "Profit vs Quote"}
-                    {priceVerdict === "loss" && "Loss vs Quote"}
-                    {priceVerdict === "even" && "Matches Quote"}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold">
-                    {priceVerdict !== "even" && (priceDifference > 0 ? "+" : "−")}{formatINR(Math.abs(priceDifference))}
-                  </div>
-                  {priceVerdict !== "even" && (
-                    <div className="text-xs opacity-80">{priceDiffPercent > 0 ? "+" : ""}{priceDiffPercent.toFixed(1)}%</div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           <Field label="Remarks">
@@ -745,12 +755,6 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             Save DMC Details
           </button>
         </div>
-      </div>
-
-      {/* 3. Recent Activity */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-6">
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Recent Activity</h2>
-        <BookingTimelineTab events={booking.timeline.slice(0, 5)} />
       </div>
 
       {/* Remaining service tabs */}
@@ -777,7 +781,11 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         <div className="p-6">
           {tab === "costsheet" && (
             <BookingCostSheet
-              entries={booking.costSheet.map((c) => ({ ...c, profit: c.sellingPrice - c.dmcCost }))}
+              entries={booking.costSheet.map((c) => {
+                const sellingPrice = d2dCostBySourceId.get(c.sourceId) ?? c.sellingPrice;
+                return { ...c, sellingPrice, profit: sellingPrice - c.bookingCost };
+              })}
+              d2dCostBySourceId={d2dCostBySourceId}
               onSave={saveCostSheet}
             />
           )}
@@ -794,7 +802,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
                 onChange={setHotels}
                 costSheet={booking.costSheet}
                 onBookedCostChange={updateBookedCost}
+                onSettlementCostChange={updateSettlementCost}
                 quotationMeta={hotelQuotationMeta}
+                currencyOptions={currencyOptions}
               />
             </TabSaveWrapper>
           )}
@@ -808,11 +818,14 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               ) : null}
             >
               <BookingActivitiesEditor
+                bookingId={id}
                 activities={activities}
                 onChange={setActivities}
                 costSheet={booking.costSheet}
                 onBookedCostChange={updateBookedCost}
+                onSettlementCostChange={updateSettlementCost}
                 quotationMeta={activityQuotationMeta}
+                currencyOptions={currencyOptions}
               />
             </TabSaveWrapper>
           )}
@@ -826,11 +839,14 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               ) : null}
             >
               <BookingTransfersEditor
+                bookingId={id}
                 transfers={transfers}
                 onChange={setTransfers}
                 costSheet={booking.costSheet}
                 onBookedCostChange={updateBookedCost}
+                onSettlementCostChange={updateSettlementCost}
                 quotationMeta={transferQuotationMeta}
+                currencyOptions={currencyOptions}
               />
             </TabSaveWrapper>
           )}
@@ -847,9 +863,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
           {tab === "payments" && (
             <BookingPayments
               customerPayments={booking.customerPayments}
-              supplierPayments={booking.supplierPayments}
               onAddCustomerPayment={addCustomerPayment}
-              onAddSupplierPayment={addSupplierPayment}
+              dealPrice={quotePricing?.sellingPrice}
             />
           )}
           {tab === "documents" && (

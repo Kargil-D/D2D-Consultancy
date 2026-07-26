@@ -23,16 +23,61 @@ enum OtpPurpose {
   ForgotPassword
 }
 
-model Role {
-  id   String @id @default(uuid())
-  name String @unique // Admin | Employee | Customer
+/// Admin permission modules — mirrors the real screens reachable from the admin menu
+/// (Home/PM/Sales/Finance department tiles in DepartmentTiles — see src/app/admin/{page,pm,sales,finance}/page.tsx).
+/// Deliberately excludes placeholder department tiles with no href yet (CX, Roster, Ticketing, Report).
+/// Note: these are policy labels, not yet wired to gate every matching admin API route —
+/// only login (Role.status) is enforced today. See RolePermission's doc comment.
+enum AdminModule {
+  Dashboard
+  Destinations
+  Campaigns
+  TransferTypes
+  HotelMaster
+  CurrencyMaster
+  Employees
+  Roles
+  HeroSection
+  Reviews
+  EnquiryConfig
+  Leads
+  Quotations
+  Bookings
+}
 
-  users User[]
+model Role {
+  id          String @id @default(uuid())
+  name        String @unique // Admin | Employee | Customer
+  description String @default("")
+  status      Status @default(Active)
+
+  users       User[]
+  permissions RolePermission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("roles")
+}
+
+/// One row per (role, module) — the View/Add/Edit/Delete matrix from the Roles screen.
+/// Enforced today only insofar as Role.status gates login (see getCurrentUser / the login
+/// route); per-module route gating is a separate, not-yet-built follow-up — flagged rather
+/// than faked, since mapping these 10 policy modules onto ~15+ existing admin API routes
+/// (several of which don't correspond 1:1, e.g. "Website CMS" spans Hero/Reviews/Destinations)
+/// is its own scoped project.
+model RolePermission {
+  id        String      @id @default(uuid())
+  roleId    String
+  role      Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module    AdminModule
+  canView   Boolean     @default(false)
+  canAdd    Boolean     @default(false)
+  canEdit   Boolean     @default(false)
+  canDelete Boolean     @default(false)
+
+  @@unique([roleId, module])
+  @@map("role_permissions")
 }
 
 model User {
@@ -57,6 +102,7 @@ model User {
   bookingsAsExecutive   Booking[]      @relation("BookingExecutive")
   bookingsAsSupport     Booking[]      @relation("CustomerSupport")
   quotationsAsSalesExec Quotation[]    @relation("QuotationSalesExecutive")
+  employee              Employee?
 
   @@index([roleId])
   @@map("users")
@@ -190,18 +236,7 @@ model Itinerary {
   overview           String   @default("")
   totalDays          Int      @default(0)
   days               Json     @default("[]")
-  packageIncludes    String[] @default([])
-  packageExcludes    String[] @default([])
-  termsAndConditions String   @default("")
-  cancellationPolicy String   @default("")
-  faqs               Json     @default("[]")
-  galleryImages      String[] @default([])
-  mapLocation        String?
-  customerNotes      String?
-  ctaButtonText      String   @default("Send Enquiry")
-  ctaRedirect        String   @default("/plan-trip")
   status             Status   @default(Active)
-  isPublished        Boolean  @default(false)
 
   createdBy   String?
   createdDate DateTime @default(now())
@@ -284,6 +319,113 @@ model HotelMaster {
 
   @@index([destinationId])
   @@map("hotel_master")
+}
+
+enum EmploymentType {
+  Permanent
+  Contract
+  Intern
+}
+
+/// PM > Employees. Deliberately standalone from the `User` login/auth model (see the
+/// "Login Information" fields below) — this is an HR record, not a second identity system.
+/// Aadhaar number and bank account number are AES-256-GCM encrypted at the service layer
+/// (src/lib/crypto.ts) before being written here; only their last 4 digits are kept in the
+/// clear (aadhaarLast4/accountLast4) so the UI can render the masked form without decrypting.
+model Employee {
+  id           String @id @default(uuid())
+  seq          Int    @unique @default(autoincrement())
+  employeeCode String @unique
+
+  // Personal
+  fullName        String
+  dateOfBirth     DateTime?
+  gender          String    @default("")
+  mobileNumber    String    @default("")
+  personalEmail   String?
+  officialEmail   String?
+  profilePhotoUrl String?
+
+  // Employment
+  designation        String          @default("")
+  department          String          @default("")
+  branch              String          @default("")
+  reportingManagerId  String?
+  reportingManager    Employee?       @relation("EmployeeManager", fields: [reportingManagerId], references: [id], onDelete: SetNull)
+  directReports       Employee[]      @relation("EmployeeManager")
+  employmentType       EmploymentType @default(Permanent)
+  joiningDate          DateTime?
+  confirmationDate     DateTime?
+  status               Status         @default(Active)
+
+  // Login information. `userId` optionally links this HR record to a real login `User` —
+  // when linked, the assigned Role on the Employee screen writes through to User.roleId and
+  // actually gates access (see employeeService.setEmployeeRole); `username`/`mfaEnabled` stay
+  // as plain reference fields since neither has a real counterpart in the auth model today
+  // (User has no username, and there is no MFA implementation anywhere in this app yet).
+  username    String?   @unique
+  userId      String?   @unique
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  lastLogin   DateTime?
+  mfaEnabled  Boolean   @default(false)
+
+  // Address
+  currentAddress   String @default("")
+  permanentAddress String @default("")
+  city             String @default("")
+  state            String @default("")
+  pinCode          String @default("")
+  country          String @default("India")
+
+  // Government IDs
+  aadhaarNumberEnc     String?
+  aadhaarLast4         String?
+  panNumber            String?
+  passportNumber       String?
+  drivingLicenceNumber String?
+
+  // Bank details
+  accountHolderName String      @default("")
+  bankName          String      @default("")
+  bankBranchName    String      @default("")
+  accountNumberEnc  String?
+  accountLast4      String?
+  ifscCode          String      @default("")
+  upiId             String?
+  salaryPaymentMode PaymentMode @default(BankTransfer)
+
+  // Emergency contact
+  emergencyContactName  String @default("")
+  emergencyRelationship String @default("")
+  emergencyMobile       String @default("")
+
+  auditLogs EmployeeAuditLog[]
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  @@index([status])
+  @@index([reportingManagerId])
+  @@map("employees")
+}
+
+/// Minimal audit trail for the Employee module's sensitive fields (Aadhaar/bank account
+/// number) — satisfies "record every view and update" without the full Activity Log tab
+/// infrastructure. Written by employeeService.ts on create/update/reveal.
+model EmployeeAuditLog {
+  id          String   @id @default(uuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  action      String
+  field       String?
+  performedBy String
+  performedAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@map("employee_audit_logs")
 }
 
 enum LeadSource {
@@ -598,6 +740,7 @@ model BookingDocument {
   booking      Booking             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   type         BookingDocumentType
   url          String
+  description  String?
   uploadedDate DateTime            @default(now())
 
   @@index([bookingId])
@@ -650,6 +793,7 @@ model BookingHotel {
   hotelContactNumber String    @default("")
   supplier           String    @default("")
   voucherUrl         String?
+  bookedCurrency     String    @default("INR")
   paymentMode        PaymentMode @default(Cash)
   bookingDate        DateTime?
   bookingPnr         String    @default("")
@@ -673,10 +817,10 @@ model BookingActivity {
   pickupIncluded Boolean   @default(false)
   pickupTime     String    @default("")
   pax            Int       @default(1)
-  inclusions     String    @default("")
-  exclusions     String    @default("")
   supplier       String    @default("")
   voucherUrl     String?
+  invoiceUrl     String?
+  bookedCurrency String    @default("INR")
   paymentMode    PaymentMode @default(Cash)
   bookingDate    DateTime?
   bookingPnr     String    @default("")
@@ -703,6 +847,8 @@ model BookingTransfer {
   vehicleNumber  String    @default("")
   supplier       String    @default("")
   voucherUrl     String?
+  invoiceUrl     String?
+  bookedCurrency String    @default("INR")
   paymentMode    PaymentMode @default(Cash)
   bookingDate    DateTime?
   bookingPnr     String    @default("")
@@ -760,7 +906,6 @@ model BookingCostSheetEntry {
   sourceId       String
   supplierName   String             @default("")
   serviceName    String             @default("")
-  dmcCost        Int                @default(0)
   bookingCost    Int                @default(0)
   settlementCost Int                @default(0)
   sellingPrice   Int                @default(0)

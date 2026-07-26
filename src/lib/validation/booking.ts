@@ -27,6 +27,7 @@ export const DmcUpdateSchema = z.object({
 export const DocumentUploadSchema = z.object({
   type: z.enum(["Passport", "Visa", "Aadhaar", "PAN", "PassportPhoto", "Other", "FlightTicket", "Insurance"]),
   url: z.string().min(1),
+  description: z.string().optional().nullable(),
 });
 
 const nullableDate = z.preprocess((v) => (v === "" ? undefined : v), z.coerce.date().optional().nullable());
@@ -69,6 +70,7 @@ export const BookingHotelSchema = z.object({
   hotelContactNumber: z.string().optional().default(""),
   supplier: z.string().optional().default(""),
   voucherUrl: nullableStr,
+  bookedCurrency: z.string().optional().default("INR"),
   paymentMode: z.enum(["Cash", "BankTransfer", "Card", "UPI", "Cheque", "Other"]).default("Cash"),
   bookingDate: nullableDate,
   bookingPnr: z.string().optional().default(""),
@@ -86,10 +88,10 @@ export const BookingActivitySchema = z.object({
   pickupIncluded: z.coerce.boolean().default(false),
   pickupTime: z.string().optional().default(""),
   pax: z.coerce.number().int().min(1).default(1),
-  inclusions: z.string().optional().default(""),
-  exclusions: z.string().optional().default(""),
   supplier: z.string().optional().default(""),
   voucherUrl: nullableStr,
+  invoiceUrl: nullableStr,
+  bookedCurrency: z.string().optional().default("INR"),
   paymentMode: z.enum(["Cash", "BankTransfer", "Card", "UPI", "Cheque", "Other"]).default("Cash"),
   bookingDate: nullableDate,
   bookingPnr: z.string().optional().default(""),
@@ -110,6 +112,8 @@ export const BookingTransferSchema = z.object({
   vehicleNumber: z.string().optional().default(""),
   supplier: z.string().optional().default(""),
   voucherUrl: nullableStr,
+  invoiceUrl: nullableStr,
+  bookedCurrency: z.string().optional().default("INR"),
   paymentMode: z.enum(["Cash", "BankTransfer", "Card", "UPI", "Cheque", "Other"]).default("Cash"),
   bookingDate: nullableDate,
   bookingPnr: z.string().optional().default(""),
@@ -148,7 +152,6 @@ export const CostSheetEntrySchema = z.object({
   sourceId: z.string().min(1),
   supplierName: z.string().optional().default(""),
   serviceName: z.string().optional().default(""),
-  dmcCost: z.coerce.number().min(0).default(0),
   bookingCost: z.coerce.number().min(0).default(0),
   settlementCost: z.coerce.number().min(0).default(0),
   sellingPrice: z.coerce.number().min(0).default(0),

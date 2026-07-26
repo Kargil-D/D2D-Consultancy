@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/Field";
+import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
 import { useToast } from "@/components/admin/ui/Toast";
 import { destinationsApi, leadsApi, salesUsersApi } from "@/lib/adminApi";
 import type { AdminDestination, AdminLead, AdminSalesUser, LeadSource } from "@/types/admin";
@@ -165,14 +166,12 @@ export default function LeadForm({ id }: LeadFormProps) {
             />
           </Field>
           <Field label="Assigned Sales Person">
-            <select className={selectCls} value={form.assignedToId ?? ""} onChange={(e) => onChange({ assignedToId: e.target.value || undefined })}>
-              <option value="">Unassigned</option>
-              {salesUsers.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.firstName} {u.lastName}
-                </option>
-              ))}
-            </select>
+            <UserSearchSelect
+              users={salesUsers}
+              value={form.assignedToId ?? ""}
+              onChange={(v) => onChange({ assignedToId: v || undefined })}
+              placeholder="Search sales person…"
+            />
           </Field>
         </div>
 

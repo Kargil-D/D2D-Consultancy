@@ -185,3 +185,54 @@ function VoucherDocument({ data }: { data: VoucherPdfData }) {
 export async function renderVoucherPdf(data: VoucherPdfData): Promise<Buffer> {
   return renderToBuffer(<VoucherDocument data={data} />);
 }
+
+export interface ServiceVoucherPdfData {
+  bookingCode: string;
+  customerName: string;
+  mobile: string;
+  serviceLabel: string;
+  title: string;
+  fields: { label: string; value: string }[];
+}
+
+const serviceStyles = StyleSheet.create({
+  detailRow: { flexDirection: "row", borderBottom: "1 solid #e2e8f0", paddingVertical: 8 },
+  detailLabel: { width: 160, fontSize: 10, color: "#64748b", fontWeight: 700 },
+  detailValue: { flex: 1, fontSize: 11 },
+});
+
+function ServiceVoucherDocument({ data }: { data: ServiceVoucherPdfData }) {
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        <View style={styles.header}>
+          <Text style={styles.brand}>D2D Holidays</Text>
+          <Text style={styles.tagline}>Drive to Destination</Text>
+        </View>
+
+        <Text style={styles.title}>{data.serviceLabel} Voucher</Text>
+        <Text style={styles.meta}>Booking ID: {data.bookingCode}</Text>
+        <Text style={styles.meta}>Guest: {data.customerName}</Text>
+        <Text style={styles.meta}>Mobile: {data.mobile}</Text>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{data.title}</Text>
+          {data.fields.map((f, i) => (
+            <View style={serviceStyles.detailRow} key={i}>
+              <Text style={serviceStyles.detailLabel}>{f.label}</Text>
+              <Text style={serviceStyles.detailValue}>{f.value || "—"}</Text>
+            </View>
+          ))}
+        </View>
+
+        <Text style={styles.footer}>
+          Please carry a copy of this voucher and a valid photo ID during your trip. D2D Holidays — Drive to Destination.
+        </Text>
+      </Page>
+    </Document>
+  );
+}
+
+export async function renderServiceVoucherPdf(data: ServiceVoucherPdfData): Promise<Buffer> {
+  return renderToBuffer(<ServiceVoucherDocument data={data} />);
+}

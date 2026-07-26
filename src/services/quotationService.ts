@@ -25,6 +25,7 @@ const QUOTATION_INCLUDE = {
   campaign: true,
   salesExecutive: true,
   items: { orderBy: { sortOrder: "asc" as const } },
+  bookings: { select: { id: true, status: true }, where: { isDeleted: false } },
 };
 
 export interface ListQuery {

@@ -20,6 +20,9 @@ import type {
   AdminCurrency,
   AdminCurrencyRateHistory,
   AdminDestination,
+  AdminEmployee,
+  AdminEmployeeAuditLog,
+  AdminEmployeeManagerOption,
   AdminEnquiryConfig,
   AdminHeroConfig,
   AdminHotel,
@@ -29,6 +32,8 @@ import type {
   AdminPackage,
   AdminQuotation,
   AdminReview,
+  AdminRole,
+  AdminRolePickerOption,
   AdminSalesUser,
   AdminTransfer,
   AdminTransferType,
@@ -358,8 +363,8 @@ export const bookingsApi = {
     const res = await fetch(`/api/admin/bookings/${id}/dmc`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminBooking | null>;
   },
-  uploadDocument: async (id: string, type: string, url: string): Promise<ApiResponse<unknown>> => {
-    const res = await fetch(`/api/admin/bookings/${id}/documents`, { method: "POST", body: JSON.stringify({ type, url }), headers: { "Content-Type": "application/json" } });
+  uploadDocument: async (id: string, type: string, url: string, description?: string): Promise<ApiResponse<unknown>> => {
+    const res = await fetch(`/api/admin/bookings/${id}/documents`, { method: "POST", body: JSON.stringify({ type, url, description }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<unknown>;
   },
   removeDocument: async (id: string, docId: string): Promise<ApiResponse<boolean>> => {
@@ -392,7 +397,7 @@ export const bookingsApi = {
   },
   saveCostSheet: async (
     id: string,
-    rows: { id: string; supplierName?: string; dmcCost?: number; bookingCost?: number; settlementCost?: number; sellingPrice?: number; status?: string; remarks?: string | null }[],
+    rows: { id: string; supplierName?: string; bookingCost?: number; settlementCost?: number; sellingPrice?: number; status?: string; remarks?: string | null }[],
   ): Promise<ApiResponse<AdminBooking | null>> => {
     const res = await fetch(`/api/admin/bookings/${id}/cost-sheet`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminBooking | null>;
@@ -659,6 +664,116 @@ export const hotelMasterApi = {
   toggleStatus: async (id: string): Promise<ApiResponse<AdminHotelMaster | null>> => {
     const res = await fetch(`/api/admin/hotel-master/${id}/toggle-status`, { method: "POST" });
     return (await res.json()) as ApiResponse<AdminHotelMaster | null>;
+  },
+};
+
+export const employeesApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminEmployee>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const { status, department } = query.filter ?? {};
+    if (typeof status === "string") params.set("status", status);
+    if (typeof department === "string") params.set("department", department);
+    const res = await fetch(`/api/admin/employees?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminEmployee>>;
+  },
+  /** Unpaginated, Active-only list — used by the Reporting Manager picker. */
+  picker: async (excludeId?: string): Promise<ApiResponse<AdminEmployeeManagerOption[]>> => {
+    const params = new URLSearchParams({ picker: "true" });
+    if (excludeId) params.set("excludeId", excludeId);
+    const res = await fetch(`/api/admin/employees?${params.toString()}`);
+    return (await res.json()) as ApiResponse<AdminEmployeeManagerOption[]>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminEmployee | null>> => {
+    const res = await fetch(`/api/admin/employees/${id}`);
+    return (await res.json()) as ApiResponse<AdminEmployee | null>;
+  },
+  create: async (payload: Partial<AdminEmployee>): Promise<ApiResponse<AdminEmployee>> => {
+    const res = await fetch(`/api/admin/employees`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminEmployee>;
+  },
+  update: async (id: string, payload: Partial<AdminEmployee>): Promise<ApiResponse<AdminEmployee | null>> => {
+    const res = await fetch(`/api/admin/employees/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminEmployee | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/employees/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminEmployee | null>> => {
+    const res = await fetch(`/api/admin/employees/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminEmployee | null>;
+  },
+  /** Decrypts one sensitive field (Aadhaar/bank account number) for display — Admin-only server-side, logged to the audit trail every call. */
+  reveal: async (id: string, field: "aadhaarNumber" | "accountNumber"): Promise<ApiResponse<{ value: string }>> => {
+    const res = await fetch(`/api/admin/employees/${id}/reveal?field=${field}`);
+    return (await res.json()) as ApiResponse<{ value: string }>;
+  },
+  auditLog: async (id: string): Promise<ApiResponse<AdminEmployeeAuditLog[]>> => {
+    const res = await fetch(`/api/admin/employees/${id}/audit-log`);
+    return (await res.json()) as ApiResponse<AdminEmployeeAuditLog[]>;
+  },
+  /** Links this employee's HR record to an existing login User by email — does not create new accounts. */
+  linkAccount: async (id: string, email: string): Promise<ApiResponse<AdminEmployee | null>> => {
+    const res = await fetch(`/api/admin/employees/${id}/link-account`, {
+      method: "POST",
+      body: JSON.stringify({ email }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return (await res.json()) as ApiResponse<AdminEmployee | null>;
+  },
+  unlinkAccount: async (id: string): Promise<ApiResponse<AdminEmployee | null>> => {
+    const res = await fetch(`/api/admin/employees/${id}/link-account`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<AdminEmployee | null>;
+  },
+  /** Sets the Role on the employee's linked login User — real, enforced access, requires linkAccount first. */
+  assignRole: async (id: string, roleId: string): Promise<ApiResponse<AdminEmployee | null>> => {
+    const res = await fetch(`/api/admin/employees/${id}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ roleId }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return (await res.json()) as ApiResponse<AdminEmployee | null>;
+  },
+};
+
+export const rolesApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminRole>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const { status } = query.filter ?? {};
+    if (typeof status === "string") params.set("status", status);
+    const res = await fetch(`/api/admin/roles?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminRole>>;
+  },
+  /** Unpaginated, Active-only — used by the Employee screen's "Assign Role" picker. */
+  picker: async (): Promise<ApiResponse<AdminRolePickerOption[]>> => {
+    const res = await fetch(`/api/admin/roles?picker=true`);
+    return (await res.json()) as ApiResponse<AdminRolePickerOption[]>;
+  },
+  get: async (id: string): Promise<ApiResponse<AdminRole | null>> => {
+    const res = await fetch(`/api/admin/roles/${id}`);
+    return (await res.json()) as ApiResponse<AdminRole | null>;
+  },
+  create: async (payload: Partial<AdminRole>): Promise<ApiResponse<AdminRole>> => {
+    const res = await fetch(`/api/admin/roles`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminRole>;
+  },
+  update: async (id: string, payload: Partial<AdminRole>): Promise<ApiResponse<AdminRole | null>> => {
+    const res = await fetch(`/api/admin/roles/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminRole | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/admin/roles/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminRole | null>> => {
+    const res = await fetch(`/api/admin/roles/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminRole | null>;
   },
 };
 

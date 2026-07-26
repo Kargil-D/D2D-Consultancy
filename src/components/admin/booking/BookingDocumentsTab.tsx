@@ -9,7 +9,7 @@ import type { AdminBookingDocument, BookingDocumentType } from "@/types/admin";
 interface Props {
   bookingId: string;
   documents: AdminBookingDocument[];
-  onUpload: (type: BookingDocumentType, url: string) => Promise<void>;
+  onUpload: (type: BookingDocumentType, url: string, description?: string) => Promise<void>;
   onRemove: (docId: string) => Promise<void>;
   quotationId: string | null;
   shareUrl: string | null;
@@ -26,6 +26,7 @@ const CUSTOMER_DOC_TYPES: { type: BookingDocumentType; label: string }[] = [
 
 export default function BookingDocumentsTab({ bookingId, documents, onUpload, onRemove, quotationId, shareUrl }: Props) {
   const [type, setType] = useState<BookingDocumentType>("Passport");
+  const [otherDescription, setOtherDescription] = useState("");
 
   return (
     <div className="space-y-8">
@@ -37,8 +38,26 @@ export default function BookingDocumentsTab({ bookingId, documents, onUpload, on
               {CUSTOMER_DOC_TYPES.map((d) => (<option key={d.type} value={d.type}>{d.label}</option>))}
             </select>
           </Field>
-          <div className="md:col-span-2">
-            <DocumentUpload label={`Upload ${type}`} value="" onChange={(url) => url && onUpload(type, url)} />
+          {type === "Other" && (
+            <Field label="Description">
+              <input
+                className={selectCls}
+                value={otherDescription}
+                onChange={(e) => setOtherDescription(e.target.value)}
+                placeholder="What is this document?"
+              />
+            </Field>
+          )}
+          <div className={type === "Other" ? "" : "md:col-span-2"}>
+            <DocumentUpload
+              label={`Upload ${type}`}
+              value=""
+              onChange={(url) => {
+                if (!url) return;
+                onUpload(type, url, type === "Other" ? otherDescription : undefined);
+                setOtherDescription("");
+              }}
+            />
           </div>
         </div>
         {documents.length > 0 ? (
@@ -49,6 +68,7 @@ export default function BookingDocumentsTab({ bookingId, documents, onUpload, on
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 shrink-0"><FileText className="w-5 h-5" /></span>
                   <div className="min-w-0">
                     <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{d.type}</div>
+                    {d.description && <div className="text-xs text-slate-500 truncate">{d.description}</div>}
                     <a href={d.url} target="_blank" rel="noreferrer" className="text-sm text-blue-700 hover:underline truncate block">View file</a>
                   </div>
                 </div>

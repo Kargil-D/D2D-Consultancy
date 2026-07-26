@@ -48,6 +48,9 @@ export const POST = withApiHandler("[/api/auth/login] POST", async (req) => {
   if (!user.isActive) {
     throw new ApiError(401, "This account has been deactivated. Please contact support.");
   }
+  if (user.role.status === "Inactive") {
+    throw new ApiError(401, "This role has been deactivated. Please contact an administrator.");
+  }
 
   await updateLastLogin(user.id);
   const { accessToken, refreshToken } = await issueTokenPair(user);

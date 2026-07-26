@@ -5,7 +5,6 @@ import { z } from "zod";
 const RowSchema = z.object({
   id: z.string(),
   supplierName: z.string().optional(),
-  dmcCost: z.coerce.number().min(0).optional(),
   bookingCost: z.coerce.number().min(0).optional(),
   settlementCost: z.coerce.number().min(0).optional(),
   sellingPrice: z.coerce.number().min(0).optional(),

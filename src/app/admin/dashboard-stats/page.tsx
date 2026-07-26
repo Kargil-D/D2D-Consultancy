@@ -92,7 +92,7 @@ export default function AdminDashboardStatsPage() {
       label: "Itineraries",
       value: stats.itineraries,
       icon: CalendarRange,
-      href: "/admin/itineraries",
+      href: "/admin/packages-master",
       color: "from-purple-500 to-fuchsia-500",
     },
     {

@@ -12,6 +12,7 @@ export async function getCurrentUser(req: NextRequest) {
   const payload = await verifyAccessToken(token);
   const user = await findUserById(payload.sub);
   if (!user) throw new ApiError(401, "Not authenticated");
+  if (user.role.status === "Inactive") throw new ApiError(401, "This role has been deactivated. Please contact an administrator.");
 
   return user;
 }

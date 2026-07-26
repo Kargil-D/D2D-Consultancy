@@ -5,8 +5,8 @@ import { DocumentUploadSchema } from "@/lib/validation/booking";
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await ctx.params;
-    const { type, url } = DocumentUploadSchema.parse(await req.json());
-    const doc = await addCustomerDocument(id, type, url);
+    const { type, url, description } = DocumentUploadSchema.parse(await req.json());
+    const doc = await addCustomerDocument(id, type, url, description);
     return NextResponse.json({ success: true, message: "Document uploaded", data: doc });
   } catch (err) {
     console.error("[/api/admin/bookings/[id]/documents] POST", err);
