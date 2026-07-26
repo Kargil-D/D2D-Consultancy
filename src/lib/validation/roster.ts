@@ -14,5 +14,11 @@ export const RosterBulkMarkSchema = z.object({
   status: z.enum(["Present", "Absent"]),
 });
 
+export const RosterMarkSelfSchema = z.object({
+  date: dateStr,
+  status: z.enum(["Present", "Absent"]).nullable(),
+});
+
 export type RosterMarkInput = z.infer<typeof RosterMarkSchema>;
 export type RosterBulkMarkInput = z.infer<typeof RosterBulkMarkSchema>;
+export type RosterMarkSelfInput = z.infer<typeof RosterMarkSelfSchema>;

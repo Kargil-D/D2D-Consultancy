@@ -17,6 +17,13 @@ const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
+/** Cycles Unmarked -> Present -> Absent -> Unmarked on each click. */
+function nextStatus(current: RosterStatus | undefined): RosterStatus | null {
+  if (current === undefined) return "Present";
+  if (current === "Present") return "Absent";
+  return null;
+}
+
 export default function MyRosterPage() {
   const { notify } = useToast();
   const now = new Date();
@@ -53,6 +60,29 @@ export default function MyRosterPage() {
   const goToday = () => {
     setYear(now.getFullYear());
     setMonth(now.getMonth() + 1);
+  };
+
+  const cellClick = async (day: number) => {
+    if (!roster) return;
+    if (new Date(year, month - 1, day).getDay() === 0) return; // Sunday is Weekly Off, not self-markable
+    const key = `${year}-${pad2(month)}-${pad2(day)}`;
+    const current = roster.days[key];
+    const next = nextStatus(current);
+
+    // Optimistic update so clicking feels instant.
+    setRoster((r) => {
+      if (!r) return r;
+      const days = { ...r.days };
+      if (next === null) delete days[key];
+      else days[key] = next;
+      return { ...r, days };
+    });
+
+    const res = await rosterApi.markMine(key, next);
+    if (!res.success) {
+      notify(res.message || "Unable to update attendance", "error");
+      load();
+    }
   };
 
   const daysInMonth = roster?.daysInMonth ?? new Date(year, month, 0).getDate();
@@ -98,7 +128,7 @@ export default function MyRosterPage() {
       <Breadcrumb items={[{ label: "My Roster" }]} />
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">My Roster</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Your attendance record — read-only, marked by the admin team.</p>
+        <p className="text-sm text-slate-500 mt-0.5">Your attendance record — click a day to mark yourself Present or Absent.</p>
       </div>
 
       {error && !loading && (
@@ -126,12 +156,20 @@ export default function MyRosterPage() {
               {leadingBlanks.map((b) => <div key={`b${b}`} />)}
               {days.map((d) => {
                 const s = statusOf(d);
+                const locked = s === "Weekend";
                 return (
-                  <div key={d} className={`${CELL_BASE} ${variantCls[s]} ${isToday(d) ? "ring-2 ring-blue-400 ring-offset-1" : ""}`}>
+                  <button
+                    type="button"
+                    key={d}
+                    onClick={() => cellClick(d)}
+                    disabled={locked}
+                    title={locked ? "Sunday — Weekly Off" : `Click to cycle: Unmarked → Present → Absent`}
+                    className={`${CELL_BASE} ${variantCls[s]} ${isToday(d) ? "ring-2 ring-blue-400 ring-offset-1" : ""} ${locked ? "cursor-default" : "cursor-pointer hover:opacity-90 active:scale-95"}`}
+                  >
                     <span>{d}</span>
                     {s === "Present" && <CheckCircle2 className="w-3 h-3 mt-0.5" />}
                     {s === "Absent" && <XCircle className="w-3 h-3 mt-0.5" />}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -143,6 +181,7 @@ export default function MyRosterPage() {
               <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-100 inline-block" /> Unmarked</span>
               <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-50 border border-slate-200 inline-block" /> Sunday (Weekly Off)</span>
             </div>
+            <p className="text-xs text-slate-400 mt-3">Click any day (except Sunday) to cycle through Unmarked → Present → Absent. Admin can still adjust your attendance from Roster Management.</p>
           </div>
 
           <div className="space-y-4">

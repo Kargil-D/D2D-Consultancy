@@ -157,6 +157,51 @@ export async function getBoardData(date: string = todayStr()) {
   };
 }
 
+/**
+ * Picks who a brand-new lead should go to: prefer whoever is marked Present on today's
+ * Roster (falling back to the whole Sales team if nobody's been marked yet, so leads never
+ * sit unassigned just because Roster hasn't been filled in), then round-robins within that
+ * pool by whoever's oldest/never-had-an-assignment. Returns null if there's no Sales team.
+ */
+async function pickRoundRobinAssignee(): Promise<{ employeeId: string; userId: string; fullName: string } | null> {
+  const team = await getSalesTeam();
+  if (team.length === 0) return null;
+
+  const { start } = dayBounds(todayStr());
+  const rosterToday = await prisma.rosterEntry.findMany({
+    where: { employeeId: { in: team.map((t) => t.id) }, date: start, status: "Present" },
+    select: { employeeId: true },
+  });
+  const presentIds = new Set(rosterToday.map((r) => r.employeeId));
+  const pool = presentIds.size > 0 ? team.filter((t) => presentIds.has(t.id)) : team;
+
+  const userIds = pool.map((t) => t.userId!).filter(Boolean);
+  const logs = await prisma.leadAssignmentLog.findMany({
+    where: { toUserId: { in: userIds } },
+    orderBy: { createdDate: "desc" },
+    select: { toUserId: true, createdDate: true },
+  });
+  const lastAssignedAt = new Map<string, Date>();
+  for (const log of logs) {
+    if (!lastAssignedAt.has(log.toUserId)) lastAssignedAt.set(log.toUserId, log.createdDate);
+  }
+
+  const [next] = [...pool].sort((a, b) => {
+    const aTime = lastAssignedAt.get(a.userId!)?.getTime() ?? 0;
+    const bTime = lastAssignedAt.get(b.userId!)?.getTime() ?? 0;
+    return aTime - bTime;
+  });
+
+  return next ? { employeeId: next.id, userId: next.userId!, fullName: next.fullName } : null;
+}
+
+/** Auto-assigns a freshly created lead via round robin — used by leadService.createLead whenever no assignee was given. Best-effort: a lead is left unassigned (not failed) if there's no Sales team to assign it to. */
+export async function autoAssignLead(leadId: string, performedBy: string = "System (Auto-Assign)") {
+  const pick = await pickRoundRobinAssignee();
+  if (!pick) return null;
+  return assignLead(leadId, pick.userId, performedBy, "RoundRobin");
+}
+
 async function nameForUser(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { firstName: true, lastName: true } });
   return user ? `${user.firstName} ${user.lastName}`.trim() : "Unknown";

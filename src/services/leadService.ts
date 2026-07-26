@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Paginated } from "@/types/admin";
 import type { Prisma, LeadStatus } from "@/generated/prisma/client";
 import { createBookingFromWonLead, bookingCode } from "@/services/bookingService";
+import { autoAssignLead } from "@/services/leadAssignmentService";
 
 export interface ListQuery {
   search?: string;
@@ -48,8 +49,18 @@ export async function getLead(id: string) {
   });
 }
 
+/** Creates a Lead. If no assignee was given (the common case — the public enquiry form and a blank "Assign to" on the admin form both omit it), auto-assigns it via round robin against today's Roster so it never sits unclaimed. */
 export async function createLead(payload: Prisma.LeadUncheckedCreateInput) {
-  return prisma.lead.create({ data: payload });
+  const created = await prisma.lead.create({ data: payload });
+  if (!created.assignedToId) {
+    try {
+      const assigned = await autoAssignLead(created.id);
+      if (assigned) return assigned;
+    } catch (err) {
+      console.error("[leadService.createLead] Auto-assign failed", err);
+    }
+  }
+  return created;
 }
 
 export async function updateLead(id: string, payload: Prisma.LeadUncheckedUpdateInput) {

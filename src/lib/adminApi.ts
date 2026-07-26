@@ -827,6 +827,15 @@ export const rosterApi = {
     const res = await fetch(`/api/roster/me?year=${year}&month=${month}`);
     return (await res.json()) as ApiResponse<AdminMyRoster>;
   },
+  /** Self-mark — always your own roster, never a picker. status: null clears the day back to unmarked. */
+  markMine: async (date: string, status: RosterStatus | null): Promise<ApiResponse<boolean>> => {
+    const res = await fetch(`/api/roster/me`, {
+      method: "PUT",
+      body: JSON.stringify({ date, status }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
 };
 
 export const leadAssignmentApi = {
