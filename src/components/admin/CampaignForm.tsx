@@ -58,6 +58,8 @@ const emptyForm = (): Partial<AdminPackage> => ({
   gstPercent: 5,
   marginPrice: 0,
   insurancePrice: 0,
+  noOfPersons: undefined,
+  pricePerPerson: "",
 });
 
 export default function CampaignForm({ id }: CampaignFormProps) {
@@ -570,8 +572,8 @@ export default function CampaignForm({ id }: CampaignFormProps) {
               <Field label="Package Cost (INR)">
                 <input type="number" className={inputCls} value={form.packageCost ?? 0} onChange={(e) => onChange({ packageCost: Number(e.target.value) })} />
               </Field>
-              <Field label="Planning Platform Fee (INR)">
-                <input type="number" className={inputCls} value={form.platformFee ?? 0} onChange={(e) => onChange({ platformFee: Number(e.target.value) })} />
+              <Field label="Package Cost Per Person">
+                <input type="text" className={inputCls} value={form.pricePerPerson ?? ""} onChange={(e) => onChange({ pricePerPerson: e.target.value })} />
               </Field>
               <Field label="GST (%)">
                 <input type="number" step={0.5} className={inputCls} value={form.gstPercent ?? 0} onChange={(e) => onChange({ gstPercent: Number(e.target.value) })} />
@@ -581,6 +583,18 @@ export default function CampaignForm({ id }: CampaignFormProps) {
               </Field>
               <Field label="Insurance (INR)">
                 <input type="number" className={inputCls} value={form.insurancePrice ?? 0} onChange={(e) => onChange({ insurancePrice: Number(e.target.value) })} />
+              </Field>
+              <Field label="No. of Persons">
+                <input
+                  type="number"
+                  min={1}
+                  className={inputCls}
+                  value={form.noOfPersons ?? ""}
+                  onChange={(e) => onChange({ noOfPersons: e.target.value ? Number(e.target.value) : undefined })}
+                />
+              </Field>
+              <Field label="Planning Platform Fee (INR)">
+                <input type="number" className={inputCls} value={form.platformFee ?? 0} onChange={(e) => onChange({ platformFee: Number(e.target.value) })} />
               </Field>
             </div>
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 flex items-center justify-between">

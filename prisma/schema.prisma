@@ -212,6 +212,8 @@ model Campaign {
   gstPercent          Float       @default(5)
   marginPrice         Int         @default(0)
   insurancePrice      Int         @default(0)
+  noOfPersons         Int?
+  pricePerPerson      String?
 
   createdBy   String?
   createdDate DateTime @default(now())

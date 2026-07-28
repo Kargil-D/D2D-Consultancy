@@ -85,6 +85,8 @@ export interface AdminPackage extends AuditColumns {
   gstPercent: number;
   marginPrice: number;
   insurancePrice: number;
+  noOfPersons?: number | null;
+  pricePerPerson?: string | null;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -42,6 +42,8 @@ export const CampaignCreateSchema = z.object({
   gstPercent: z.number().optional(),
   marginPrice: z.number().optional(),
   insurancePrice: z.number().optional(),
+  noOfPersons: z.number().int().positive().optional().nullable(),
+  pricePerPerson: z.string().optional().nullable(),
 });
 
 export const CampaignUpdateSchema = CampaignCreateSchema.partial();

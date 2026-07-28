@@ -276,12 +276,14 @@ export default async function CampaignDetailPage({ params }: PageProps) {
 
           <aside className="space-y-5">
             <PriceBreakdownCard
-              packageCostPerPerson={campaign.packageCost + campaign.marginPrice}
+              totalPackageCost={campaign.packageCost}
               platformFee={campaign.platformFee}
               insurancePerPerson={campaign.insurancePrice}
               gstPercent={campaign.gstPercent}
               hasPricingBreakdown={hasPricingBreakdown}
               price={price}
+              defaultPersons={campaign.noOfPersons ?? 1}
+              pricePerPerson={campaign.pricePerPerson}
             />
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6">

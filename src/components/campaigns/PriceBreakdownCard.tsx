@@ -5,33 +5,38 @@ import { CheckCircle2, Users } from "lucide-react";
 import { formatINR } from "@/utils/format";
 
 interface PriceBreakdownCardProps {
-  packageCostPerPerson: number;
+  /** Flat Campaign.packageCost, exactly as entered on the admin form — not multiplied by persons, no margin added. */
+  totalPackageCost: number;
   platformFee: number;
   insurancePerPerson: number;
   gstPercent: number;
   hasPricingBreakdown: boolean;
   price: number;
+  /** Admin-set starting traveler count (Campaign.noOfPersons) — visitor can still change it. */
+  defaultPersons?: number;
+  /** Admin-set display value (Campaign.pricePerPerson) — shown as-is; falls back to totalPackageCost if not set. */
+  pricePerPerson?: string | null;
 }
 
 /**
- * Package Cost and Insurance are quoted per person and scale with the
- * traveler count entered here; Planning Platform fee is a flat one-time
- * service fee and does not scale. GST always applies as a % on the
- * resulting subtotal.
+ * Total Package Cost is the flat Campaign.packageCost value as entered — it does not scale
+ * with traveler count. Insurance is quoted per person and does scale. Planning Platform fee
+ * is a flat one-time service fee. GST always applies as a % on the resulting subtotal.
  */
 export default function PriceBreakdownCard({
-  packageCostPerPerson,
+  totalPackageCost,
   platformFee,
   insurancePerPerson,
   gstPercent,
   hasPricingBreakdown,
   price,
+  defaultPersons = 1,
+  pricePerPerson,
 }: PriceBreakdownCardProps) {
-  const [persons, setPersons] = useState(1);
+  const [persons, setPersons] = useState(defaultPersons);
 
-  const packageCostTotal = packageCostPerPerson * persons;
   const insuranceTotal = insurancePerPerson * persons;
-  const subtotal = packageCostTotal + platformFee + insuranceTotal;
+  const subtotal = totalPackageCost + platformFee + insuranceTotal;
   const gstAmount = Math.round((subtotal * gstPercent) / 100);
   const grandTotal = subtotal + gstAmount;
 
@@ -58,8 +63,12 @@ export default function PriceBreakdownCard({
 
           <div className="space-y-2.5 text-sm">
             <div className="flex justify-between text-slate-600">
-              <span>Package Cost (per person)</span>
-              <span className="font-semibold text-slate-900">{formatINR(packageCostTotal)}</span>
+              <span>Package Cost Per Person</span>
+              <span className="font-semibold text-slate-900">{pricePerPerson || formatINR(totalPackageCost)}</span>
+            </div>
+            <div className="flex justify-between text-slate-600">
+              <span>Total Package Cost</span>
+              <span className="font-semibold text-slate-900">{formatINR(totalPackageCost)}</span>
             </div>
             <div className="flex justify-between text-slate-600">
               <span>Planning Platform fee</span>
