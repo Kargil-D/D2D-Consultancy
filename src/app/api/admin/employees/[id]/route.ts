@@ -14,7 +14,7 @@ interface Ctx {
 const SELF_LOCKED_FIELDS: (keyof EmployeeUpdate)[] = [
   "fullName", "dateOfBirth", "gender", "mobileNumber", "personalEmail", "officialEmail",
   "designation", "department", "branch", "reportingManagerId", "employmentType", "joiningDate", "confirmationDate",
-  "username", "mfaEnabled",
+  "username",
 ];
 
 export const GET = withApiHandler<Ctx>("[/api/admin/employees/[id]] GET", async (req, ctx) => {

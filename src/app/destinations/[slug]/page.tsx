@@ -1,64 +1,52 @@
 import Image from "next/image";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft, ArrowRight, MapPin, Sparkles } from "lucide-react";
-import {
-  getDestinationBySlug,
-  ALL_DESTINATION_SLUGS,
-  type DestinationInfo,
-} from "@/data/destinationPackages";
+import { findDestinationByNameOrSlug } from "@/services/destinationService";
+import { listCampaigns } from "@/services/campaignService";
 import Logo from "@/components/common/Logo";
 import DestinationPackagesGrid from "@/components/packages/DestinationPackagesGrid";
+import type { DestinationPackage } from "@/data/destinationPackages";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-/** Pre-generate static pages for every known destination. */
-export function generateStaticParams() {
-  return ALL_DESTINATION_SLUGS.map((slug) => ({ slug }));
-}
+export const dynamic = "force-dynamic";
 
-export async function generateMetadata({
-  params,
-}: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const dest = getDestinationBySlug(slug);
-  if (!dest) return { title: "Destination not found ï¿½ D2D Holidays" };
+  const destination = await findDestinationByNameOrSlug(slug);
+  if (!destination) return { title: "Destination - D2D Holidays" };
   return {
-    title: `${dest.name} Packages ï¿½ D2D Holidays`,
-    description: `${dest.tagline}. Browse curated ${dest.name} travel packages by D2D Holidays.`,
-  };
-}
-
-/** Convert an unknown slug into a human-readable name. */
-function prettyName(slug: string): string {
-  return slug
-    .split("-")
-    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
-    .join(" ");
-}
-
-/** Build a graceful fallback page when the slug isn't in our curated data. */
-function buildFallbackDestination(slug: string): DestinationInfo {
-  const name = prettyName(slug);
-  // Use the Maldives package set as a generic preview so the page still
-  // showcases something instead of a hard 404.
-  const reference = getDestinationBySlug("maldives")!;
-  return {
-    slug,
-    name,
-    country: "Coming soon",
-    tagline: `Custom packages for ${name}`,
-    description: `We're crafting curated itineraries for ${name}. Meanwhile, here are some popular trips you might love.`,
-    heroImage: reference.heroImage,
-    packages: reference.packages,
+    title: destination.seoTitle || `${destination.name} Packages - D2D Holidays`,
+    description: destination.seoDescription || destination.shortDescription || undefined,
   };
 }
 
 export default async function DestinationPage({ params }: PageProps) {
   const { slug } = await params;
-  const dest = getDestinationBySlug(slug) ?? buildFallbackDestination(slug);
+  const destination = await findDestinationByNameOrSlug(slug);
+  if (!destination || destination.status !== "Active") notFound();
+
+  const { items: campaigns } = await listCampaigns({
+    pageSize: 50,
+    filter: { destinationId: destination.id, status: "Active" },
+  });
+
+  const packages: DestinationPackage[] = campaigns.map((c) => ({
+    id: c.id,
+    title: c.name,
+    duration: `${c.days}D / ${c.nights}N`,
+    price: c.offerPrice ?? c.startingPrice,
+    highlights: c.highlights,
+    image: c.thumbnail || c.coverBanner || destination.thumbnailImage || destination.bannerImage || "",
+    tag: c.isFeatured ? "Featured" : undefined,
+    campaignSlug: c.slug,
+  }));
+
+  const heroImage = destination.bannerImage || destination.thumbnailImage || "";
 
   return (
     <main className="relative min-h-screen bg-slate-50">
@@ -86,8 +74,8 @@ export default async function DestinationPage({ params }: PageProps) {
       <section className="relative h-[78vh] min-h-[520px] w-full -mt-16">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <Image
-            src={dest.heroImage}
-            alt={dest.name}
+            src={heroImage}
+            alt={destination.name}
             fill
             priority
             unoptimized
@@ -101,20 +89,20 @@ export default async function DestinationPage({ params }: PageProps) {
         <div className="relative z-10 h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-end pb-14">
           <span className="inline-flex items-center gap-2 self-start px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-white/95 text-xs font-semibold tracking-widest uppercase">
             <MapPin className="w-3.5 h-3.5" />
-            {dest.country}
+            {destination.country}
           </span>
           <h1 className="mt-4 text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-tight tracking-tight">
-            {dest.name}
+            {destination.name}
           </h1>
           <p className="mt-3 max-w-2xl text-base sm:text-lg md:text-xl text-slate-200/95">
-            {dest.tagline}. {dest.description}
+            {destination.shortDescription}
           </p>
           <div className="mt-7 flex flex-col sm:flex-row gap-3">
             <Link
-              href={`/plan-trip?destination=${encodeURIComponent(dest.name)}`}
+              href={`/plan-trip?destination=${encodeURIComponent(destination.name)}`}
               className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-cyan-500 to-teal-500 shadow-lg shadow-cyan-500/40 hover:shadow-cyan-500/60 transition-all"
             >
-              Plan a {dest.name} Trip
+              Plan a {destination.name} Trip
               <ArrowRight className="w-4 h-4" />
             </Link>
             <a
@@ -132,10 +120,10 @@ export default async function DestinationPage({ params }: PageProps) {
         <div className="text-center max-w-2xl mx-auto mb-12">
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-50 text-cyan-700 text-xs font-semibold tracking-widest uppercase">
             <Sparkles className="w-3.5 h-3.5" />
-            {dest.packages.length} curated campaigns
+            {packages.length} curated campaigns
           </span>
           <h2 className="mt-4 text-3xl sm:text-4xl md:text-5xl font-bold text-slate-900">
-            {dest.name} Packages
+            {destination.name} Packages
           </h2>
           <p className="mt-3 text-slate-500">
             Hand-picked itineraries by our travel experts. Tap any package to enquire.
@@ -143,8 +131,8 @@ export default async function DestinationPage({ params }: PageProps) {
         </div>
 
         <DestinationPackagesGrid
-          packages={dest.packages}
-          destinationName={dest.name}
+          packages={packages}
+          destinationName={destination.name}
         />
       </section>
     </main>

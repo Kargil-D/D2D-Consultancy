@@ -36,7 +36,6 @@ const emptyForm = (): Partial<AdminEmployee> => ({
   employmentType: "Permanent",
   status: "Active",
   username: "",
-  mfaEnabled: false,
   currentAddress: "",
   permanentAddress: "",
   city: "",
@@ -422,12 +421,6 @@ export default function EmployeeForm({ id }: Props) {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                   <Field label="Username">
                     <input className={inputCls} value={form.username ?? ""} onChange={(e) => onChange({ username: e.target.value })} disabled={isSelf} />
-                  </Field>
-                  <Field label="MFA Enabled" hint="No MFA system exists in this app yet — reference only">
-                    <select className={selectCls} value={form.mfaEnabled ? "yes" : "no"} onChange={(e) => onChange({ mfaEnabled: e.target.value === "yes" })} disabled={isSelf}>
-                      <option value="no">No</option>
-                      <option value="yes">Yes</option>
-                    </select>
                   </Field>
                 </div>
 

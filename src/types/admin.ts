@@ -229,7 +229,6 @@ export interface AdminEmployee extends AuditColumns {
   userId?: string | null;
   user?: AdminEmployeeLinkedUser | null;
   lastLogin?: string | null;
-  mfaEnabled: boolean;
 
   currentAddress: string;
   permanentAddress: string;

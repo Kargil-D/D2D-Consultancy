@@ -3,8 +3,8 @@ export interface DestinationPackage {
   title: string;
   duration: string;
   price: number;
-  rating: number;
-  reviews: number;
+  rating?: number;
+  reviews?: number;
   highlights: string[];
   image: string;
   tag?: string;
@@ -14,6 +14,8 @@ export interface DestinationPackage {
    * frontmatter `id` of a markdown file in `content/itineraries/`.
    */
   itineraryId?: string;
+  /** When set (a real Campaign's slug), the "Explore" CTA navigates to `/campaigns/{campaignSlug}` instead — takes priority over itineraryId. */
+  campaignSlug?: string;
 }
 
 export interface DestinationInfo {

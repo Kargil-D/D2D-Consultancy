@@ -29,11 +29,13 @@ export default function DestinationPackageCard({
   destinationName,
   index = 0,
 }: DestinationPackageCardProps) {
-  const enquireHref = pkg.itineraryId
-    ? `/itinerary/${pkg.itineraryId}`
-    : `/plan-trip?destination=${encodeURIComponent(
-        destinationName
-      )}&package=${encodeURIComponent(pkg.title)}`;
+  const enquireHref = pkg.campaignSlug
+    ? `/campaigns/${pkg.campaignSlug}`
+    : pkg.itineraryId
+      ? `/itinerary/${pkg.itineraryId}`
+      : `/plan-trip?destination=${encodeURIComponent(
+          destinationName
+        )}&package=${encodeURIComponent(pkg.title)}`;
 
   // Build a compact 2-line description from package highlights
   // (or fall back to the title) so the card stays content-light.

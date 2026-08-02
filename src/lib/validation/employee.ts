@@ -24,7 +24,6 @@ export const EmployeeCreateSchema = z.object({
   status: z.enum(["Active", "Inactive"]).optional().default("Active"),
 
   username: nullableStr,
-  mfaEnabled: z.coerce.boolean().optional().default(false),
 
   currentAddress: z.string().optional().default(""),
   permanentAddress: z.string().optional().default(""),
