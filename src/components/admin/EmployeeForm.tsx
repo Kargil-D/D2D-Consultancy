@@ -88,6 +88,8 @@ export default function EmployeeForm({ id }: Props) {
   const [roleOptions, setRoleOptions] = useState<AdminRolePickerOption[]>([]);
   const [linkEmail, setLinkEmail] = useState("");
   const [linking, setLinking] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [inviteSent, setInviteSent] = useState(false);
   const [assigningRole, setAssigningRole] = useState(false);
   const [auditLog, setAuditLog] = useState<AdminEmployeeAuditLog[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -152,6 +154,19 @@ export default function EmployeeForm({ id }: Props) {
       notify("Login account linked", "success");
     } finally {
       setLinking(false);
+    }
+  };
+
+  const sendInvite = async () => {
+    if (!id) return;
+    setSendingInvite(true);
+    try {
+      const res = await employeesApi.sendInvite(id);
+      if (!res.success) return notify(res.message || "Unable to send invite", "error");
+      setInviteSent(true);
+      notify(res.message || "Invite sent", "success");
+    } finally {
+      setSendingInvite(false);
     }
   };
 
@@ -464,29 +479,44 @@ export default function EmployeeForm({ id }: Props) {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-                    <div className="text-sm font-semibold text-slate-700 mb-1">No login account linked</div>
-                    <p className="text-xs text-slate-500 mb-3">
-                      Link this employee to an existing login account by email to assign a real, enforced Role. This doesn&apos;t create new accounts.
-                    </p>
-                    <div className="flex items-center gap-2 max-w-sm">
-                      <input
-                        type="email"
-                        className={inputCls}
-                        placeholder="user@d2dholidays.com"
-                        value={linkEmail}
-                        onChange={(e) => setLinkEmail(e.target.value)}
-                        disabled={isSelf}
-                      />
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                      <div className="text-sm font-semibold text-slate-700 mb-1">No login account linked</div>
+                      <p className="text-xs text-slate-500 mb-3">
+                        Email {form.officialEmail || "(add an Official Email first)"} a one-time link so they can create their own login and choose their own password — nobody else will know it.
+                      </p>
                       <button
                         type="button"
-                        onClick={linkAccount}
-                        disabled={isSelf || linking || !linkEmail.trim()}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold disabled:opacity-50 flex-shrink-0"
+                        onClick={sendInvite}
+                        disabled={isSelf || sendingInvite || inviteSent || !form.officialEmail}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold disabled:opacity-50"
                       >
-                        <Link2 className="w-3.5 h-3.5" /> Link
+                        <KeyRound className="w-3.5 h-3.5" />
+                        {inviteSent ? "Invite sent" : sendingInvite ? "Sending…" : "Send Invite"}
                       </button>
                     </div>
+
+                    <details className="text-xs text-slate-500">
+                      <summary className="cursor-pointer font-semibold text-slate-600">Or link an existing login account instead</summary>
+                      <div className="flex items-center gap-2 max-w-sm mt-2">
+                        <input
+                          type="email"
+                          className={inputCls}
+                          placeholder="user@d2dholidays.com"
+                          value={linkEmail}
+                          onChange={(e) => setLinkEmail(e.target.value)}
+                          disabled={isSelf}
+                        />
+                        <button
+                          type="button"
+                          onClick={linkAccount}
+                          disabled={isSelf || linking || !linkEmail.trim()}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold disabled:opacity-50 flex-shrink-0"
+                        >
+                          <Link2 className="w-3.5 h-3.5" /> Link
+                        </button>
+                      </div>
+                    </details>
                   </div>
                 )}
               </div>

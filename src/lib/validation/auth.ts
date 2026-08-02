@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
-const passwordField = z
+export const passwordField = z
   .string()
   .min(8, "Password must be at least 8 characters long")
   .regex(

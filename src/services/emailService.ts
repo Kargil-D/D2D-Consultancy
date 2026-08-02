@@ -83,6 +83,26 @@ export async function sendQuotationEmail(
   });
 }
 
+export async function sendEmployeeInviteEmail(to: string, employeeName: string, inviteLink: string) {
+  const transport = buildTransport();
+  const subject = "You're invited — set up your D2D Holidays login";
+  await transport.sendMail({
+    from: senderAddress(),
+    to,
+    subject,
+    text: `Hi ${employeeName}, you've been added as a D2D Holidays staff member. Set up your login and choose your own password here: ${inviteLink} (link expires in 72 hours).`,
+    html: wrapper(
+      subject,
+      `<p>Hi ${employeeName},</p>
+       <p>You've been added as a D2D Holidays staff member. Click below to set up your login and choose your own password — nobody else, including your Admin, will know it.</p>
+       <div style="margin:20px 0;text-align:center;">
+         <a href="${inviteLink}" style="display:inline-block;padding:12px 28px;border-radius:10px;background:#0f766e;color:#fff;font-weight:700;text-decoration:none;">Set up my login</a>
+       </div>
+       <p style="color:#64748b;">This link expires in 72 hours. If you weren't expecting this, you can ignore this email.</p>`,
+    ),
+  });
+}
+
 export async function sendPasswordResetConfirmationEmail(to: string) {
   const transport = buildTransport();
   const subject = "Your password was changed";

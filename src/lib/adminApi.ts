@@ -762,6 +762,11 @@ export const employeesApi = {
     const res = await adminFetch(`/api/admin/employees/${id}/link-account`, { method: "DELETE" });
     return (await res.json()) as ApiResponse<AdminEmployee | null>;
   },
+  /** Emails a one-time "set your own password" link to the employee — never creates or sees a password. */
+  sendInvite: async (id: string): Promise<ApiResponse<{ email: string; expiresInHours: number } | null>> => {
+    const res = await adminFetch(`/api/admin/employees/${id}/invite`, { method: "POST" });
+    return (await res.json()) as ApiResponse<{ email: string; expiresInHours: number } | null>;
+  },
   /** Sets the Role on the employee's linked login User — real, enforced access, requires linkAccount first. */
   assignRole: async (id: string, roleId: string): Promise<ApiResponse<AdminEmployee | null>> => {
     const res = await adminFetch(`/api/admin/employees/${id}/role`, {

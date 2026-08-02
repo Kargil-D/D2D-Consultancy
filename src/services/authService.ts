@@ -47,6 +47,16 @@ export function resetPasswordApi(resetTicket: string, newPassword: string, confi
   });
 }
 
+/** Resolves an employee invite token so the "set your password" page can greet them by name, or show an expired/invalid state. */
+export function verifyEmployeeInviteApi(token: string) {
+  return apiClient.get<{ fullName: string; email: string }>(`/api/employee-invite?token=${encodeURIComponent(token)}`);
+}
+
+/** Employee sets their own password here, completing their own login creation. */
+export function acceptEmployeeInviteApi(token: string, password: string, confirmPassword: string) {
+  return apiClient.post<Record<string, never>>("/api/employee-invite/accept", { token, password, confirmPassword });
+}
+
 export function meApi() {
   return apiClient.get<{ user: User }>("/api/auth/me");
 }
