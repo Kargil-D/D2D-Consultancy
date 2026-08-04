@@ -26,7 +26,7 @@ export async function activateUserAndConsumeOtp(userId: string, otpId: string) {
     const user = await tx.user.update({
       where: { id: userId },
       data: { isEmailVerified: true, isActive: true },
-      include: { role: true },
+      include: { role: { include: { permissions: true } } },
     });
     await tx.emailOtp.update({ where: { id: otpId }, data: { isUsed: true } });
     return user;

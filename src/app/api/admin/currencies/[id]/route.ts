@@ -1,6 +1,6 @@
 import { withApiHandler, ok } from "@/lib/apiHandler";
 import { ApiError } from "@/lib/apiError";
-import { getCurrentUser } from "@/lib/auth";
+import { requireModuleAccess } from "@/lib/permissions";
 import { CurrencyUpdateSchema } from "@/lib/validation/currency";
 import { getCurrency, updateCurrency } from "@/services/currencyService";
 
@@ -23,7 +23,8 @@ interface Ctx {
  *       403:
  *         description: Admin access required
  */
-export const GET = withApiHandler<Ctx>("[/api/admin/currencies/[id]] GET", async (_req, ctx) => {
+export const GET = withApiHandler<Ctx>("[/api/admin/currencies/[id]] GET", async (req, ctx) => {
+  await requireModuleAccess(req, "CurrencyMaster", "canView");
   const { id } = await ctx.params;
   const currency = await getCurrency(id);
   if (!currency) throw new ApiError(404, "Currency not found");
@@ -31,8 +32,7 @@ export const GET = withApiHandler<Ctx>("[/api/admin/currencies/[id]] GET", async
 });
 
 export const PUT = withApiHandler<Ctx>("[/api/admin/currencies/[id]] PUT", async (req, ctx) => {
-  const user = await getCurrentUser(req);
-  if (user.role.name !== "Admin") throw new ApiError(403, "Admin access required");
+  const user = await requireModuleAccess(req, "CurrencyMaster", "canEdit");
 
   const { id } = await ctx.params;
   const payload = CurrencyUpdateSchema.parse(await req.json());

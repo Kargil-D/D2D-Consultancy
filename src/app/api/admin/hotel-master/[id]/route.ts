@@ -1,6 +1,6 @@
 import { withApiHandler, ok } from "@/lib/apiHandler";
 import { ApiError } from "@/lib/apiError";
-import { getCurrentUser } from "@/lib/auth";
+import { requireModuleAccess } from "@/lib/permissions";
 import { HotelMasterUpdateSchema } from "@/lib/validation/hotelMaster";
 import { getHotelMaster, updateHotelMaster, removeHotelMaster } from "@/services/hotelMasterService";
 
@@ -10,7 +10,8 @@ interface Ctx {
   params: Promise<{ id: string }>;
 }
 
-export const GET = withApiHandler<Ctx>("[/api/admin/hotel-master/[id]] GET", async (_req, ctx) => {
+export const GET = withApiHandler<Ctx>("[/api/admin/hotel-master/[id]] GET", async (req, ctx) => {
+  await requireModuleAccess(req, "HotelMaster", "canView");
   const { id } = await ctx.params;
   const hotel = await getHotelMaster(id);
   if (!hotel) throw new ApiError(404, "Hotel not found");
@@ -18,8 +19,7 @@ export const GET = withApiHandler<Ctx>("[/api/admin/hotel-master/[id]] GET", asy
 });
 
 export const PUT = withApiHandler<Ctx>("[/api/admin/hotel-master/[id]] PUT", async (req, ctx) => {
-  const user = await getCurrentUser(req);
-  if (user.role.name !== "Admin") throw new ApiError(403, "Admin access required");
+  const user = await requireModuleAccess(req, "HotelMaster", "canEdit");
 
   const { id } = await ctx.params;
   const payload = HotelMasterUpdateSchema.parse(await req.json());
@@ -29,8 +29,7 @@ export const PUT = withApiHandler<Ctx>("[/api/admin/hotel-master/[id]] PUT", asy
 });
 
 export const DELETE = withApiHandler<Ctx>("[/api/admin/hotel-master/[id]] DELETE", async (req, ctx) => {
-  const user = await getCurrentUser(req);
-  if (user.role.name !== "Admin") throw new ApiError(403, "Admin access required");
+  await requireModuleAccess(req, "HotelMaster", "canDelete");
 
   const { id } = await ctx.params;
   await removeHotelMaster(id);

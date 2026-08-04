@@ -392,7 +392,13 @@ export default function EmployeeForm({ id }: Props) {
               )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Field label="Designation">
-                  <input className={inputCls} value={form.designation ?? ""} onChange={(e) => onChange({ designation: e.target.value })} disabled={isSelf} />
+                  <select className={selectCls} value={form.designation ?? ""} onChange={(e) => onChange({ designation: e.target.value })} disabled={isSelf}>
+                    <option value="">Select</option>
+                    {form.designation && !roleOptions.some((r) => r.name === form.designation) && (
+                      <option value={form.designation}>{form.designation}</option>
+                    )}
+                    {roleOptions.map((r) => (<option key={r.id} value={r.name}>{r.name}</option>))}
+                  </select>
                 </Field>
                 <Field label="Department">
                   <input className={inputCls} value={form.department ?? ""} onChange={(e) => onChange({ department: e.target.value })} disabled={isSelf} />

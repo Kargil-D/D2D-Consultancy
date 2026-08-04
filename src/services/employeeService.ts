@@ -60,10 +60,15 @@ export async function listEmployees(query: ListQuery = {}) {
   return { items: items.map(toMasked), total, page, pageSize } satisfies Paginated<ReturnType<typeof toMasked>>;
 }
 
-/** Unpaginated, Active-only — used by the Reporting Manager picker. */
+/** Unpaginated, Active-only, Admin-linked-login-only — used by the Reporting Manager picker (only Admins can be reporting managers). */
 export function listActiveEmployeesForPicker(excludeId?: string) {
   return prisma.employee.findMany({
-    where: { isDeleted: false, status: "Active", ...(excludeId ? { id: { not: excludeId } } : {}) },
+    where: {
+      isDeleted: false,
+      status: "Active",
+      user: { role: { name: "Admin" } },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
     select: { id: true, fullName: true, designation: true, employeeCode: true },
     orderBy: { fullName: "asc" },
   });

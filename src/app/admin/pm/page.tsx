@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   MapPinned,
@@ -12,18 +14,31 @@ import {
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DepartmentTiles from "@/components/admin/DepartmentTiles";
+import { useAuth } from "@/contexts/AuthContext";
+import { canViewModule, type PermissionMap } from "@/lib/adminModules";
+import type { AdminModule } from "@/types/admin";
 
-const PM_TILES = [
-  { label: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard-stats" },
-  { label: "Destinations", icon: MapPinned, href: "/admin/destinations" },
-  { label: "Campaigns", icon: Package, href: "/admin/packages-master" },
-  { label: "Transfer Types", icon: ArrowRightLeft, href: "/admin/transfers" },
-  { label: "Hero Section", icon: Sparkles, href: "/admin/hero" },
-  { label: "Reviews", icon: Star, href: "/admin/reviews" },
-  { label: "Enquiry Config", icon: MessageSquare, href: "/admin/enquiry-config" },
+const PM_TILES: { label: string; icon: typeof LayoutDashboard; href: string; module: AdminModule }[] = [
+  { label: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard-stats", module: "Dashboard" },
+  { label: "Destinations", icon: MapPinned, href: "/admin/destinations", module: "Destinations" },
+  { label: "Campaigns", icon: Package, href: "/admin/packages-master", module: "Campaigns" },
+  { label: "Transfer Types", icon: ArrowRightLeft, href: "/admin/transfers", module: "TransferTypes" },
+  { label: "Hero Section", icon: Sparkles, href: "/admin/hero", module: "HeroSection" },
+  { label: "Reviews", icon: Star, href: "/admin/reviews", module: "Reviews" },
+  { label: "Enquiry Config", icon: MessageSquare, href: "/admin/enquiry-config", module: "EnquiryConfig" },
 ];
 
 export default function AdminPmPage() {
+  const router = useRouter();
+  const { user, loading } = useAuth();
+  const isAdmin = user?.roles.includes("admin") ?? false;
+  const permissions = user?.permissions as PermissionMap | undefined;
+  const tiles = isAdmin ? PM_TILES : PM_TILES.filter((t) => canViewModule(permissions, t.module));
+
+  useEffect(() => {
+    if (!loading && user && !isAdmin && tiles.length === 0) router.replace("/admin");
+  }, [loading, user, isAdmin, tiles.length, router]);
+
   return (
     <AdminShell title="PM">
       <Breadcrumb items={[{ label: "PM" }]} />
@@ -34,7 +49,7 @@ export default function AdminPmPage() {
         </p>
       </div>
 
-      <DepartmentTiles tiles={PM_TILES} />
+      <DepartmentTiles tiles={tiles} />
     </AdminShell>
   );
 }

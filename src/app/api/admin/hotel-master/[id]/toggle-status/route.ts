@@ -1,6 +1,6 @@
 import { withApiHandler, ok } from "@/lib/apiHandler";
 import { ApiError } from "@/lib/apiError";
-import { getCurrentUser } from "@/lib/auth";
+import { requireModuleAccess } from "@/lib/permissions";
 import { toggleHotelMasterStatus } from "@/services/hotelMasterService";
 
 export const runtime = "nodejs";
@@ -10,8 +10,7 @@ interface Ctx {
 }
 
 export const POST = withApiHandler<Ctx>("[/api/admin/hotel-master/[id]/toggle-status] POST", async (req, ctx) => {
-  const user = await getCurrentUser(req);
-  if (user.role.name !== "Admin") throw new ApiError(403, "Admin access required");
+  const user = await requireModuleAccess(req, "HotelMaster", "canEdit");
 
   const { id } = await ctx.params;
   const updatedBy = `${user.firstName} ${user.lastName}`.trim();

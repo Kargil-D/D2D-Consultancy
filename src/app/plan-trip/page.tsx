@@ -37,6 +37,7 @@ import {
   TRAVELLER_OPTIONS,
   TRAVELLER_COUNT_RULES,
 } from "@/data/planner";
+import { isValidEmail, isValidPhone } from "@/utils/validators";
 import { submitEnquiry } from "@/services/enquiryService";
 import { toSlug } from "@/utils/slug";
 
@@ -114,8 +115,8 @@ function PlanTripContent() {
     }
     const contactOk =
       state.customerName.trim().length > 1 &&
-      /^\S+@\S+\.\S+$/.test(state.customerEmail) &&
-      /^[+\d\s-]{7,}$/.test(state.customerPhone);
+      isValidEmail(state.customerEmail) &&
+      isValidPhone(state.customerPhone);
 
     // Custom duration requires a positive day count (stored as "custom-<N>").
     const durationOk = !!state.duration && state.duration !== "custom";

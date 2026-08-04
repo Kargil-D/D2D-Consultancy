@@ -1,12 +1,12 @@
 import { withApiHandler, ok } from "@/lib/apiHandler";
-import { ApiError } from "@/lib/apiError";
-import { getCurrentUser } from "@/lib/auth";
+import { requireModuleAccess } from "@/lib/permissions";
 import { HotelMasterCreateSchema } from "@/lib/validation/hotelMaster";
 import { listHotelMasters, listActiveHotelMasters, createHotelMaster } from "@/services/hotelMasterService";
 
 export const runtime = "nodejs";
 
 export const GET = withApiHandler("[/api/admin/hotel-master] GET", async (req) => {
+  await requireModuleAccess(req, "HotelMaster", "canView");
   const url = new URL(req.url);
 
   if (url.searchParams.get("all") === "true") {
@@ -29,8 +29,7 @@ export const GET = withApiHandler("[/api/admin/hotel-master] GET", async (req) =
 });
 
 export const POST = withApiHandler("[/api/admin/hotel-master] POST", async (req) => {
-  const user = await getCurrentUser(req);
-  if (user.role.name !== "Admin") throw new ApiError(403, "Admin access required");
+  const user = await requireModuleAccess(req, "HotelMaster", "canAdd");
 
   const payload = HotelMasterCreateSchema.parse(await req.json());
   const createdBy = `${user.firstName} ${user.lastName}`.trim();

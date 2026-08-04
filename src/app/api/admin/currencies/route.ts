@@ -1,6 +1,5 @@
 import { withApiHandler, ok } from "@/lib/apiHandler";
-import { ApiError } from "@/lib/apiError";
-import { getCurrentUser } from "@/lib/auth";
+import { requireModuleAccess } from "@/lib/permissions";
 import { CurrencyCreateSchema } from "@/lib/validation/currency";
 import { listCurrencies, createCurrency } from "@/services/currencyService";
 
@@ -25,6 +24,7 @@ export const runtime = "nodejs";
  *         description: Admin access required
  */
 export const GET = withApiHandler("[/api/admin/currencies] GET", async (req) => {
+  await requireModuleAccess(req, "CurrencyMaster", "canView");
   const url = new URL(req.url);
   const search = url.searchParams.get("search") ?? undefined;
   const page = Number(url.searchParams.get("page") ?? "1");
@@ -39,8 +39,7 @@ export const GET = withApiHandler("[/api/admin/currencies] GET", async (req) => 
 });
 
 export const POST = withApiHandler("[/api/admin/currencies] POST", async (req) => {
-  const user = await getCurrentUser(req);
-  if (user.role.name !== "Admin") throw new ApiError(403, "Admin access required");
+  const user = await requireModuleAccess(req, "CurrencyMaster", "canAdd");
 
   const payload = CurrencyCreateSchema.parse(await req.json());
   const updatedBy = `${user.firstName} ${user.lastName}`.trim();

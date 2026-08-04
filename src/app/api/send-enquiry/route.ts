@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { buildTransport, senderAddress } from "@/lib/mailer";
 import { findDestinationByNameOrSlug } from "@/services/destinationService";
 import { createLead } from "@/services/leadService";
 import { toSlug } from "@/utils/slug";
+import { EnquirySchema } from "@/lib/validation/enquiry";
 import type { EnquiryPayload } from "@/types/enquiry";
 
 export const runtime = "nodejs"; // Nodemailer needs the Node runtime
@@ -37,20 +39,6 @@ async function createLeadFromEnquiry(p: EnquiryPayload) {
   } catch (err) {
     console.error("[/api/send-enquiry] Lead creation failed", err);
   }
-}
-
-function isValid(p: Partial<EnquiryPayload>): p is EnquiryPayload {
-  return Boolean(
-    p.destination &&
-      p.travellerType &&
-      p.travellerCount &&
-      p.duration &&
-      p.departureCity &&
-      p.departureDate &&
-      p.customerName &&
-      p.customerEmail &&
-      p.customerPhone,
-  );
 }
 
 function plainTextBody(p: EnquiryPayload): string {
@@ -99,12 +87,13 @@ function htmlBody(p: EnquiryPayload): string {
 
 export async function POST(req: Request) {
   try {
-    const payload = (await req.json()) as Partial<EnquiryPayload>;
-    if (!isValid(payload)) {
-      return NextResponse.json(
-        { ok: false, error: "Missing required fields." },
-        { status: 400 },
-      );
+    const body = await req.json();
+    let payload: EnquiryPayload;
+    try {
+      payload = EnquirySchema.parse(body);
+    } catch (err) {
+      const message = err instanceof ZodError ? err.issues[0]?.message ?? "Invalid input" : "Invalid input";
+      return NextResponse.json({ ok: false, error: message }, { status: 400 });
     }
 
     const transport = buildTransport();

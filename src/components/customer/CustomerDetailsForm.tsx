@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Mail, Phone, User } from "lucide-react";
+import { isValidEmail, isValidPhone } from "@/utils/validators";
 
 interface CustomerDetailsFormProps {
   name: string;
@@ -11,8 +13,9 @@ interface CustomerDetailsFormProps {
 }
 
 /**
- * Final-step contact form. Validation is enforced by the parent planner page
- * via the regex/empty checks before enabling the Submit button.
+ * Final-step contact form. The parent planner page still gates the Submit button on the same
+ * validity rules (see `contactOk` in plan-trip/page.tsx) — the touched-based errors here are
+ * purely to explain *why* it's disabled, not a second source of truth.
  */
 export default function CustomerDetailsForm({
   name,
@@ -20,6 +23,13 @@ export default function CustomerDetailsForm({
   phone,
   onChange,
 }: CustomerDetailsFormProps) {
+  const [touched, setTouched] = useState({ name: false, email: false, phone: false });
+  const touch = (field: keyof typeof touched) => setTouched((t) => ({ ...t, [field]: true }));
+
+  const nameError = touched.name && name.trim().length <= 1 ? "Enter your full name." : undefined;
+  const emailError = touched.email && !isValidEmail(email) ? "Enter a valid email address." : undefined;
+  const phoneError = touched.phone && !isValidPhone(phone) ? "Enter a valid phone number." : undefined;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -33,6 +43,8 @@ export default function CustomerDetailsForm({
         placeholder="e.g. Priya Sharma"
         value={name}
         onChange={(v) => onChange({ name: v })}
+        onBlur={() => touch("name")}
+        error={nameError}
         autoComplete="name"
       />
       <Field
@@ -42,6 +54,8 @@ export default function CustomerDetailsForm({
         placeholder="you@example.com"
         value={email}
         onChange={(v) => onChange({ email: v })}
+        onBlur={() => touch("email")}
+        error={emailError}
         autoComplete="email"
       />
       <Field
@@ -51,6 +65,8 @@ export default function CustomerDetailsForm({
         placeholder="+91 98765 43210"
         value={phone}
         onChange={(v) => onChange({ phone: v })}
+        onBlur={() => touch("phone")}
+        error={phoneError}
         autoComplete="tel"
       />
       <p className="text-center text-xs text-slate-400 pt-2">
@@ -67,7 +83,9 @@ interface FieldProps {
   value: string;
   type?: string;
   autoComplete?: string;
+  error?: string;
   onChange: (value: string) => void;
+  onBlur: () => void;
 }
 
 function Field({
@@ -77,24 +95,34 @@ function Field({
   value,
   type = "text",
   autoComplete,
+  error,
   onChange,
+  onBlur,
 }: FieldProps) {
   return (
     <label className="block">
       <span className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-2">
         {label}
       </span>
-      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-slate-200 bg-white focus-within:border-cyan-500 focus-within:ring-4 focus-within:ring-cyan-500/15 transition-all">
-        <Icon className="w-5 h-5 text-slate-400" />
+      <div
+        className={`flex items-center gap-3 px-4 py-3 rounded-2xl border-2 bg-white transition-all ${
+          error
+            ? "border-rose-300 focus-within:border-rose-500 focus-within:ring-4 focus-within:ring-rose-500/15"
+            : "border-slate-200 focus-within:border-cyan-500 focus-within:ring-4 focus-within:ring-cyan-500/15"
+        }`}
+      >
+        <Icon className={`w-5 h-5 ${error ? "text-rose-400" : "text-slate-400"}`} />
         <input
           type={type}
           value={value}
           autoComplete={autoComplete}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
           placeholder={placeholder}
           className="flex-1 bg-transparent outline-none text-sm sm:text-base text-slate-900 placeholder:text-slate-400"
         />
       </div>
+      {error && <span className="mt-1.5 block text-xs font-medium text-rose-600">{error}</span>}
     </label>
   );
 }

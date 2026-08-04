@@ -7,33 +7,18 @@ import { Check } from "lucide-react";
 import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
 import { rolesApi } from "@/lib/adminApi";
+import { DEPARTMENTS, type DepartmentModule, type PermissionAction } from "@/lib/adminModules";
 import type { AdminModule, AdminRolePermission, Status } from "@/types/admin";
 
 interface Props {
   id?: string;
 }
 
-type Action = "canView" | "canAdd" | "canEdit" | "canDelete";
+type Action = PermissionAction;
 
-const FULL_CRUD: Action[] = ["canView", "canAdd", "canEdit", "canDelete"];
+const DEPARTMENT_CONFIG = DEPARTMENTS;
 
-/** Mirrors the app's real admin screens (see DepartmentTiles usage in src/app/admin/{page,pm,sales,finance}/page.tsx) — not the generic placeholder list. */
-const MODULE_CONFIG: { module: AdminModule; label: string; actions: Action[] }[] = [
-  { module: "Dashboard", label: "Dashboard", actions: ["canView"] },
-  { module: "Destinations", label: "Destinations", actions: FULL_CRUD },
-  { module: "Campaigns", label: "Campaigns", actions: FULL_CRUD },
-  { module: "TransferTypes", label: "Transfer Types", actions: FULL_CRUD },
-  { module: "HotelMaster", label: "Hotel Master", actions: FULL_CRUD },
-  { module: "CurrencyMaster", label: "Currency Master", actions: FULL_CRUD },
-  { module: "Employees", label: "Employees", actions: FULL_CRUD },
-  { module: "Roles", label: "Roles", actions: FULL_CRUD },
-  { module: "HeroSection", label: "Hero Section", actions: ["canView", "canEdit"] },
-  { module: "Reviews", label: "Reviews", actions: FULL_CRUD },
-  { module: "EnquiryConfig", label: "Enquiry Config", actions: FULL_CRUD },
-  { module: "Leads", label: "Leads", actions: FULL_CRUD },
-  { module: "Quotations", label: "Quotations", actions: FULL_CRUD },
-  { module: "Bookings", label: "Bookings", actions: FULL_CRUD },
-];
+const MODULE_CONFIG = DEPARTMENT_CONFIG.flatMap((d) => d.modules);
 
 const ACTION_LABELS: Record<Action, string> = { canView: "View", canAdd: "Add", canEdit: "Edit", canDelete: "Delete" };
 
@@ -73,19 +58,27 @@ export default function RoleForm({ id }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const toggle = (module: AdminModule, action: Action) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [module]: { ...prev[module], [action]: !prev[module][action] },
-    }));
+  const toggleGroup = (dept: { modules: DepartmentModule[] }, action: Action) => {
+    const applicable = dept.modules.filter((m) => m.actions.includes(action));
+    if (applicable.length === 0) return;
+    setPermissions((prev) => {
+      const allGranted = applicable.every((m) => prev[m.module][action]);
+      const next = { ...prev };
+      for (const m of applicable) next[m.module] = { ...next[m.module], [action]: !allGranted };
+      return next;
+    });
   };
 
-  const toggleAll = (module: AdminModule, actions: Action[]) => {
+  const toggleGroupAll = (dept: { modules: DepartmentModule[] }) => {
     setPermissions((prev) => {
-      const allGranted = actions.every((a) => prev[module][a]);
-      const next = { ...prev[module] };
-      for (const a of actions) next[a] = !allGranted;
-      return { ...prev, [module]: next };
+      const allGranted = dept.modules.every((m) => m.actions.every((a) => prev[m.module][a]));
+      const next = { ...prev };
+      for (const m of dept.modules) {
+        const updated = { ...next[m.module] };
+        for (const a of m.actions) updated[a] = !allGranted;
+        next[m.module] = updated;
+      }
+      return next;
     });
   };
 
@@ -174,47 +167,54 @@ export default function RoleForm({ id }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {MODULE_CONFIG.map((m) => (
-                  <tr key={m.module} className="border-b border-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-slate-800">{m.label}</td>
-                    {(["canView", "canAdd", "canEdit", "canDelete"] as Action[]).map((a) => (
-                      <td key={a} className="px-4 py-2.5 text-center">
-                        {m.actions.includes(a) ? (
-                          <button
-                            type="button"
-                            onClick={() => toggle(m.module, a)}
-                            className={`inline-flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${
-                              permissions[m.module][a]
-                                ? "bg-blue-600 border-blue-600 text-white"
-                                : "bg-white border-slate-300 text-transparent hover:border-blue-400"
-                            }`}
-                            aria-label={`${ACTION_LABELS[a]} ${m.label}`}
-                            aria-pressed={permissions[m.module][a]}
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
+                {DEPARTMENT_CONFIG.map((dept) => {
+                  const fullAccessChecked = dept.modules.every((m) => m.actions.every((a) => permissions[m.module][a]));
+                  return (
+                    <tr key={dept.label} className="border-b border-slate-50">
+                      <td className="px-4 py-2.5 font-medium text-slate-800">{dept.label}</td>
+                      {(["canView", "canAdd", "canEdit", "canDelete"] as Action[]).map((a) => {
+                        const applicable = dept.modules.filter((m) => m.actions.includes(a));
+                        const checked = applicable.length > 0 && applicable.every((m) => permissions[m.module][a]);
+                        return (
+                          <td key={a} className="px-4 py-2.5 text-center">
+                            {applicable.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleGroup(dept, a)}
+                                className={`inline-flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${
+                                  checked
+                                    ? "bg-blue-600 border-blue-600 text-white"
+                                    : "bg-white border-slate-300 text-transparent hover:border-blue-400"
+                                }`}
+                                aria-label={`${ACTION_LABELS[a]} ${dept.label}`}
+                                aria-pressed={checked}
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="px-4 py-2.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => toggleGroupAll(dept)}
+                          className={`inline-flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${
+                            fullAccessChecked
+                              ? "bg-emerald-600 border-emerald-600 text-white"
+                              : "bg-white border-slate-300 text-transparent hover:border-emerald-400"
+                          }`}
+                          aria-label={`Full access to ${dept.label}`}
+                          aria-pressed={fullAccessChecked}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
                       </td>
-                    ))}
-                    <td className="px-4 py-2.5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => toggleAll(m.module, m.actions)}
-                        className={`inline-flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${
-                          m.actions.every((a) => permissions[m.module][a])
-                            ? "bg-emerald-600 border-emerald-600 text-white"
-                            : "bg-white border-slate-300 text-transparent hover:border-emerald-400"
-                        }`}
-                        aria-label={`Full access to ${m.label}`}
-                        aria-pressed={m.actions.every((a) => permissions[m.module][a])}
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

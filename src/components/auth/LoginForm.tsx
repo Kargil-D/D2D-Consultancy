@@ -7,6 +7,7 @@ import { ArrowRight, Mail, AlertCircle, CheckCircle2 } from "lucide-react";
 import InputField from "./InputField";
 import PasswordField from "./PasswordField";
 import { useAuth } from "@/contexts/AuthContext";
+import { isValidEmail } from "@/utils/validators";
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -22,7 +23,7 @@ interface FieldErrors {
 function validate(email: string, password: string): FieldErrors {
   const errors: FieldErrors = {};
   if (!email.trim()) errors.email = "Email is required.";
-  else if (!/^\S+@\S+\.\S+$/.test(email)) errors.email = "Enter a valid email.";
+  else if (!isValidEmail(email)) errors.email = "Enter a valid email.";
   if (!password) errors.password = "Password is required.";
   else if (password.length < 4) errors.password = "Password is too short.";
   return errors;

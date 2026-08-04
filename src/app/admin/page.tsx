@@ -15,27 +15,37 @@ import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DepartmentTiles from "@/components/admin/DepartmentTiles";
 import { useAuth } from "@/contexts/AuthContext";
+import { DEPARTMENTS, canViewDepartment } from "@/lib/adminModules";
+import type { PermissionMap } from "@/lib/adminModules";
 
-const HOME_TILES = [
-  { label: "PM", icon: Boxes, href: "/admin/pm" },
-  { label: "Sales", icon: Users, href: "/admin/sales" },
-  { label: "Bookings", icon: CalendarCheck, href: "/admin/bookings" },
+// CX/Ticketing/Report have no href — no page exists behind them yet, so they're always shown
+// (nothing to gate) rather than filtered by RolePermission like PM/Sales/Bookings/Finance.
+const UNGATED_TILES = [
   { label: "CX", icon: Headphones },
-  { label: "Finance", icon: Wallet, href: "/admin/finance" },
   { label: "Ticketing", icon: Ticket },
   { label: "Report", icon: FileBarChart },
 ];
 
+const HOME_TILES: Record<string, { label: string; icon: typeof Boxes; href: string }> = {
+  PM: { label: "PM", icon: Boxes, href: "/admin/pm" },
+  Sales: { label: "Sales", icon: Users, href: "/admin/sales" },
+  Bookings: { label: "Bookings", icon: CalendarCheck, href: "/admin/bookings" },
+  Finance: { label: "Finance", icon: Wallet, href: "/admin/finance" },
+};
+
 export default function AdminHomePage() {
   const { user } = useAuth();
   const isAdmin = user?.roles.includes("admin") ?? false;
+  const permissions = user?.permissions as PermissionMap | undefined;
+
+  const gatedTiles = DEPARTMENTS.filter((d) => isAdmin || canViewDepartment(permissions, d)).map((d) => HOME_TILES[d.label]);
 
   const rosterTile = isAdmin
     ? { label: "Roster", icon: ClipboardList, href: "/admin/roster" }
     : { label: "My Roster", icon: ClipboardList, href: "/admin/my-roster" };
   const tiles = isAdmin
-    ? [...HOME_TILES, rosterTile, { label: "Locker", icon: Lock, href: "/admin/locker" }]
-    : [...HOME_TILES, rosterTile];
+    ? [...gatedTiles, ...UNGATED_TILES, rosterTile, { label: "Locker", icon: Lock, href: "/admin/locker" }]
+    : [...gatedTiles, ...UNGATED_TILES, rosterTile];
 
   return (
     <AdminShell title="Home">

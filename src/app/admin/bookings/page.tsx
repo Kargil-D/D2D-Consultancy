@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, Eye } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DataTable, { type Column } from "@/components/admin/ui/DataTable";
 import Pagination from "@/components/admin/ui/Pagination";
 import { useToast } from "@/components/admin/ui/Toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { canViewModule, type PermissionMap } from "@/lib/adminModules";
 import { bookingsApi } from "@/lib/adminApi";
 import type { AdminBooking, BookingStatus } from "@/types/admin";
 
@@ -25,7 +28,12 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
 };
 
 export default function BookingsAdminPage() {
+  const router = useRouter();
   const { notify } = useToast();
+  const { user, loading: authLoading } = useAuth();
+  const isAdmin = user?.roles.includes("admin") ?? false;
+  const permissions = user?.permissions as PermissionMap | undefined;
+  const canView = isAdmin || canViewModule(permissions, "Bookings");
   const [rows, setRows] = useState<AdminBooking[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -33,7 +41,12 @@ export default function BookingsAdminPage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (!authLoading && user && !canView) router.replace("/admin");
+  }, [authLoading, user, canView, router]);
+
   const reload = useCallback(async () => {
+    if (!canView) return;
     setLoading(true);
     try {
       const res = await bookingsApi.list({ search, status, page, pageSize: PAGE_SIZE });
@@ -48,11 +61,13 @@ export default function BookingsAdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, page, notify]);
+  }, [search, status, page, notify, canView]);
 
   useEffect(() => {
     reload();
   }, [reload]);
+
+  if (!canView) return null;
 
   const columns: Column<AdminBooking>[] = [
     {
