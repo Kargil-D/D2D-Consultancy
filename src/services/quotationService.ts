@@ -144,6 +144,7 @@ function quotationScalarData(input: Partial<QuotationCreate | QuotationUpdate>) 
     ...(input.marginPercent !== undefined && { marginPercent: input.marginPercent }),
     ...(input.gstPercent !== undefined && { gstPercent: input.gstPercent }),
     ...(input.travelDate !== undefined && { travelDate: input.travelDate }),
+    ...(input.travelEndDate !== undefined && { travelEndDate: input.travelEndDate }),
     ...(input.days !== undefined && { days: input.days }),
     ...(input.nights !== undefined && { nights: input.nights }),
     ...(input.adults !== undefined && { adults: input.adults }),
@@ -438,12 +439,14 @@ export async function buildPublicQuoteData(quotation: NonNullable<Awaited<Return
   const days = quotation.days ?? campaign?.days ?? null;
   const nights = quotation.nights ?? campaign?.nights ?? null;
   const travelStartDate = quotation.travelDate ?? quotation.lead.travelDate ?? null;
-  // No separate end-date field on Quotation — derived from the trip length already captured (nights preferred, else days - 1).
+  // Prefer the admin-entered end date; fall back to deriving it from trip length for older
+  // quotations saved before travelEndDate existed (nights preferred, else days - 1).
   const stayLengthDays = nights ?? (days ? days - 1 : null);
   const travelEndDate =
-    travelStartDate && stayLengthDays != null
+    quotation.travelEndDate ??
+    (travelStartDate && stayLengthDays != null
       ? new Date(travelStartDate.getTime() + stayLengthDays * 24 * 60 * 60 * 1000)
-      : null;
+      : null);
 
   return {
     quoteCode: quoteCode(quotation.seq),
@@ -472,6 +475,8 @@ export async function buildPublicQuoteData(quotation: NonNullable<Awaited<Return
     includeChildCosting: quotation.includeChildCosting,
     sellingPrice,
     status: quotation.status,
+    advanceAmount: quotation.advanceAmount,
+    highlights: campaign?.highlights ?? [],
   };
 }
 

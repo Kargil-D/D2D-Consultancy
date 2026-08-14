@@ -20,6 +20,7 @@ export type TransferUpdate = z.infer<typeof TransferUpdateSchema>;
 
 export const TransferTypeCreateSchema = z.object({
   name: z.string().min(1),
+  imageUrl: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional().nullable()),
   status: z.enum(["Active", "Inactive"]).optional(),
 });
 

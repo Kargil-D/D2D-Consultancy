@@ -101,6 +101,7 @@ export const QuotationCreateSchema = z.object({
 
   // Step 1 — Trip / Traveller / Other details
   travelDate: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.date().optional().nullable()),
+  travelEndDate: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.date().optional().nullable()),
   days: z.coerce.number().int().min(0).optional().nullable(),
   nights: z.coerce.number().int().min(0).optional().nullable(),
   adults: z.coerce.number().int().min(1).default(1),

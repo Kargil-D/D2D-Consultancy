@@ -1,15 +1,11 @@
-import { Document, Page, Text, View, Image, Svg, Path, Defs, LinearGradient, Stop, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, Svg, Path, Circle, Defs, LinearGradient, Stop, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import type { QuotationActivityItem, QuotationHotelOptionGroup, QuotationItineraryDay, QuotationTransferItem } from "@/types/admin";
-import { REVIEWS } from "@/data/reviews";
+import { SUPPORT_PHONES, SUPPORT_EMAIL, SUPPORT_WEBSITE, SUPPORT_ADDRESS, COMPANY_FULL_NAME } from "@/data/contact";
 
 /**
- * Customer-facing quote PDF. Only ever receives the selling price — never
- * per-line cost/margin figures (see "Only the selling price is shown to
- * customers" business rule). Shape mirrors PublicQuoteData from quotationService.
- *
- * Rendered as a dedicated multi-page "quote deck" — a cover page plus one page
- * per content section — rather than a single scrolling page, since this PDF is
- * the primary sales artifact customers decide on.
+ * Customer-facing quote PDF — the approved "sky & hills" brand deck. Only ever receives the
+ * selling price — never per-line cost/margin figures (see "Only the selling price is shown
+ * to customers" business rule). Shape mirrors PublicQuoteData from quotationService.
  */
 export interface QuotationPdfData {
   quoteCode: string;
@@ -37,783 +33,685 @@ export interface QuotationPdfData {
   gstPercent: number;
   includeChildCosting: boolean;
   sellingPrice: number;
+  advanceAmount: number;
+  highlights: string[];
 }
 
-const ACCENT = {
-  itinerary: "#4f46e5", // indigo
-  itineraryBg: "#eef2ff",
-  hotels: "#a21caf", // fuchsia
-  hotelsBg: "#fdf4ff",
-  activities: "#0f766e", // teal
-  activitiesBg: "#f0fdfa",
-  transfers: "#c2410c", // orange
-  transfersBg: "#fff7ed",
-  inclusions: "#0f172a", // slate
-  pricing: "#1d4ed8", // blue (gradient banner)
-  notes: "#b45309", // amber
-  reviews: "#0891b2", // cyan
+const C = {
+  sky1: "#cfe9fb",
+  sky2: "#eaf6fd",
+  hill1: "#a9d66a",
+  hill2: "#7fb542",
+  hill3: "#4f7a2a",
+  band: "#dceff0",
+  ink: "#0e3a40",
+  teal: "#12828f",
+  tealDark: "#0b5b64",
+  navy: "#0c2b30",
+  navyDark: "#082024",
+  orange: "#e08a3c",
+  orangeDark: "#c96f28",
+  cream: "#f8f1e4",
+  muted: "#6b7d7c",
+  body: "#3a4d4c",
+  line: "#d9ecec",
+  paper: "#ffffff",
 };
 
+// A4 in points is 595.28 x 841.89 — stay a hair under the real page box (never over it),
+// since react-pdf's Yoga layout silently inserts a blank continuation page if an
+// absolutely-positioned full-bleed element is even a fraction of a point taller than the
+// page itself (this is what caused the blank page 2 right after the cover).
+const PAGE_W = 595;
+const PAGE_H = 841;
+const PAD_X = 32;
+
 const styles = StyleSheet.create({
-  page: { paddingTop: 32, paddingHorizontal: 32, paddingBottom: 56, fontSize: 10, fontFamily: "Helvetica", color: "#1e293b" },
+  page: { paddingTop: 0, paddingHorizontal: 0, paddingBottom: 0, fontSize: 10, fontFamily: "Helvetica", color: C.body, backgroundColor: C.paper },
+  content: { paddingHorizontal: PAD_X, paddingTop: 16, paddingBottom: 34, position: "relative" },
 
-  // ---------------------------------------------------------------- Cover --
-  masthead: { marginHorizontal: -32, marginTop: -32 },
-  mastheadContent: {
-    marginTop: -130,
-    height: 130,
-    paddingHorizontal: 32,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  // ------------------------------------------------------------ Header / Footer bands --
+  band: { backgroundColor: C.band, paddingVertical: 12, paddingHorizontal: PAD_X, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  bandRightText: { fontSize: 9, color: C.ink },
+  bandRightBold: { fontWeight: 700, color: C.orangeDark },
+  footerBand: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: C.band, paddingVertical: 10, paddingHorizontal: PAD_X,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
   },
-  mastheadBrandRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  mastheadTitle: { fontSize: 30, fontWeight: 700, color: "#ffffff" },
-  mastheadTitleAccent: { color: "#a5f3fc" },
-  mastheadTagline: { fontSize: 9, fontWeight: 700, color: "#e0f2fe", marginTop: 4, letterSpacing: 1.5 },
-  mastheadMeta: { alignItems: "flex-end" },
-  mastheadQuoteCode: { fontSize: 13, fontWeight: 700, color: "#ffffff" },
-  mastheadQuoteDate: { fontSize: 8.5, color: "#e0f2fe", marginTop: 3 },
+  footerLeft: { fontSize: 8, color: C.tealDark },
+  footerSmall: { fontSize: 7, color: C.tealDark, marginTop: 2 },
+  footerN: { fontWeight: 700, fontSize: 11, color: C.navy },
 
-  heroBanner: { borderRadius: 10, overflow: "hidden", marginTop: 20 },
-  heroImage: { width: "100%", height: 250, objectFit: "cover" },
-  heroTitleBar: { padding: 18, backgroundColor: "#0f172a" },
-  heroEyebrow: { fontSize: 8, fontWeight: 700, color: "#5eead4", letterSpacing: 2 },
-  heroTitle: { fontSize: 23, fontWeight: 700, color: "#ffffff", marginTop: 5 },
-  heroSub: { fontSize: 9.5, color: "#cbd5e1", marginTop: 4 },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  logoWordD2D: { fontSize: 11, fontWeight: 700, color: C.ink },
+  logoWordHolidays: { fontSize: 11, fontWeight: 700, color: C.teal },
+  logoTagline: { fontSize: 5, letterSpacing: 1.2, color: C.muted, marginTop: 1 },
 
-  metaPillsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 16 },
-  metaPill: { fontSize: 8.5, fontWeight: 700, borderRadius: 10, paddingVertical: 4, paddingHorizontal: 9 },
+  // -------------------------------------------------------------------- Section head --
+  sec: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 16, marginBottom: 10 },
+  secDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.orange },
+  secTitle: { fontFamily: "Times-Bold", fontWeight: 700, fontSize: 16, color: C.ink },
 
-  tocWrap: { marginTop: 22, borderRadius: 10, backgroundColor: "#f8fafc", border: "1 solid #e2e8f0", padding: 16 },
-  tocTitle: { fontSize: 10.5, fontWeight: 700, color: "#0f172a", marginBottom: 11 },
-  tocGrid: { flexDirection: "row", flexWrap: "wrap" },
-  tocRow: { flexDirection: "row", alignItems: "center", gap: 8, width: "50%", marginBottom: 9, paddingRight: 8 },
-  tocNumberBadge: { width: 17, height: 17, borderRadius: 8.5, alignItems: "center", justifyContent: "center" },
-  tocNumberText: { fontSize: 7.5, fontWeight: 700, color: "#ffffff" },
-  tocLabel: { fontSize: 8.5, fontWeight: 700, color: "#334155" },
+  card: { backgroundColor: C.paper, borderWidth: 1, borderColor: C.line, borderStyle: "solid", borderRadius: 8 },
 
-  coverFooterNote: { marginTop: 20, fontSize: 8, color: "#94a3b8", textAlign: "center" },
+  // -------------------------------------------------------------------------- Cover --
+  coverBadge: { position: "absolute", top: 26, right: 26, borderWidth: 1, borderColor: "rgba(14,58,64,0.35)", borderStyle: "solid", borderRadius: 16, paddingVertical: 5, paddingHorizontal: 14, color: C.ink, fontSize: 8.5, fontWeight: 700, letterSpacing: 1 },
+  coverLogo: { position: "absolute", top: 26, left: 26 },
+  coverMid: { position: "absolute", top: 240, left: 40, right: 40, textAlign: "center" },
+  coverEyebrow: { fontSize: 9.5, fontWeight: 700, letterSpacing: 3, color: C.orangeDark, textAlign: "center" },
+  coverTitle: { marginTop: 8, fontFamily: "Times-Bold", fontWeight: 700, fontSize: 34, color: C.navy, textAlign: "center" },
+  coverTitleEm: { fontFamily: "Times-Italic", fontWeight: 400, color: C.orangeDark },
+  coverSub: { marginTop: 8, fontSize: 12, color: C.ink, textAlign: "center" },
+  coverFor: { marginTop: 6, fontSize: 9.5, color: C.ink, textAlign: "center" },
+  coverForBold: { fontWeight: 700 },
+  coverChipsRow: { position: "absolute", bottom: 34, left: 26, right: 26, flexDirection: "row", gap: 8 },
+  cchip: { flex: 1, backgroundColor: "rgba(20,50,30,0.72)", borderWidth: 1, borderColor: "rgba(255,255,255,0.5)", borderStyle: "solid", borderRadius: 6, paddingVertical: 8, paddingHorizontal: 8 },
+  cchipL: { fontSize: 6, fontWeight: 700, letterSpacing: 1, color: "#dfead0" },
+  cchipV: { marginTop: 4, fontWeight: 700, fontSize: 10.5, color: "#ffffff" },
 
-  // -------------------------------------------------------- Section banner --
-  sectionBanner: {
-    marginHorizontal: -32,
-    marginTop: -32,
-    marginBottom: 22,
-    paddingHorizontal: 32,
-    paddingTop: 26,
-    paddingBottom: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-  },
-  sectionBannerEyebrow: { fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.8)", letterSpacing: 2 },
-  sectionBannerTitle: { fontSize: 21, fontWeight: 700, color: "#ffffff", marginTop: 5 },
-  sectionBannerSubtitle: { fontSize: 9, color: "rgba(255,255,255,0.85)", marginTop: 4 },
-  sectionBannerBrand: { alignItems: "flex-end" },
-  sectionBannerBrandText: { fontSize: 9, fontWeight: 700, color: "#ffffff" },
-  sectionBannerQuoteCode: { fontSize: 7.5, color: "rgba(255,255,255,0.75)", marginTop: 2 },
+  // --------------------------------------------------------------------- Overview --
+  grid2: { flexDirection: "row", gap: 12 },
+  officeCard: { padding: 13 },
+  officeTitle: { fontFamily: "Times-Bold", fontWeight: 700, fontSize: 13, color: C.ink, marginBottom: 8 },
+  kvRow: { flexDirection: "row", marginTop: 6 },
+  kvKey: { width: 62, fontSize: 8.5, color: C.muted },
+  kvVal: { flex: 1, fontSize: 8.5, color: "#26363d" },
 
-  // -------------------------------------------------------------- Footer --
-  pageFooter: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderTop: "1 solid #e2e8f0",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  pageFooterText: { fontSize: 7, color: "#94a3b8" },
+  qdetails: { backgroundColor: C.navy, borderRadius: 8, padding: 13 },
+  qdetailsTitle: { fontSize: 9, fontWeight: 700, letterSpacing: 1.8, color: "#ffffff", marginBottom: 9 },
+  qrow: { flexDirection: "row", justifyContent: "space-between", fontSize: 9, marginTop: 7 },
+  qrowK: { color: "rgba(255,255,255,0.85)" },
+  qrowV: { color: C.orange, fontWeight: 700, textAlign: "right" },
 
-  // ------------------------------------------------------------ Itinerary --
-  dayCard: { marginBottom: 9, padding: 11, borderRadius: 6, backgroundColor: ACCENT.itineraryBg, borderLeft: `3 solid ${ACCENT.itinerary}` },
-  dayBadgeRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3 },
-  dayBadge: { fontSize: 8, fontWeight: 700, color: "#ffffff", backgroundColor: ACCENT.itinerary, borderRadius: 8, paddingVertical: 2, paddingHorizontal: 7 },
-  dayTitle: { fontSize: 10.5, fontWeight: 700, color: "#1e1b4b" },
-  dayText: { fontSize: 9, color: "#475569", marginTop: 2, lineHeight: 1.4 },
-  dayMetaLabel: { fontSize: 8.5, fontWeight: 700, color: ACCENT.itinerary },
+  chipsRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  metaChip: { flex: 1, backgroundColor: C.paper, borderWidth: 1, borderColor: C.line, borderStyle: "solid", borderRadius: 6, padding: 9, position: "relative", overflow: "hidden" },
+  metaChipBar: { position: "absolute", left: 0, top: 0, bottom: 0, width: 3, backgroundColor: C.teal },
+  metaChipL: { fontSize: 6.5, fontWeight: 700, letterSpacing: 0.8, color: C.muted },
+  metaChipV: { marginTop: 4, fontWeight: 700, fontSize: 11, color: C.ink },
 
-  // ---------------------------------------------------------------- Hotels --
-  optionBadge: { fontSize: 8, fontWeight: 700, color: "#ffffff", backgroundColor: ACCENT.hotels, borderRadius: 8, paddingVertical: 2, paddingHorizontal: 7, marginBottom: 8, alignSelf: "flex-start" },
-  hotelCard: { flexDirection: "row", gap: 10, marginBottom: 9, padding: 11, borderRadius: 6, backgroundColor: ACCENT.hotelsBg, border: "1 solid #f0abfc" },
-  hotelImage: { width: 92, height: 78, borderRadius: 4, objectFit: "cover" },
-  hotelName: { fontSize: 10.5, fontWeight: 700, color: "#701a75" },
-  hotelMeta: { fontSize: 8.5, color: "#6b21a8", marginTop: 2 },
-  hotelPillsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4 },
-  hotelPill: { fontSize: 7.5, fontWeight: 700, color: ACCENT.hotels, backgroundColor: "#ffffff", borderRadius: 8, paddingVertical: 2, paddingHorizontal: 6 },
+  tstrip: { marginTop: 12, backgroundColor: C.band, borderRadius: 6, paddingVertical: 8, paddingHorizontal: 12, flexDirection: "row", justifyContent: "space-between", fontSize: 9, color: "#26363d", flexWrap: "wrap", gap: 4 },
+  tstripB: { fontWeight: 700 },
 
-  // ------------------------------------------------ Transfer / Activity --
-  detailCard: { flexDirection: "row", gap: 10, marginBottom: 9, padding: 11, borderRadius: 6 },
-  transferCard: { backgroundColor: ACCENT.transfersBg, border: "1 solid #fed7aa" },
-  activityCard: { backgroundColor: ACCENT.activitiesBg, border: "1 solid #99f6e4" },
-  detailImage: { width: 92, height: 78, borderRadius: 4, objectFit: "cover" },
-  detailImagePlaceholder: { width: 92, height: 78, borderRadius: 4, backgroundColor: "#ffffff" },
-  detailBody: { flex: 1 },
-  transferName: { fontSize: 9.5, fontWeight: 700, color: "#7c2d12" },
-  transferRoute: { fontSize: 8.5, fontWeight: 700, color: "#9a3412", marginTop: 2 },
-  activityName: { fontSize: 9.5, fontWeight: 700, color: "#134e4a" },
-  detailPillsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 4 },
-  transferPill: { fontSize: 7.5, fontWeight: 700, color: ACCENT.transfers, backgroundColor: "#ffffff", borderRadius: 8, paddingVertical: 2, paddingHorizontal: 6 },
-  activityPill: { fontSize: 7.5, fontWeight: 700, color: ACCENT.activities, backgroundColor: "#ffffff", borderRadius: 8, paddingVertical: 2, paddingHorizontal: 6 },
-  detailMeta: { fontSize: 8, color: "#475569", marginTop: 3, lineHeight: 1.4 },
-  detailNotes: { fontSize: 7.5, color: "#64748b", marginTop: 2, lineHeight: 1.3 },
+  hlCard: { padding: 13 },
+  hlGrid: { flexDirection: "row", flexWrap: "wrap" },
+  hl: { width: "50%", flexDirection: "row", gap: 6, fontSize: 9, color: "#2c3e46", marginBottom: 6, paddingRight: 6 },
+  hlCheck: { color: C.teal, fontWeight: 700 },
 
-  // ---------------------------------------------------------- Inclusions --
-  twoCol: { flexDirection: "row", gap: 18, marginTop: 4 },
-  col: { flex: 1 },
-  colHeaderGreen: { fontSize: 11, fontWeight: 700, color: "#047857", marginBottom: 8 },
-  colHeaderRose: { fontSize: 11, fontWeight: 700, color: "#be123c", marginBottom: 8 },
-  bulletRow: { flexDirection: "row", marginBottom: 5, alignItems: "flex-start" },
-  bulletDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "#0f766e", marginTop: 4, marginRight: 6 },
-  bulletDotRose: { backgroundColor: "#e11d48" },
-  bulletText: { fontSize: 9, color: "#334155", flex: 1, lineHeight: 1.4 },
+  // ------------------------------------------------------------------------- Day --
+  day: { padding: 11, marginBottom: 10 },
+  dhead: { flexDirection: "row", alignItems: "center", gap: 9 },
+  dpill: { backgroundColor: C.navy, color: "#ffffff", borderRadius: 14, paddingVertical: 3, paddingHorizontal: 11, fontFamily: "Times-Bold", fontWeight: 700, fontSize: 10 },
+  ddate: { fontWeight: 700, fontSize: 9.5, color: "#55666e" },
+  ddist: { marginLeft: "auto", fontWeight: 700, fontSize: 9, color: C.orangeDark },
+  dbody: { marginTop: 6, fontSize: 9, lineHeight: 1.5, color: C.body },
+  dnote: { marginTop: 4, fontStyle: "italic", fontSize: 8, color: C.muted },
 
-  // -------------------------------------------------------------- Pricing --
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
-  statCard: { flex: 1, borderRadius: 8, backgroundColor: "#f8fafc", border: "1 solid #e2e8f0", padding: 11, alignItems: "center" },
-  statLabel: { fontSize: 6.5, fontWeight: 700, color: "#94a3b8", letterSpacing: 1 },
-  statValue: { fontSize: 10.5, fontWeight: 700, color: "#0f172a", marginTop: 4, textAlign: "center" },
+  // --------------------------------------------------- Split (hotel/act/transfer) --
+  split: { flexDirection: "row", marginBottom: 10, borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: C.line, borderStyle: "solid", backgroundColor: C.paper },
+  splitCream: { backgroundColor: C.cream },
+  splitTxt: { flex: 1.15, padding: 12 },
+  splitPicWrap: { width: 150, height: 118 },
+  splitH3: { fontFamily: "Times-Bold", fontWeight: 700, fontSize: 12.5, color: C.ink, marginBottom: 6 },
+  splitH3Route: { color: C.tealDark },
+  srow: { flexDirection: "row", justifyContent: "space-between", fontSize: 9, marginTop: 4, gap: 6 },
+  srowK: { color: C.muted },
+  srowV: { fontWeight: 700, color: "#26363d", textAlign: "right" },
+  npill: { marginTop: 8, alignSelf: "flex-start", backgroundColor: "#cfe6f0", borderRadius: 14, paddingVertical: 3, paddingHorizontal: 9, fontFamily: "Times-Bold", fontWeight: 700, fontSize: 8.5, color: C.ink },
 
-  priceCard: { borderRadius: 8, border: "1 solid #e2e8f0", padding: 14 },
-  priceCardTitle: { fontSize: 11.5, fontWeight: 700, color: "#0f172a", marginBottom: 8 },
-  priceRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5, borderBottom: "1 dashed #e2e8f0" },
-  priceLabel: { fontSize: 9, color: "#475569" },
-  priceValue: { fontSize: 9, fontWeight: 700, color: "#0f172a" },
+  // ------------------------------------------------------- Inclusions / Price --
+  ieCard: { padding: 12 },
+  ieCardTitle: { fontSize: 10, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8 },
+  ieCardTitleInc: { color: C.teal },
+  ieCardTitleExc: { color: C.orangeDark },
+  ie: { flexDirection: "row", gap: 6, fontSize: 9, color: "#2c3e46", lineHeight: 1.5, marginBottom: 4 },
+  ieMarkInc: { color: C.teal, fontWeight: 700 },
+  ieMarkExc: { color: C.orangeDark, fontWeight: 700 },
 
-  totalBox: {
-    marginTop: 16,
-    borderRadius: 8,
-    backgroundColor: "#0891b2",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-  },
-  totalLabel: { fontSize: 12, fontWeight: 700, color: "#ffffff" },
-  totalSub: { fontSize: 8, color: "#e0f2fe", marginTop: 2 },
-  totalValue: { fontSize: 22, fontWeight: 700, color: "#ffffff" },
+  pgrid: { flexDirection: "row", gap: 12 },
+  ptableWrap: { flex: 1.5, borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: C.line, borderStyle: "solid", backgroundColor: C.paper },
+  ptHeadRow: { flexDirection: "row", backgroundColor: C.navy },
+  pth: { color: "#ffffff", fontWeight: 700, fontSize: 8.5, paddingVertical: 8, paddingHorizontal: 8 },
+  ptr: { flexDirection: "row", borderBottom: "1 solid #ecf3f6" },
+  ptd: { fontSize: 9, paddingVertical: 7, paddingHorizontal: 8, color: C.body },
+  ptdBold: { fontWeight: 700, color: C.ink },
 
-  trustRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 },
-  trustBadge: { width: "48.5%", flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 6, backgroundColor: "#f0fdfa", border: "1 solid #99f6e4", paddingVertical: 8, paddingHorizontal: 10 },
-  trustCheck: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: ACCENT.activities },
-  trustText: { fontSize: 8, fontWeight: 700, color: "#134e4a" },
+  psum: { flex: 1, backgroundColor: C.navy, borderRadius: 8, padding: 13 },
+  psumRow: { flexDirection: "row", justifyContent: "space-between", fontSize: 9.5, marginBottom: 8, color: "#ffffff" },
+  psumRowV: { fontWeight: 700 },
+  gt: { backgroundColor: C.navyDark, borderRadius: 6, padding: 11, marginTop: 6, alignItems: "center" },
+  gtLbl: { fontSize: 8, fontWeight: 700, letterSpacing: 1.8, color: "rgba(255,255,255,0.85)" },
+  gtVal: { marginTop: 4, fontFamily: "Times-Bold", fontWeight: 700, fontSize: 22, color: C.orange },
+  pnote: { marginTop: 12, textAlign: "center", fontStyle: "italic", fontSize: 8.5, color: C.muted },
 
-  ctaRibbon: { marginTop: 16, borderRadius: 8, backgroundColor: "#fff1f2", border: "1 solid #fecdd3", padding: 12, alignItems: "center" },
-  ctaRibbonText: { fontSize: 8.5, fontWeight: 700, color: "#9f1239", textAlign: "center" },
+  // ------------------------------------------------------------------------ Terms --
+  termsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  termCard: { width: "48.5%", padding: 11 },
+  termTitle: { fontFamily: "Times-Bold", fontWeight: 700, fontSize: 11.5, color: C.ink, marginBottom: 6 },
+  termLi: { flexDirection: "row", gap: 4, fontSize: 8.5, color: "#45566e", lineHeight: 1.5, marginBottom: 2 },
+  termDot: { color: "#8aa0a8" },
+  termP: { fontSize: 8.5, color: "#45566e", lineHeight: 1.5 },
 
-  // ---------------------------------------------------------------- Notes --
-  notesBox: { borderRadius: 8, backgroundColor: "#fffbeb", border: "1 solid #fde68a", padding: 14 },
-  notesText: { fontSize: 9, color: "#78350f", lineHeight: 1.6 },
+  statsRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 18, marginHorizontal: 10 },
+  stat: { alignItems: "center" },
+  statV: { fontFamily: "Times-Bold", fontWeight: 700, fontSize: 21, color: C.ink },
+  statL: { marginTop: 4, fontSize: 7.5, fontWeight: 700, letterSpacing: 1.5, color: C.muted },
 
-  // -------------------------------------------------------------- Reviews --
-  reviewsRow: { flexDirection: "row", gap: 9 },
-  reviewCard: { flex: 1, padding: 10, borderRadius: 6, backgroundColor: "#f8fafc", border: "1 solid #e2e8f0" },
-  reviewName: { fontSize: 8.5, fontWeight: 700, color: "#0f172a" },
-  reviewLocation: { fontSize: 7, color: "#94a3b8", marginTop: 1 },
-  reviewStarsRow: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 4 },
-  reviewStarDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: "#f59e0b" },
-  reviewStarDotEmpty: { backgroundColor: "#e2e8f0" },
-  reviewTrip: { fontSize: 7, fontWeight: 700, color: "#0891b2", marginLeft: 4 },
-  reviewComment: { fontSize: 7.5, color: "#475569", marginTop: 5, lineHeight: 1.35 },
+  cta: { marginTop: 16, backgroundColor: C.navy, borderRadius: 10, padding: 16, alignItems: "center" },
+  ctaTitle: { fontFamily: "Times-Bold", fontWeight: 700, fontSize: 15, color: "#ffffff" },
+  ctaP1: { marginTop: 6, fontSize: 9.5, color: "#ffffff" },
+  ctaP1B: { color: C.orange, fontWeight: 700 },
+  ctaP2: { marginTop: 3, fontSize: 9, color: "rgba(255,255,255,0.85)" },
 
-  closingBlock: { marginTop: 22, borderRadius: 10, backgroundColor: "#0f172a", padding: 20, alignItems: "center" },
-  closingTitle: { fontSize: 15, fontWeight: 700, color: "#ffffff" },
-  closingText: { fontSize: 9, color: "#cbd5e1", marginTop: 6, textAlign: "center", lineHeight: 1.5 },
+  closingLockup: { alignItems: "center", marginTop: 26 },
+  closingWord: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  closingWordD2D: { fontSize: 22, fontWeight: 700, color: C.ink },
+  closingWordHolidays: { fontSize: 22, fontWeight: 700, color: C.teal },
+  closingTagline: { marginTop: 4, fontSize: 8, letterSpacing: 3, color: C.muted },
+
+  // --------------------------------------------------------------------- Thanks --
+  thanksTitle: { fontFamily: "Times-BoldItalic", fontSize: 22, color: C.tealDark, lineHeight: 1.25 },
+  thanksMsg: { fontSize: 9.5, lineHeight: 1.7, color: "#1d3a44", marginBottom: 8 },
+  contactCard: { marginTop: 14, backgroundColor: "rgba(214,236,245,0.9)", borderRadius: 8, padding: 12 },
+  contactCardBold: { fontSize: 10, fontWeight: 700, color: "#23343c" },
+  contactCardLine: { fontSize: 8.5, color: "#23343c", marginTop: 4, lineHeight: 1.5 },
 });
 
 function formatINR(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(value);
 }
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-/** Same mark as the web brand (src/components/common/Logo.tsx) in solid white, for contrast on the colorful masthead. */
-function CompanyLogoMarkWhite({ size = 56 }: { size?: number }) {
+/** Brand mark: two-triangle paper-plane, teal/cyan — same silhouette as the web header logo (src/components/common/Logo.tsx), just recolored for light backgrounds. */
+function PlaneMark({ size = 20 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Path d="M96 8 L3 42 L50 60 Z" fill="#ffffff" />
-      <Path d="M96 8 L50 60 L42 95 Z" fill="#ffffff" opacity={0.85} />
-      <Path d="M96 8 L50 60" stroke="#0f766e" strokeWidth={1.5} strokeLinecap="round" opacity={0.35} />
+      <Defs>
+        <LinearGradient id="planeGrad" x1="0" y1="0" x2="100" y2="100">
+          <Stop offset="0" stopColor={C.teal} />
+          <Stop offset="1" stopColor={C.tealDark} />
+        </LinearGradient>
+      </Defs>
+      <Path d="M96 8 L3 42 L50 60 Z" fill="url(#planeGrad)" />
+      <Path d="M96 8 L50 60 L42 95 Z" fill={C.tealDark} opacity={0.75} />
     </Svg>
   );
 }
 
-/** Full A4 page width in points — the masthead bleeds edge-to-edge, so its art is sized 1:1 against that, not the padded content width (no percentage/viewBox scaling ambiguity either way). */
-const MASTHEAD_WIDTH = 595;
-const MASTHEAD_HEIGHT = 130;
+function BrandLogo({ size = 20, tagline = true }: { size?: number; tagline?: boolean }) {
+  return (
+    <View style={styles.logoRow}>
+      <PlaneMark size={size} />
+      <View>
+        <Text><Text style={styles.logoWordD2D}>D2D </Text><Text style={styles.logoWordHolidays}>Holidays</Text></Text>
+        {tagline && <Text style={styles.logoTagline}>DRIVE TO DESTINATION</Text>}
+      </View>
+    </View>
+  );
+}
 
 /**
- * Big colorful masthead: a gradient band with decorative travel motifs (sun, clouds, a flight
- * path with a plane, a mountain skyline) sits in normal flow; the brand lockup is pulled back
- * on top of it with a negative margin — same visual result as absolute overlay, without the
- * absolute-positioning + percentage-size combination that broke the price box earlier.
+ * Illustrated sky + clouds + rolling hills — the brand's signature background, used full-size
+ * on the cover and scaled down as the "no photo yet" placeholder inside split cards.
  */
-function CoverMasthead({ quoteCode, createdDate }: { quoteCode: string; createdDate: string }) {
+function SkyHills({ width, height }: { width: number; height: number }) {
+  const gradId = `sky-${width}-${height}`;
+  const hillTop = height * 0.62;
   return (
-    <View style={styles.masthead}>
-      <Svg width={MASTHEAD_WIDTH} height={MASTHEAD_HEIGHT} viewBox={`0 0 ${MASTHEAD_WIDTH} ${MASTHEAD_HEIGHT}`}>
-        <Defs>
-          <LinearGradient id="mastheadGrad" x1="0" y1="0" x2={MASTHEAD_WIDTH} y2={MASTHEAD_HEIGHT} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor="#1d4ed8" />
-            <Stop offset="0.55" stopColor="#0891b2" />
-            <Stop offset="1" stopColor="#0d9488" />
-          </LinearGradient>
-        </Defs>
-        <Path d={`M0 0 H${MASTHEAD_WIDTH} V${MASTHEAD_HEIGHT} H0 Z`} fill="url(#mastheadGrad)" />
-        {/* sun */}
-        <Path d="M475 32 m-19,0 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0" fill="#ffffff" opacity={0.16} />
-        {/* distant clouds */}
-        <Path d="M380 82 m-13,0 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0" fill="#ffffff" opacity={0.1} />
-        <Path d="M403 88 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" fill="#ffffff" opacity={0.1} />
-        {/* flight path + plane silhouette */}
-        <Path d="M60 95 Q 250 25 495 38" stroke="#ffffff" strokeWidth={1.2} strokeDasharray="3,5" opacity={0.4} fill="none" />
-        <Path d="M481 32 L500 38 L481 45 L485 38 Z" fill="#ffffff" opacity={0.55} />
-        {/* mountain skyline along the base */}
-        <Path d={`M0 ${MASTHEAD_HEIGHT} L55 76 L110 ${MASTHEAD_HEIGHT} Z`} fill="#ffffff" opacity={0.12} />
-        <Path d={`M80 ${MASTHEAD_HEIGHT} L150 58 L220 ${MASTHEAD_HEIGHT} Z`} fill="#ffffff" opacity={0.09} />
-      </Svg>
+    <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <Defs>
+        <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2={height}>
+          <Stop offset="0" stopColor={C.sky1} />
+          <Stop offset="1" stopColor={C.sky2} />
+        </LinearGradient>
+      </Defs>
+      <Path d={`M0 0 H${width} V${height} H0 Z`} fill={`url(#${gradId})`} />
+      <Circle cx={width * 0.32} cy={height * 0.34} r={height * 0.24} fill="#ffffff" opacity={0.85} />
+      <Circle cx={width * 0.46} cy={height * 0.4} r={height * 0.19} fill="#ffffff" opacity={0.85} />
+      <Circle cx={width * 0.68} cy={height * 0.22} r={height * 0.13} fill="#ffffff" opacity={0.7} />
+      <Path d={`M0 ${hillTop + height * 0.08} Q ${width * 0.25} ${hillTop - height * 0.06} ${width * 0.55} ${hillTop + height * 0.04} T ${width} ${hillTop} V${height} H0 Z`} fill={C.hill1} />
+      <Path d={`M0 ${hillTop + height * 0.16} Q ${width * 0.3} ${hillTop + height * 0.02} ${width * 0.62} ${hillTop + height * 0.14} T ${width} ${hillTop + height * 0.1} V${height} H0 Z`} fill={C.hill2} />
+      <Path d={`M0 ${hillTop + height * 0.26} Q ${width * 0.4} ${hillTop + height * 0.14} ${width} ${hillTop + height * 0.24} V${height} H0 Z`} fill={C.hill3} />
+    </Svg>
+  );
+}
 
-      <View style={styles.mastheadContent}>
-        <View style={styles.mastheadBrandRow}>
-          <CompanyLogoMarkWhite size={52} />
-          <View>
-            <Text style={styles.mastheadTitle}>D2D <Text style={styles.mastheadTitleAccent}>Holidays</Text></Text>
-            <Text style={styles.mastheadTagline}>DRIVE TO DESTINATION</Text>
-          </View>
-        </View>
-        <View style={styles.mastheadMeta}>
-          <Text style={styles.mastheadQuoteCode}>{quoteCode}</Text>
-          <Text style={styles.mastheadQuoteDate}>{createdDate}</Text>
-        </View>
-      </View>
+/** Low-opacity wave arcs + a flight path with a plane glyph — the recurring page watermark on content pages. */
+function PageWatermark() {
+  const y = PAGE_H - 190;
+  return (
+    <Svg width={PAGE_W} height={220} viewBox={`0 0 ${PAGE_W} 220`} style={{ position: "absolute", left: 0, bottom: 0 }}>
+      {[0, 1, 2, 3].map((i) => (
+        <Path
+          key={i}
+          d={`M0 ${40 + i * 32} Q ${PAGE_W / 2} ${10 + i * 32} ${PAGE_W} ${40 + i * 32}`}
+          stroke={C.teal}
+          strokeWidth={1}
+          strokeOpacity={0.14}
+          fill="none"
+        />
+      ))}
+      <Path d={`M20 150 Q ${PAGE_W / 2 - 40} 90 ${PAGE_W - 40} 120`} stroke="#98a6a5" strokeWidth={1} strokeDasharray="3,5" strokeOpacity={0.4} fill="none" />
+      <Path d="M0 0 L14 5 L0 10 L3 5 Z" fill={C.orangeDark} opacity={0.5} transform={`translate(${PAGE_W - 54}, 113) rotate(8)`} />
+      {Array.from({ length: 10 }).map((_, i) => {
+        const bw = 16 + (i % 3) * 6;
+        const bh = 30 + ((i * 17) % 55);
+        const bx = 10 + i * (PAGE_W - 20) / 10;
+        return <Path key={i} d={`M${bx} ${y + 190 - bh} H${bx + bw} V${y + 190} H${bx} Z`} fill="#9fb0af" opacity={0.16} />;
+      })}
+    </Svg>
+  );
+}
+
+function PageBand({ quoteCode, destinationName }: { quoteCode: string; destinationName: string }) {
+  return (
+    <View style={styles.band}>
+      <BrandLogo size={18} />
+      <Text style={styles.bandRightText}>Quotation <Text style={styles.bandRightBold}>{quoteCode}</Text> · {destinationName}</Text>
     </View>
   );
 }
 
-/** Solid-color page header used on every content page (repeats via `fixed` if a section overflows onto extra pages). */
-function SectionBanner({
-  color,
-  eyebrow,
-  title,
-  subtitle,
-  quoteCode,
-}: {
-  color: string;
-  eyebrow: string;
-  title: string;
-  subtitle?: string;
-  quoteCode: string;
-}) {
+function PageFooter({ pageLabel }: { pageLabel: string }) {
   return (
-    <View style={[styles.sectionBanner, { backgroundColor: color }]} fixed>
+    <View style={styles.footerBand} fixed>
       <View>
-        <Text style={styles.sectionBannerEyebrow}>{eyebrow}</Text>
-        <Text style={styles.sectionBannerTitle}>{title}</Text>
-        {subtitle && <Text style={styles.sectionBannerSubtitle}>{subtitle}</Text>}
+        <Text style={styles.footerLeft}>{SUPPORT_PHONES.join(" · ")} · {SUPPORT_EMAIL}</Text>
+        <Text style={styles.footerSmall}>Indicative quotation, subject to availability.</Text>
       </View>
-      <View style={styles.sectionBannerBrand}>
-        <Text style={styles.sectionBannerBrandText}>D2D Holidays</Text>
-        <Text style={styles.sectionBannerQuoteCode}>{quoteCode}</Text>
-      </View>
+      <Text style={styles.footerN}>{pageLabel}</Text>
     </View>
   );
 }
 
-/** Gradient variant of SectionBanner, reserved for the pricing/closing page — the page most likely to decide the sale. */
-function GradientSectionBanner({
-  eyebrow,
-  title,
-  subtitle,
-  quoteCode,
-}: {
-  eyebrow: string;
-  title: string;
-  subtitle?: string;
-  quoteCode: string;
-}) {
-  const height = 96;
+function SectionHead({ title }: { title: string }) {
   return (
-    <View style={{ marginHorizontal: -32, marginTop: -32, marginBottom: 22 }} fixed>
-      <Svg width={MASTHEAD_WIDTH} height={height} viewBox={`0 0 ${MASTHEAD_WIDTH} ${height}`}>
-        <Defs>
-          <LinearGradient id="pricingGrad" x1="0" y1="0" x2={MASTHEAD_WIDTH} y2={height} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor="#1d4ed8" />
-            <Stop offset="0.55" stopColor="#0891b2" />
-            <Stop offset="1" stopColor="#0d9488" />
-          </LinearGradient>
-        </Defs>
-        <Path d={`M0 0 H${MASTHEAD_WIDTH} V${height} H0 Z`} fill="url(#pricingGrad)" />
-        <Path d="M470 20 m-16,0 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0" fill="#ffffff" opacity={0.12} />
-      </Svg>
-      <View
-        style={{
-          marginTop: -height,
-          height,
-          paddingHorizontal: 32,
-          paddingBottom: 20,
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-        }}
-      >
-        <View>
-          <Text style={styles.sectionBannerEyebrow}>{eyebrow}</Text>
-          <Text style={styles.sectionBannerTitle}>{title}</Text>
-          {subtitle && <Text style={styles.sectionBannerSubtitle}>{subtitle}</Text>}
-        </View>
-        <View style={styles.sectionBannerBrand}>
-          <Text style={styles.sectionBannerBrandText}>D2D Holidays</Text>
-          <Text style={styles.sectionBannerQuoteCode}>{quoteCode}</Text>
-        </View>
-      </View>
+    <View style={styles.sec}>
+      <View style={styles.secDot} />
+      <Text style={styles.secTitle}>{title}</Text>
     </View>
   );
 }
 
-function PageFooter({ quoteCode }: { quoteCode: string }) {
+/** Real photo when one exists, the brand's sky-and-hills illustration otherwise — never a blank box. */
+function SplitPic({ src }: { src?: string | null }) {
   return (
-    <View style={styles.pageFooter} fixed>
-      <Text style={styles.pageFooterText}>D2D Holidays · Drive to Destination · Quote {quoteCode}</Text>
-      <Text style={styles.pageFooterText} render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+    <View style={styles.splitPicWrap}>
+      {src ? <Image src={src} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <SkyHills width={150} height={118} />}
     </View>
   );
 }
 
 function QuotationDocument({ data }: { data: QuotationPdfData }) {
-  const nightsDays = data.nights != null && data.days != null ? `${data.nights}N / ${data.days}D` : null;
-  const paxParts = [
+  const nightsDays = data.nights != null && data.days != null ? `${data.nights}N / ${data.days}D` : data.nights != null ? `${data.nights}N` : "-";
+  const paxShort = [
+    data.adults ? `${data.adults}A` : null,
+    data.children ? `${data.children}C` : null,
+    data.infants ? `${data.infants}I` : null,
+  ].filter(Boolean).join(" · ") || "-";
+  const paxLabel = [
     data.adults ? `${data.adults} Adult${data.adults > 1 ? "s" : ""}` : null,
     data.children ? `${data.children} Child${data.children > 1 ? "ren" : ""}` : null,
     data.infants ? `${data.infants} Infant${data.infants > 1 ? "s" : ""}` : null,
-  ].filter(Boolean);
+  ].filter(Boolean).join(", ") || "-";
 
   const gstAmount = data.sellingPrice - data.subtotal;
   const splitAcrossChildren = data.includeChildCosting && data.children > 0;
-  const pricePerAdult = data.adults > 0
-    ? (splitAcrossChildren ? data.subtotal * 0.8 : data.subtotal) / data.adults
-    : null;
+  const pricePerAdult = data.adults > 0 ? (splitAcrossChildren ? data.subtotal * 0.8 : data.subtotal) / data.adults : null;
   const pricePerChild = splitAcrossChildren ? (data.subtotal * 0.2) / data.children : null;
+
+  const priceRows: { description: string; pax: number | string; unit: string; total: string }[] = [];
+  if (pricePerAdult != null) priceRows.push({ description: "Price per Adult", pax: data.adults, unit: formatINR(pricePerAdult), total: formatINR(pricePerAdult * data.adults) });
+  if (pricePerChild != null) priceRows.push({ description: "Price per Child", pax: data.children, unit: formatINR(pricePerChild), total: formatINR(pricePerChild * data.children) });
+  if (data.infants > 0) priceRows.push({ description: "Infant", pax: data.infants, unit: "Complimentary", total: "—" });
+
+  const primaryHotelGroup = data.hotelOptions.find((g) => g.hotels.length > 0);
+  const totalRooms = primaryHotelGroup?.hotels.reduce((sum, h) => sum + (h.rooms || 0), 0) || 1;
+  const firstHotel = primaryHotelGroup?.hotels[0];
 
   const hasItinerary = data.itineraryDays.length > 0;
   const hasHotels = data.hotelOptions.some((g) => g.hotels.length > 0);
   const hasActivities = data.activities.length > 0;
+  const hasStayPage = hasHotels || hasActivities;
   const hasTransfers = data.transfers.length > 0;
-  const hasInclusions = data.inclusionLines.length > 0 || data.exclusionLines.length > 0;
-  const hasNotes = !!data.importantNotes;
+  const hasHighlights = data.highlights.length > 0;
 
-  // Section numbering — every page gets "SECTION 0X OF 0Y" in its banner, and the cover's
-  // table of contents uses the same numbers, so the document reads as a coherent deck.
-  let counter = 0;
-  const itineraryNum = hasItinerary ? ++counter : 0;
-  const hotelsNum = hasHotels ? ++counter : 0;
-  const activitiesNum = hasActivities ? ++counter : 0;
-  const transfersNum = hasTransfers ? ++counter : 0;
-  const inclusionsNum = hasInclusions ? ++counter : 0;
-  const pricingNum = ++counter;
-  const notesNum = hasNotes ? ++counter : 0;
-  const reviewsNum = ++counter;
-  const totalSections = counter;
-
-  const tocEntries: { num: number; label: string; color: string }[] = [
-    hasItinerary && { num: itineraryNum, label: "Day-wise Itinerary", color: ACCENT.itinerary },
-    hasHotels && { num: hotelsNum, label: "Your Stay", color: ACCENT.hotels },
-    hasActivities && { num: activitiesNum, label: "Activities Included", color: ACCENT.activities },
-    hasTransfers && { num: transfersNum, label: "Transfers", color: ACCENT.transfers },
-    hasInclusions && { num: inclusionsNum, label: "Inclusions & Exclusions", color: ACCENT.inclusions },
-    { num: pricingNum, label: "Price Breakdown & Booking", color: ACCENT.pricing },
-    hasNotes && { num: notesNum, label: "Important Notes", color: ACCENT.notes },
-    { num: reviewsNum, label: "Traveller Reviews", color: ACCENT.reviews },
-  ].filter(Boolean) as { num: number; label: string; color: string }[];
-
-  const eyebrow = (num: number) => `SECTION ${pad2(num)} OF ${pad2(totalSections)}`;
-
-  const trustBadges = [
-    "Best Price Guaranteed",
-    "24 x 7 Concierge Support",
-    "Handpicked Stays & Experiences",
-    "Secure & Easy Booking",
-  ];
+  const band = <PageBand quoteCode={data.quoteCode} destinationName={data.destinationName} />;
 
   return (
     <Document>
-      {/* ---------------------------------------------------------- Cover -- */}
+      {/* ========================================================== Page 1 · Cover == */}
+      <Page size="A4" style={{ padding: 0 }}>
+        <View style={{ position: "absolute", top: 0, left: 0 }}>
+          <SkyHills width={PAGE_W} height={PAGE_H} />
+        </View>
+
+        <View style={styles.coverLogo}><BrandLogo size={26} /></View>
+        <Text style={styles.coverBadge}>QUOTATION · {data.quoteCode}</Text>
+
+        <View style={styles.coverMid}>
+          <Text style={styles.coverEyebrow}>YOUR CUSTOM TRAVEL PLAN</Text>
+          <Text style={styles.coverTitle}>{data.destinationName} <Text style={styles.coverTitleEm}>Escape</Text></Text>
+          {nightsDays !== "-" && <Text style={styles.coverSub}>{nightsDays}</Text>}
+          <Text style={styles.coverFor}>Prepared for <Text style={styles.coverForBold}>{data.customerName}</Text> · {paxLabel}</Text>
+        </View>
+
+        <View style={styles.coverChipsRow}>
+          <View style={styles.cchip}><Text style={styles.cchipL}>TRAVEL DATE</Text><Text style={styles.cchipV}>{data.travelDate || "TBD"}</Text></View>
+          <View style={styles.cchip}><Text style={styles.cchipL}>DURATION</Text><Text style={styles.cchipV}>{nightsDays}</Text></View>
+          <View style={styles.cchip}><Text style={styles.cchipL}>TRAVELLERS</Text><Text style={styles.cchipV}>{paxShort}</Text></View>
+          <View style={styles.cchip}><Text style={styles.cchipL}>VALID UNTIL</Text><Text style={styles.cchipV}>{data.validUntil || "-"}</Text></View>
+        </View>
+      </Page>
+
+      {/* ========================================================== Page 2 · Overview == */}
       <Page size="A4" style={styles.page}>
-        <CoverMasthead quoteCode={data.quoteCode} createdDate={data.createdDate} />
-
-        <View style={styles.heroBanner}>
-          {data.heroImage && <Image src={data.heroImage} style={styles.heroImage} />}
-          <View style={styles.heroTitleBar}>
-            <Text style={styles.heroEyebrow}>YOUR PERSONALISED TRAVEL QUOTE</Text>
-            <Text style={styles.heroTitle}>{data.packageName || data.destinationName}</Text>
-            <Text style={styles.heroSub}>
-              Prepared for {data.customerName}{nightsDays ? ` · ${nightsDays}` : ""} · {data.destinationName}
-            </Text>
+        {band}
+        <View style={styles.content}>
+          <PageWatermark />
+          <SectionHead title="Trip Overview" />
+          <View style={styles.grid2}>
+            <View style={[styles.card, styles.officeCard, { flex: 1.35 }]}>
+              <Text style={styles.officeTitle}>Our Office</Text>
+              <View style={styles.kvRow}><Text style={styles.kvKey}>Address</Text><Text style={styles.kvVal}>{SUPPORT_ADDRESS}</Text></View>
+              <View style={styles.kvRow}><Text style={styles.kvKey}>Phone</Text><Text style={styles.kvVal}>{SUPPORT_PHONES.join(" · ")}</Text></View>
+              <View style={styles.kvRow}><Text style={styles.kvKey}>Email</Text><Text style={styles.kvVal}>{SUPPORT_EMAIL}</Text></View>
+              <View style={styles.kvRow}><Text style={styles.kvKey}>Website</Text><Text style={styles.kvVal}>{SUPPORT_WEBSITE}</Text></View>
+            </View>
+            <View style={[styles.qdetails, { flex: 1 }]}>
+              <Text style={styles.qdetailsTitle}>QUOTATION DETAILS</Text>
+              <View style={styles.qrow}><Text style={styles.qrowK}>Prepared For</Text><Text style={styles.qrowV}>{data.customerName}</Text></View>
+              <View style={styles.qrow}><Text style={styles.qrowK}>Destination</Text><Text style={styles.qrowV}>{data.destinationName}</Text></View>
+              <View style={styles.qrow}><Text style={styles.qrowK}>Departure From</Text><Text style={styles.qrowV}>Trichy</Text></View>
+              <View style={styles.qrow}><Text style={styles.qrowK}>Valid Until</Text><Text style={styles.qrowV}>{data.validUntil || "-"}</Text></View>
+            </View>
           </View>
-        </View>
 
-        <View style={styles.metaPillsRow}>
-          {data.travelDate && <Text style={[styles.metaPill, { color: "#1d4ed8", backgroundColor: "#dbeafe" }]}>Travel Date: {data.travelDate}</Text>}
-          {paxParts.length > 0 && <Text style={[styles.metaPill, { color: "#a16207", backgroundColor: "#fef9c3" }]}>{paxParts.join(", ")}</Text>}
-          {data.validUntil && <Text style={[styles.metaPill, { color: "#be123c", backgroundColor: "#ffe4e6" }]}>Valid Until: {data.validUntil}</Text>}
-        </View>
+          <View style={styles.chipsRow}>
+            <View style={styles.metaChip}><View style={styles.metaChipBar} /><Text style={styles.metaChipL}>TRAVEL DATE</Text><Text style={styles.metaChipV}>{data.travelDate || "TBD"}</Text></View>
+            <View style={styles.metaChip}><View style={styles.metaChipBar} /><Text style={styles.metaChipL}>DURATION</Text><Text style={styles.metaChipV}>{nightsDays}</Text></View>
+            <View style={styles.metaChip}><View style={styles.metaChipBar} /><Text style={styles.metaChipL}>HOTEL CATEGORY</Text><Text style={styles.metaChipV}>{firstHotel?.category || "-"}</Text></View>
+            <View style={styles.metaChip}><View style={styles.metaChipBar} /><Text style={styles.metaChipL}>ROOM TYPE</Text><Text style={styles.metaChipV}>{firstHotel?.roomType || "-"}</Text></View>
+          </View>
 
-        <View style={styles.tocWrap}>
-          <Text style={styles.tocTitle}>What&apos;s Inside This Quote</Text>
-          <View style={styles.tocGrid}>
-            {tocEntries.map((entry) => (
-              <View key={entry.label} style={styles.tocRow}>
-                <View style={[styles.tocNumberBadge, { backgroundColor: entry.color }]}>
-                  <Text style={styles.tocNumberText}>{pad2(entry.num)}</Text>
+          <View style={styles.tstrip}>
+            <Text>Total Travellers <Text style={styles.tstripB}>{data.adults + data.children + data.infants}</Text></Text>
+            <Text>Adults <Text style={styles.tstripB}>{data.adults}</Text></Text>
+            <Text>Children <Text style={styles.tstripB}>{data.children}</Text></Text>
+            <Text>Infants <Text style={styles.tstripB}>{data.infants}</Text></Text>
+            <Text>Rooms <Text style={styles.tstripB}>{totalRooms}</Text></Text>
+          </View>
+
+          {hasHighlights && (
+            <>
+              <SectionHead title="Trip Highlights" />
+              <View style={[styles.card, styles.hlCard]}>
+                <View style={styles.hlGrid}>
+                  {data.highlights.map((h) => (
+                    <Text key={h} style={styles.hl}><Text style={styles.hlCheck}>✓</Text> {h}</Text>
+                  ))}
                 </View>
-                <Text style={styles.tocLabel}>{entry.label}</Text>
+              </View>
+            </>
+          )}
+        </View>
+        <PageFooter pageLabel="02" />
+      </Page>
+
+      {/* ========================================================== Page 3 · Itinerary == */}
+      {hasItinerary && (
+        <Page size="A4" style={styles.page}>
+          {band}
+          <View style={styles.content}>
+            <PageWatermark />
+            <SectionHead title="Day-Wise Itinerary" />
+            {data.itineraryDays.map((d) => (
+              <View key={d.id} style={[styles.card, styles.day]} wrap={false}>
+                <View style={styles.dhead}>
+                  <Text style={styles.dpill}>Day {d.dayNumber}</Text>
+                  <Text style={styles.ddate}>{d.title}</Text>
+                </View>
+                {d.description && <Text style={styles.dbody}>{d.description}</Text>}
+                {d.meals.length > 0 && <Text style={styles.dbody}>Meals: {d.meals.join(", ")}</Text>}
+                {d.notes && <Text style={styles.dnote}>Note: {d.notes}</Text>}
               </View>
             ))}
           </View>
-        </View>
-
-        <Text style={styles.coverFooterNote}>
-          This is an indicative quotation and is subject to availability at the time of booking.
-        </Text>
-
-        <PageFooter quoteCode={data.quoteCode} />
-      </Page>
-
-      {/* ------------------------------------------------------ Itinerary -- */}
-      {hasItinerary && (
-        <Page size="A4" style={styles.page}>
-          <SectionBanner
-            color={ACCENT.itinerary}
-            eyebrow={eyebrow(itineraryNum)}
-            title="Day-wise Itinerary"
-            subtitle="Every day, planned so you don't have to"
-            quoteCode={data.quoteCode}
-          />
-          {data.itineraryDays.map((d) => (
-            <View key={d.id} style={styles.dayCard} wrap={false}>
-              <View style={styles.dayBadgeRow}>
-                <Text style={styles.dayBadge}>DAY {d.dayNumber}</Text>
-                <Text style={styles.dayTitle}>{d.title}</Text>
-              </View>
-              {d.description && <Text style={styles.dayText}>{d.description}</Text>}
-              {d.meals.length > 0 && (
-                <Text style={styles.dayText}><Text style={styles.dayMetaLabel}>Meals: </Text>{d.meals.join(", ")}</Text>
-              )}
-              {d.notes && <Text style={styles.dayText}><Text style={styles.dayMetaLabel}>Notes: </Text>{d.notes}</Text>}
-            </View>
-          ))}
-          <PageFooter quoteCode={data.quoteCode} />
+          <PageFooter pageLabel="03" />
         </Page>
       )}
 
-      {/* ---------------------------------------------------------- Hotels -- */}
-      {hasHotels && (
+      {/* ========================================================== Page 4 · Stay + Activities == */}
+      {hasStayPage && (
         <Page size="A4" style={styles.page}>
-          <SectionBanner
-            color={ACCENT.hotels}
-            eyebrow={eyebrow(hotelsNum)}
-            title="Your Stay"
-            subtitle="Handpicked stays for an unforgettable experience"
-            quoteCode={data.quoteCode}
-          />
-          {data.hotelOptions.map((group) =>
-            group.hotels.length === 0 ? null : (
-              <View key={group.id} wrap={false}>
-                {data.hotelOptions.length > 1 && <Text style={styles.optionBadge}>{group.label}</Text>}
-                {group.hotels.map((h) => (
-                  <View key={h.id} style={styles.hotelCard} wrap={false}>
-                    {h.images?.[0] && <Image src={h.images[0]} style={styles.hotelImage} />}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.hotelName}>{h.hotelName}</Text>
-                      {h.description && <Text style={styles.hotelMeta}>{h.description}</Text>}
-                      <View style={styles.hotelPillsRow}>
-                        {h.roomType && <Text style={styles.hotelPill}>{h.roomType}</Text>}
-                        {h.checkIn && <Text style={styles.hotelPill}>Check-in: {h.checkIn}</Text>}
-                        {h.checkOut && <Text style={styles.hotelPill}>Check-out: {h.checkOut}</Text>}
-                        {h.mealPlan && <Text style={styles.hotelPill}>{h.mealPlan}</Text>}
-                        {h.nights > 0 && <Text style={styles.hotelPill}>{h.nights}N · {h.rooms} Room{h.rooms > 1 ? "s" : ""}</Text>}
+          {band}
+          <View style={styles.content}>
+            <PageWatermark />
+            {hasHotels && (
+              <>
+                <SectionHead title="Your Stay" />
+                {data.hotelOptions.map((group) =>
+                  group.hotels.map((h, i) => (
+                    <View key={h.id} style={[styles.split, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
+                      <View style={styles.splitTxt}>
+                        <Text style={styles.splitH3}>{h.hotelName}</Text>
+                        {h.roomType && <View style={styles.srow}><Text style={styles.srowK}>Room</Text><Text style={styles.srowV}>{h.roomType}</Text></View>}
+                        {h.checkIn && <View style={styles.srow}><Text style={styles.srowK}>Check-in</Text><Text style={styles.srowV}>{h.checkIn}</Text></View>}
+                        {h.checkOut && <View style={styles.srow}><Text style={styles.srowK}>Check-out</Text><Text style={styles.srowV}>{h.checkOut}</Text></View>}
+                        {h.mealPlan && <View style={styles.srow}><Text style={styles.srowK}>Plan</Text><Text style={styles.srowV}>{h.mealPlan}</Text></View>}
+                        <Text style={styles.npill}>{h.nights || 1} {h.nights === 1 ? "Night" : "Nights"}</Text>
                       </View>
+                      <SplitPic src={h.images?.[0]} />
                     </View>
+                  )),
+                )}
+              </>
+            )}
+
+            {hasActivities && (
+              <View style={{ marginTop: hasHotels ? 4 : 0 }}>
+                <SectionHead title="Activities Included" />
+                {data.activities.map((a, i) => (
+                  <View key={a.id} style={[styles.split, styles.splitCream, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
+                    <View style={styles.splitTxt}>
+                      <Text style={styles.splitH3}>{a.name}</Text>
+                      {a.activityDate && <View style={styles.srow}><Text style={styles.srowK}>Date</Text><Text style={styles.srowV}>{a.activityDate}</Text></View>}
+                      {(a.activityTime || a.duration || a.pax) && (
+                        <View style={styles.srow}>
+                          <Text style={styles.srowK}>Timing</Text>
+                          <Text style={styles.srowV}>{[a.activityTime && `Starts ${a.activityTime}`, a.duration, a.pax ? `${a.pax} Pax` : null].filter(Boolean).join(" · ")}</Text>
+                        </View>
+                      )}
+                      {a.reportingTime && <View style={styles.srow}><Text style={styles.srowK}>Reporting</Text><Text style={styles.srowV}>{a.reportingTime}</Text></View>}
+                    </View>
+                    <SplitPic src={a.images?.[0]} />
                   </View>
                 ))}
               </View>
-            ),
-          )}
-          <PageFooter quoteCode={data.quoteCode} />
+            )}
+          </View>
+          <PageFooter pageLabel="04" />
         </Page>
       )}
 
-      {/* ------------------------------------------------------ Activities -- */}
-      {hasActivities && (
-        <Page size="A4" style={styles.page}>
-          <SectionBanner
-            color={ACCENT.activities}
-            eyebrow={eyebrow(activitiesNum)}
-            title="Activities Included"
-            subtitle="Experiences that make the trip unforgettable"
-            quoteCode={data.quoteCode}
-          />
-          {data.activities.map((a) => (
-            <View key={a.id} style={[styles.detailCard, styles.activityCard]} wrap={false}>
-              {a.images?.[0] ? (
-                <Image src={a.images[0]} style={styles.detailImage} />
-              ) : (
-                <View style={styles.detailImagePlaceholder} />
-              )}
-              <View style={styles.detailBody}>
-                <Text style={styles.activityName}>{a.name}</Text>
-                <View style={styles.detailPillsRow}>
-                  {a.activityDate && <Text style={styles.activityPill}>{a.activityDate}</Text>}
-                  {a.activityTime && <Text style={styles.activityPill}>Starts {a.activityTime}</Text>}
-                  {a.duration && <Text style={styles.activityPill}>{a.duration}</Text>}
-                  {a.pax > 0 && <Text style={styles.activityPill}>{a.pax} Pax</Text>}
-                </View>
-                {a.reportingTime && <Text style={styles.detailMeta}>Reporting time: {a.reportingTime}</Text>}
-                {a.description && <Text style={styles.detailMeta}>{a.description}</Text>}
-                {a.notes && <Text style={styles.detailNotes}>{a.notes}</Text>}
-              </View>
-            </View>
-          ))}
-          <PageFooter quoteCode={data.quoteCode} />
-        </Page>
-      )}
-
-      {/* -------------------------------------------------------- Transfers -- */}
+      {/* ========================================================== Page 5 · Transfers == */}
       {hasTransfers && (
         <Page size="A4" style={styles.page}>
-          <SectionBanner
-            color={ACCENT.transfers}
-            eyebrow={eyebrow(transfersNum)}
-            title="Transfers"
-            subtitle="Seamless movement, door to door"
-            quoteCode={data.quoteCode}
-          />
-          {data.transfers.map((t) => (
-            <View key={t.id} style={[styles.detailCard, styles.transferCard]} wrap={false}>
-              {t.images?.[0] ? (
-                <Image src={t.images[0]} style={styles.detailImage} />
-              ) : (
-                <View style={styles.detailImagePlaceholder} />
-              )}
-              <View style={styles.detailBody}>
-                <Text style={styles.transferName}>{t.name || t.vehicleType || "Transfer"}</Text>
-                {(t.pickupLocation || t.dropLocation) && (
-                  <Text style={styles.transferRoute}>{t.pickupLocation} {"->"} {t.dropLocation}</Text>
-                )}
-                <View style={styles.detailPillsRow}>
-                  {t.vehicleType && <Text style={styles.transferPill}>{t.vehicleType}</Text>}
-                  <Text style={styles.transferPill}>{t.mode}</Text>
-                  {t.transferDate && <Text style={styles.transferPill}>{t.transferDate}</Text>}
-                  {t.duration && <Text style={styles.transferPill}>{t.duration}</Text>}
+          {band}
+          <View style={styles.content}>
+            <PageWatermark />
+            <SectionHead title="Transfers" />
+            {data.transfers.map((t, i) => (
+              <View key={t.id} style={[styles.split, i % 2 === 0 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
+                <View style={styles.splitTxt}>
+                  <Text style={[styles.splitH3, styles.splitH3Route]}>{t.pickupLocation || "-"} → {t.dropLocation || "-"}</Text>
+                  {(t.vehicleType || t.name) && <View style={styles.srow}><Text style={styles.srowK}>Vehicle</Text><Text style={styles.srowV}>{t.vehicleType || t.name}</Text></View>}
+                  {(t.transferDate || t.duration) && (
+                    <View style={styles.srow}><Text style={styles.srowK}>Date</Text><Text style={styles.srowV}>{[t.transferDate, t.duration].filter(Boolean).join(" · ")}</Text></View>
+                  )}
+                  {(t.pickupTime || t.dropTime) && (
+                    <View style={styles.srow}><Text style={styles.srowK}>Pickup</Text><Text style={styles.srowV}>{[t.pickupTime, t.dropTime].filter(Boolean).join(" → ")}</Text></View>
+                  )}
                 </View>
-                {(t.pickupTime || t.dropTime) && (
-                  <Text style={styles.detailMeta}>
-                    {t.pickupTime && `Pickup ${t.pickupTime}`}
-                    {t.pickupTime && t.dropTime && "  ·  "}
-                    {t.dropTime && `Drop ${t.dropTime}`}
-                  </Text>
-                )}
-                {t.description && <Text style={styles.detailMeta}>{t.description}</Text>}
-                {t.notes && <Text style={styles.detailNotes}>{t.notes}</Text>}
+                <SplitPic src={t.images?.[0]} />
+              </View>
+            ))}
+          </View>
+          <PageFooter pageLabel="05" />
+        </Page>
+      )}
+
+      {/* ========================================================== Page 6 · Inclusions + Price == */}
+      <Page size="A4" style={styles.page}>
+        {band}
+        <View style={styles.content}>
+          <PageWatermark />
+          <SectionHead title="Inclusions & Exclusions" />
+          <View style={styles.grid2}>
+            <View style={[styles.card, styles.ieCard, { flex: 1 }]}>
+              <Text style={[styles.ieCardTitle, styles.ieCardTitleInc]}>INCLUSIONS</Text>
+              {data.inclusionLines.map((line, i) => (
+                <View key={i} style={styles.ie}><Text style={styles.ieMarkInc}>✓</Text><Text style={{ flex: 1 }}>{line}</Text></View>
+              ))}
+            </View>
+            <View style={[styles.card, styles.ieCard, { flex: 1 }]}>
+              <Text style={[styles.ieCardTitle, styles.ieCardTitleExc]}>EXCLUSIONS</Text>
+              {data.exclusionLines.map((line, i) => (
+                <View key={i} style={styles.ie}><Text style={styles.ieMarkExc}>✕</Text><Text style={{ flex: 1 }}>{line}</Text></View>
+              ))}
+            </View>
+          </View>
+
+          <SectionHead title="Price Breakdown" />
+          <View style={styles.pgrid}>
+            <View style={styles.ptableWrap}>
+              <View style={styles.ptHeadRow}>
+                <Text style={[styles.pth, { flex: 2 }]}>Description</Text>
+                <Text style={[styles.pth, { flex: 0.8, textAlign: "center" }]}>Pax</Text>
+                <Text style={[styles.pth, { flex: 1.2, textAlign: "right" }]}>Unit Price</Text>
+                <Text style={[styles.pth, { flex: 1.2, textAlign: "right" }]}>Total</Text>
+              </View>
+              {priceRows.map((r) => (
+                <View key={r.description} style={styles.ptr}>
+                  <Text style={[styles.ptd, { flex: 2 }]}>{r.description}</Text>
+                  <Text style={[styles.ptd, { flex: 0.8, textAlign: "center" }]}>{r.pax}</Text>
+                  <Text style={[styles.ptd, { flex: 1.2, textAlign: "right" }]}>{r.unit}</Text>
+                  <Text style={[styles.ptd, styles.ptdBold, { flex: 1.2, textAlign: "right" }]}>{r.total}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.psum}>
+              <View style={styles.psumRow}><Text>Package Cost</Text><Text style={styles.psumRowV}>{formatINR(data.subtotal)}</Text></View>
+              <View style={styles.psumRow}><Text>GST ({data.gstPercent}%)</Text><Text style={styles.psumRowV}>{formatINR(gstAmount)}</Text></View>
+              <View style={styles.gt}>
+                <Text style={styles.gtLbl}>GRAND TOTAL</Text>
+                <Text style={styles.gtVal}>{formatINR(data.sellingPrice)}</Text>
               </View>
             </View>
-          ))}
-          <PageFooter quoteCode={data.quoteCode} />
-        </Page>
-      )}
-
-      {/* ------------------------------------------------------ Inclusions -- */}
-      {hasInclusions && (
-        <Page size="A4" style={styles.page}>
-          <SectionBanner
-            color={ACCENT.inclusions}
-            eyebrow={eyebrow(inclusionsNum)}
-            title="Inclusions & Exclusions"
-            subtitle="No surprises — know exactly what's covered"
-            quoteCode={data.quoteCode}
-          />
-          <View style={styles.twoCol}>
-            <View style={styles.col}>
-              <Text style={styles.colHeaderGreen}>Inclusions</Text>
-              {data.inclusionLines.map((line, i) => (
-                <View key={i} style={styles.bulletRow}>
-                  <View style={styles.bulletDot} />
-                  <Text style={styles.bulletText}>{line}</Text>
-                </View>
-              ))}
-            </View>
-            <View style={styles.col}>
-              <Text style={styles.colHeaderRose}>Exclusions</Text>
-              {data.exclusionLines.map((line, i) => (
-                <View key={i} style={styles.bulletRow}>
-                  <View style={[styles.bulletDot, styles.bulletDotRose]} />
-                  <Text style={styles.bulletText}>{line}</Text>
-                </View>
-              ))}
-            </View>
           </View>
-          <PageFooter quoteCode={data.quoteCode} />
-        </Page>
-      )}
-
-      {/* ---------------------------------------------------------- Pricing -- */}
-      <Page size="A4" style={styles.page}>
-        <GradientSectionBanner
-          eyebrow={eyebrow(pricingNum)}
-          title="Price Breakdown & Booking"
-          subtitle="Transparent pricing — no hidden costs"
-          quoteCode={data.quoteCode}
-        />
-
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>DESTINATION</Text>
-            <Text style={styles.statValue}>{data.destinationName}</Text>
-          </View>
-          {nightsDays && (
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>DURATION</Text>
-              <Text style={styles.statValue}>{nightsDays}</Text>
-            </View>
-          )}
-          {paxParts.length > 0 && (
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>TRAVELLERS</Text>
-              <Text style={styles.statValue}>{paxParts.join(", ")}</Text>
-            </View>
-          )}
-          {data.validUntil && (
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>VALID UNTIL</Text>
-              <Text style={styles.statValue}>{data.validUntil}</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.priceCard} wrap={false}>
-          <Text style={styles.priceCardTitle}>Price Break down</Text>
-          {paxParts.length > 0 && (
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Travellers</Text>
-              <Text style={styles.priceValue}>{paxParts.join(", ")}</Text>
-            </View>
-          )}
-          {(data.travelDate || data.travelEndDate) && (
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Travel Dates</Text>
-              <Text style={styles.priceValue}>
-                {data.travelDate ?? "-"}
-                {data.travelEndDate ? ` -> ${data.travelEndDate}` : ""}
-              </Text>
-            </View>
-          )}
-          {pricePerAdult != null && (
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Price per Adult</Text>
-              <Text style={styles.priceValue}>{formatINR(pricePerAdult)}</Text>
-            </View>
-          )}
-          {pricePerChild != null && (
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Price per Child</Text>
-              <Text style={styles.priceValue}>{formatINR(pricePerChild)}</Text>
-            </View>
-          )}
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Package Cost</Text>
-            <Text style={styles.priceValue}>{formatINR(data.subtotal)}</Text>
-          </View>
-          <View style={[styles.priceRow, { borderBottom: "none" }]}>
-            <Text style={styles.priceLabel}>GST ({data.gstPercent}%)</Text>
-            <Text style={styles.priceValue}>{formatINR(gstAmount)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.totalBox} wrap={false}>
-          <View>
-            <Text style={styles.totalLabel}>Grand Total</Text>
-            <Text style={styles.totalSub}>Inclusive of GST{data.validUntil ? ` · Valid until ${data.validUntil}` : ""}</Text>
-          </View>
-          <Text style={styles.totalValue}>{formatINR(data.sellingPrice)}</Text>
-        </View>
-
-        <View style={styles.trustRow}>
-          {trustBadges.map((label) => (
-            <View key={label} style={styles.trustBadge}>
-              <View style={styles.trustCheck} />
-              <Text style={styles.trustText}>{label}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.ctaRibbon} wrap={false}>
-          <Text style={styles.ctaRibbonText}>
-            {data.validUntil ? `This quote is valid until ${data.validUntil}. ` : ""}Reserve your dates today — availability is subject to change.
+          <Text style={styles.pnote}>
+            Inclusive of GST{data.validUntil ? ` · Valid until ${data.validUntil}` : ""} · Rates are dynamic and subject to availability at the time of booking.
           </Text>
         </View>
-
-        <PageFooter quoteCode={data.quoteCode} />
+        <PageFooter pageLabel="06" />
       </Page>
 
-      {/* ------------------------------------------------------------ Notes -- */}
-      {hasNotes && (
-        <Page size="A4" style={styles.page}>
-          <SectionBanner
-            color={ACCENT.notes}
-            eyebrow={eyebrow(notesNum)}
-            title="Important Notes"
-            subtitle="Please read before you travel"
-            quoteCode={data.quoteCode}
-          />
-          <View style={styles.notesBox}>
-            <Text style={styles.notesText}>{data.importantNotes}</Text>
-          </View>
-          <PageFooter quoteCode={data.quoteCode} />
-        </Page>
-      )}
-
-      {/* --------------------------------------------------------- Reviews -- */}
+      {/* ========================================================== Page 7 · Terms + CTA + Lockup == */}
       <Page size="A4" style={styles.page}>
-        <SectionBanner
-          color={ACCENT.reviews}
-          eyebrow={eyebrow(reviewsNum)}
-          title="Real Reviews from Real Journeys"
-          subtitle="Trusted by travellers across India"
-          quoteCode={data.quoteCode}
-        />
-        <View style={styles.reviewsRow}>
-          {REVIEWS.slice(0, 3).map((r) => (
-            <View key={r.id} style={styles.reviewCard}>
-              <Text style={styles.reviewName}>{r.name}</Text>
-              <Text style={styles.reviewLocation}>{r.location}</Text>
-              <View style={styles.reviewStarsRow}>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={i < r.rating ? styles.reviewStarDot : { ...styles.reviewStarDot, ...styles.reviewStarDotEmpty }}
-                  />
-                ))}
-                <Text style={styles.reviewTrip}>{r.trip}</Text>
-              </View>
-              <Text style={styles.reviewComment}>&quot;{r.comment}&quot;</Text>
+        {band}
+        <View style={styles.content}>
+          <PageWatermark />
+          <SectionHead title="Booking Terms & Policies" />
+          <View style={styles.termsGrid}>
+            <View style={[styles.card, styles.termCard]}>
+              <Text style={styles.termTitle}>Payment Policy</Text>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>Advance: {data.advanceAmount > 0 ? formatINR(data.advanceAmount) : "as agreed"} at booking</Text></View>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>Balance due before departure, as per confirmation</Text></View>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>Accepted: bank transfer, card, UPI</Text></View>
             </View>
-          ))}
-        </View>
+            <View style={[styles.card, styles.termCard]}>
+              <Text style={styles.termTitle}>Cancellation Policy</Text>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>More than 45 days before: partial refund</Text></View>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>30–45 days before: reduced refund</Text></View>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>Less than 30 days: no refund</Text></View>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>All cancellations must be in writing</Text></View>
+            </View>
+            <View style={[styles.card, styles.termCard]}>
+              <Text style={styles.termTitle}>Hotel & Transport Notes</Text>
+              <Text style={styles.termP}>
+                Hotel accommodations are subject to availability at time of confirmation; equivalent alternatives offered where needed. Early check-in / late check-out chargeable directly at the hotel.
+              </Text>
+            </View>
+            <View style={[styles.card, styles.termCard]}>
+              <Text style={styles.termTitle}>Good to Know</Text>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>Keep ID / travel documents separate from originals</Text></View>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>Pack for destination weather; carry medication</Text></View>
+              <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>Share itinerary with a trusted contact</Text></View>
+              {data.validUntil && <View style={styles.termLi}><Text style={styles.termDot}>•</Text><Text style={{ flex: 1 }}>Quote valid until {data.validUntil}</Text></View>}
+            </View>
+          </View>
 
-        <View style={styles.closingBlock} wrap={false}>
-          <Text style={styles.closingTitle}>Ready to make it real?</Text>
-          <Text style={styles.closingText}>
-            Reply to confirm this quotation, or reach us at +91 98765 43210 / info@d2dholidays.com — our travel experts are on standby to help you book.
-          </Text>
-        </View>
+          {data.importantNotes && (
+            <View style={[styles.card, styles.termCard, { width: "100%", marginTop: 10 }]}>
+              <Text style={styles.termTitle}>Important Notes</Text>
+              <Text style={styles.termP}>{data.importantNotes}</Text>
+            </View>
+          )}
 
-        <PageFooter quoteCode={data.quoteCode} />
+          <View style={styles.statsRow}>
+            <View style={styles.stat}><Text style={styles.statV}>4.9★</Text><Text style={styles.statL}>AVERAGE RATING</Text></View>
+            <View style={styles.stat}><Text style={styles.statV}>25,000+</Text><Text style={styles.statL}>HAPPY TRAVELLERS</Text></View>
+            <View style={styles.stat}><Text style={styles.statV}>98%</Text><Text style={styles.statL}>WOULD RECOMMEND</Text></View>
+          </View>
+
+          <View style={styles.cta}>
+            <Text style={styles.ctaTitle}>Ready to make it yours?</Text>
+            <Text style={styles.ctaP1}><Text style={styles.ctaP1B}>{SUPPORT_PHONES.join(" · ")}</Text> · {SUPPORT_EMAIL}</Text>
+            <Text style={styles.ctaP2}>{SUPPORT_WEBSITE}</Text>
+          </View>
+
+          <View style={styles.closingLockup}>
+            <PlaneMark size={38} />
+            <View style={styles.closingWord}>
+              <Text style={styles.closingWordD2D}>D2D</Text>
+              <Text style={styles.closingWordHolidays}>Holidays</Text>
+            </View>
+            <Text style={styles.closingTagline}>DRIVE TO DESTINATION</Text>
+          </View>
+        </View>
+        <PageFooter pageLabel="07" />
+      </Page>
+
+      {/* ========================================================== Page 8 · Thank You == */}
+      <Page size="A4" style={styles.page}>
+        {band}
+        <View style={styles.content}>
+          <PageWatermark />
+          <Text style={styles.thanksTitle}>Thank you for choosing{"\n"}Drive to Destination</Text>
+          <View style={{ marginTop: 16, maxWidth: 400 }}>
+            <Text style={styles.thanksMsg}>
+              Every unforgettable journey begins with trust. At {COMPANY_FULL_NAME}, we&apos;re proud to be a part of our customers&apos; most cherished travel memories.
+            </Text>
+            <Text style={styles.thanksMsg}>
+              Your reviews inspire us to go the extra mile, ensuring every itinerary is thoughtfully planned, every experience is seamless, and every moment becomes unforgettable.
+            </Text>
+            <Text style={styles.thanksMsg}>Thank you for choosing us to create memories that last a lifetime.</Text>
+          </View>
+
+          <View style={[styles.contactCard, { maxWidth: 420 }]}>
+            <Text style={styles.contactCardBold}>D2D Holidays — {COMPANY_FULL_NAME}</Text>
+            <Text style={styles.contactCardLine}>Phone: {SUPPORT_PHONES.join(" / ")}</Text>
+            <Text style={styles.contactCardLine}>Email: {SUPPORT_EMAIL}</Text>
+            <Text style={styles.contactCardLine}>Website: {SUPPORT_WEBSITE}</Text>
+            <Text style={styles.contactCardLine}>Address: {SUPPORT_ADDRESS}</Text>
+          </View>
+
+          {data.heroImage && (
+            <View style={{ marginTop: 16, width: 220, height: 260, borderRadius: 12, overflow: "hidden", alignSelf: "center" }}>
+              <Image src={data.heroImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            </View>
+          )}
+        </View>
+        <PageFooter pageLabel="08" />
       </Page>
     </Document>
   );

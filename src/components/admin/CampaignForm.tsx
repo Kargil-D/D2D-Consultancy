@@ -469,6 +469,7 @@ export default function CampaignForm({ id }: CampaignFormProps) {
                   </div>
                   <HotelStaysEditor
                     hotels={hotelPlan?.hotels ?? []}
+                    destinationId={form.destinationId}
                     onChange={(hotels) => setHotelPlan((h) => ({ ...h, hotels }))}
                   />
                 </>

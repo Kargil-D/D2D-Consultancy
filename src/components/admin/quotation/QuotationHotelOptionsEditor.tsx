@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { Plus, Trash2, Search, BedDouble, MapPin, Globe } from "lucide-react";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
+import { useToast } from "@/components/admin/ui/Toast";
 import { hotelMasterApi } from "@/lib/adminApi";
+import { isWithinRange, dateRangeMessage } from "@/utils/dateRange";
 import type { AdminHotelMaster, QuotationHotelOptionGroup, QuotationHotelOptionLabel, QuotationHotelSelection } from "@/types/admin";
 
 const OPTION_LABELS: QuotationHotelOptionLabel[] = ["Option A", "Option B", "Option C"];
@@ -32,9 +34,13 @@ const selectionFromMaster = (hotel: AdminHotelMaster): QuotationHotelSelection =
 interface QuotationHotelOptionsEditorProps {
   options: QuotationHotelOptionGroup[];
   onChange: (options: QuotationHotelOptionGroup[]) => void;
+  /** Trip's travel start/end dates (YYYY-MM-DD) — check-in/check-out must fall within this range. */
+  minDate?: string;
+  maxDate?: string;
 }
 
-export default function QuotationHotelOptionsEditor({ options, onChange }: QuotationHotelOptionsEditorProps) {
+export default function QuotationHotelOptionsEditor({ options, onChange, minDate, maxDate }: QuotationHotelOptionsEditorProps) {
+  const { notify } = useToast();
   const [catalog, setCatalog] = useState<AdminHotelMaster[]>([]);
   const [activeTab, setActiveTab] = useState<QuotationHotelOptionLabel>("Option A");
   const [search, setSearch] = useState("");
@@ -73,6 +79,15 @@ export default function QuotationHotelOptionsEditor({ options, onChange }: Quota
           : g,
       ),
     );
+  };
+
+  /** Rejects check-in/check-out dates outside the trip's travel dates instead of applying them. */
+  const updateHotelDate = (hotelId: string, field: "checkIn" | "checkOut", value: string) => {
+    if (!isWithinRange(value, minDate, maxDate)) {
+      notify(dateRangeMessage(minDate, maxDate), "error");
+      return;
+    }
+    updateHotel(hotelId, { [field]: value });
   };
 
   const removeHotel = (hotelId: string) => {
@@ -153,10 +168,10 @@ export default function QuotationHotelOptionsEditor({ options, onChange }: Quota
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Field label="Check-in">
-              <input type="date" className={inputCls} value={h.checkIn} onChange={(e) => updateHotel(h.id, { checkIn: e.target.value })} />
+              <input type="date" className={inputCls} value={h.checkIn} min={minDate} max={maxDate} onChange={(e) => updateHotelDate(h.id, "checkIn", e.target.value)} />
             </Field>
             <Field label="Check-out">
-              <input type="date" className={inputCls} value={h.checkOut} onChange={(e) => updateHotel(h.id, { checkOut: e.target.value })} />
+              <input type="date" className={inputCls} value={h.checkOut} min={minDate} max={maxDate} onChange={(e) => updateHotelDate(h.id, "checkOut", e.target.value)} />
             </Field>
             <Field label="Rooms">
               <input type="number" min={1} className={inputCls} value={h.rooms} onChange={(e) => updateHotel(h.id, { rooms: Number(e.target.value) || 1 })} />

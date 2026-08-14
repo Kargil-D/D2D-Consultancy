@@ -8,7 +8,6 @@ import {
   Plus,
   Trash2,
   FileDown,
-  Mail,
   Share2,
   Copy,
   Save,
@@ -26,7 +25,10 @@ import {
 } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
-import { bookingsApi, currenciesApi, destinationsApi, leadsApi, packagesApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
+import {
+  bookingsApi, currenciesApi, destinationsApi, hotelMasterApi, hotelsApi, itinerariesApi, leadsApi,
+  packagesApi, quotationsApi, salesUsersApi, transferTypesApi, transfersApi,
+} from "@/lib/adminApi";
 import { useAuth } from "@/contexts/AuthContext";
 import QuotationItineraryDaysEditor, { newQuotationDay } from "@/components/admin/quotation/QuotationItineraryDaysEditor";
 import QuotationHotelOptionsEditor from "@/components/admin/quotation/QuotationHotelOptionsEditor";
@@ -43,6 +45,7 @@ import type {
   QuotationComponentType,
   QuotationCustomerInput,
   QuotationHotelOptionGroup,
+  QuotationHotelSelection,
   QuotationItineraryDay,
   QuotationTransferItem,
 } from "@/types/admin";
@@ -125,6 +128,7 @@ interface Draft {
   destinationId: string;
   campaignId: string;
   travelDate: string;
+  travelEndDate: string;
   days: string;
   nights: string;
   adults: number;
@@ -153,6 +157,7 @@ const emptyDraft = (): Draft => ({
   destinationId: "",
   campaignId: "",
   travelDate: "",
+  travelEndDate: "",
   days: "",
   nights: "",
   adults: 1,
@@ -249,6 +254,9 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           },
           destinationId: res.data.destinationId,
           source: res.data.source,
+          travelDate: res.data.travelDate ? res.data.travelDate.slice(0, 10) : "",
+          adults: res.data.adults ?? 1,
+          children: res.data.children ?? 0,
         });
       }
     });
@@ -271,6 +279,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           destinationId: q.destinationId,
           campaignId: q.campaignId ?? "",
           travelDate: q.travelDate ? q.travelDate.slice(0, 10) : "",
+          travelEndDate: q.travelEndDate ? q.travelEndDate.slice(0, 10) : "",
           days: q.days != null ? String(q.days) : "",
           nights: q.nights != null ? String(q.nights) : "",
           adults: q.adults,
@@ -304,7 +313,8 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialId]);
 
-  // Selecting an Itinerary Template pre-loads default components (only for a fresh/empty builder).
+  // Selecting an Itinerary Template pre-loads Steps 2–6 from the campaign's own content
+  // (only for a fresh/empty builder — see hasManualRows guard below).
   const applyTemplate = async (nextCampaignId: string) => {
     patch({ campaignId: nextCampaignId });
     if (!nextCampaignId) return;
@@ -318,6 +328,98 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     if (campaign.insurancePrice > 0) {
       patch({ items: [...draft.items, { component: "Insurance", detail: "Travel insurance", qty: 1, cost: campaign.insurancePrice, sortOrder: draft.items.length }] });
     }
+
+    const [itineraryRes, hotelPlanRes, transferPlanRes, hotelMastersRes, transferTypesRes] = await Promise.all([
+      itinerariesApi.list({ filter: { packageId: nextCampaignId }, pageSize: 1 }),
+      hotelsApi.list({ filter: { packageId: nextCampaignId }, pageSize: 1 }),
+      transfersApi.list({ filter: { packageId: nextCampaignId }, pageSize: 1 }),
+      hotelMasterApi.all(),
+      transferTypesApi.list({ pageSize: 1000 }),
+    ]);
+
+    const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const campaignDays = itineraryRes.success ? itineraryRes.data.items[0]?.days ?? [] : [];
+    const campaignHotels = hotelPlanRes.success ? hotelPlanRes.data.items[0]?.hotels ?? [] : [];
+    const campaignTransfers = transferPlanRes.success ? transferPlanRes.data.items[0]?.transfers ?? [] : [];
+    const hotelMasters = hotelMastersRes.success ? hotelMastersRes.data : [];
+    const transferTypes = transferTypesRes.success ? transferTypesRes.data.items : [];
+
+    const itineraryDays: QuotationItineraryDay[] = campaignDays.map((d, i) => ({
+      id: newId(),
+      dayNumber: d.order ?? i + 1,
+      title: d.title || `Day ${i + 1}`,
+      description: d.description ?? "",
+      images: d.dayImage ? [d.dayImage] : [],
+      meals: d.mealsIncluded ?? [],
+      notes: [d.stayDetails, d.transportDetails, d.activities?.length ? `Activities: ${d.activities.join(", ")}` : ""]
+        .filter(Boolean)
+        .join(" · "),
+    }));
+
+    const hotelSelections: QuotationHotelSelection[] = campaignHotels.map((h) => {
+      const master = h.hotelMasterId ? hotelMasters.find((m) => m.id === h.hotelMasterId) : undefined;
+      return {
+        id: newId(),
+        hotelMasterId: h.hotelMasterId ?? null,
+        hotelName: h.name || master?.name || "",
+        images: (h.images?.length ? h.images : master?.images) ?? [],
+        description: h.description || master?.description || "",
+        category: master?.category ?? null,
+        roomType: h.roomType || master?.roomTypes[0] || "",
+        mealPlan: master?.mealPlans[0] ?? "",
+        amenities: master?.amenities ?? [],
+        googleMapUrl: master?.googleMapUrl ?? null,
+        website: master?.website ?? null,
+        checkIn: "",
+        checkOut: "",
+        rooms: 1,
+        nights: 1,
+      };
+    });
+    const hotelOptions: QuotationHotelOptionGroup[] =
+      hotelSelections.length > 0 ? [{ id: newId(), label: "Option A", hotels: hotelSelections }] : [];
+
+    const transfers: QuotationTransferItem[] = campaignTransfers.map((t) => {
+      const type = t.transferTypeId ? transferTypes.find((tt) => tt.id === t.transferTypeId) : undefined;
+      return {
+        id: newId(),
+        name: type?.name ?? "Transfer",
+        description: "",
+        images: type?.imageUrl ? [type.imageUrl] : [],
+        pickupLocation: t.from,
+        dropLocation: t.to,
+        vehicleType: type?.name ?? "",
+        mode: "Private",
+        transferDate: "",
+        duration: "",
+        pickupTime: "",
+        dropTime: "",
+        status: "Included",
+        notes: "",
+      };
+    });
+
+    const activities: QuotationActivityItem[] = campaign.activities.map((a) => ({
+      id: newId(),
+      name: a.title,
+      description: "",
+      images: [],
+      activityDate: "",
+      duration: "",
+      reportingTime: "",
+      activityTime: "",
+      pax: 1,
+      notes: "",
+    }));
+
+    patch({
+      itineraryDays: itineraryDays.length > 0 ? itineraryDays : draft.itineraryDays,
+      hotelOptions: hotelOptions.length > 0 ? hotelOptions : draft.hotelOptions,
+      transfers: transfers.length > 0 ? transfers : draft.transfers,
+      activities: activities.length > 0 ? activities : draft.activities,
+      inclusionsText: campaign.inclusionsText || draft.inclusionsText,
+      exclusionsText: campaign.exclusionsText || draft.exclusionsText,
+    });
   };
 
   const buildPayload = () => ({
@@ -325,6 +427,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     destinationId: draft.destinationId,
     campaignId: draft.campaignId || null,
     travelDate: draft.travelDate || null,
+    travelEndDate: draft.travelEndDate || null,
     days: draft.days === "" ? null : Number(draft.days),
     nights: draft.nights === "" ? null : Number(draft.nights),
     adults: draft.adults,
@@ -348,12 +451,17 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     advanceAmount: draft.advanceAmount,
   });
 
-  const canSaveStep1 = !!draft.customer.customerName.trim() && !!draft.customer.mobile.trim() && !!draft.destinationId;
+  const canSaveStep1 =
+    !!draft.customer.customerName.trim() &&
+    !!draft.customer.mobile.trim() &&
+    !!draft.destinationId &&
+    !!draft.travelDate &&
+    !!draft.travelEndDate;
 
   /** Persists the whole draft — create on first save, update afterwards. Used by "Save & Next" and the top-level Save Draft button. */
   const persist = async (): Promise<string | null> => {
     if (!canSaveStep1) {
-      notify("Customer name, mobile and destination are required", "error");
+      notify("Customer name, mobile, destination, travel date and travel end date are required", "error");
       return null;
     }
     setSaving(true);
@@ -402,16 +510,6 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
       const savedId = await persist();
       if (!savedId) return;
       window.open(`/api/admin/quotations/${savedId}/pdf`, "_blank");
-    });
-
-  const sendEmail = () =>
-    withBusy("email", async () => {
-      const savedId = await persist();
-      if (!savedId) return;
-      const res = await quotationsApi.sendEmail(savedId);
-      if (!res.success) return notify(res.message || "Unable to send email", "error");
-      notify("Quotation emailed to the lead", "success");
-      if (res.data) setStatus(res.data.status);
     });
 
   const generateLink = () =>
@@ -551,9 +649,6 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
         <button type="button" onClick={generatePdf} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
           <FileDown className="w-4 h-4" /> Generate PDF
         </button>
-        <button type="button" onClick={sendEmail} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-          <Mail className="w-4 h-4" /> Send Email
-        </button>
         <button type="button" onClick={generateLink} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
           <Share2 className="w-4 h-4" /> Generate Shareable Link
         </button>
@@ -586,7 +681,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           <div className="flex items-center overflow-x-auto px-4 py-3 gap-1 bg-slate-50/60">
             {STEPS.map((s, i) => {
               const Icon = s.icon;
-              const reachable = i === 0 || !!id;
+              const reachable = i === 0 || (!!id && canSaveStep1);
               const active = i === step;
               return (
                 <button
@@ -639,10 +734,12 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                         ))}
                       </select>
                     </Field>
-                    <Field label="Travel Date">
+                    <Field label="Travel Date" required>
                       <input type="date" className={inputCls} value={draft.travelDate} onChange={(e) => patch({ travelDate: e.target.value })} />
                     </Field>
-                    <div />
+                    <Field label="Travel End Date" required>
+                      <input type="date" className={inputCls} value={draft.travelEndDate} onChange={(e) => patch({ travelEndDate: e.target.value })} />
+                    </Field>
                     <Field label="Days">
                       <input type="number" min={0} className={inputCls} value={draft.days} onChange={(e) => patch({ days: e.target.value })} />
                     </Field>
@@ -734,11 +831,32 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
               </div>
             )}
 
-            {step === 2 && <QuotationHotelOptionsEditor options={draft.hotelOptions} onChange={(hotelOptions) => patch({ hotelOptions })} />}
+            {step === 2 && (
+              <QuotationHotelOptionsEditor
+                options={draft.hotelOptions}
+                onChange={(hotelOptions) => patch({ hotelOptions })}
+                minDate={draft.travelDate}
+                maxDate={draft.travelEndDate}
+              />
+            )}
 
-            {step === 3 && <QuotationTransfersEditor transfers={draft.transfers} onChange={(transfers) => patch({ transfers })} />}
+            {step === 3 && (
+              <QuotationTransfersEditor
+                transfers={draft.transfers}
+                onChange={(transfers) => patch({ transfers })}
+                minDate={draft.travelDate}
+                maxDate={draft.travelEndDate}
+              />
+            )}
 
-            {step === 4 && <QuotationActivitiesEditor activities={draft.activities} onChange={(activities) => patch({ activities })} />}
+            {step === 4 && (
+              <QuotationActivitiesEditor
+                activities={draft.activities}
+                onChange={(activities) => patch({ activities })}
+                minDate={draft.travelDate}
+                maxDate={draft.travelEndDate}
+              />
+            )}
 
             {step === 5 && (
               <div className="space-y-6">

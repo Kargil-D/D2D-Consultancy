@@ -4,12 +4,13 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
   Anchor, ArrowLeft, Bed, Bus, Calendar, Car, CheckCircle2, Compass,
-  Fish, Heart, Home, Info, MapPin, Phone, Plane, PlaneTakeoff, Sailboat, Ship,
+  Fish, Heart, Home, Info, MapPin, Plane, PlaneTakeoff, Sailboat, Ship,
   Shield, Sparkles, Star, Waves, CalendarDays, Users, Download,
   type LucideIcon,
 } from "lucide-react";
 import { formatINR } from "@/utils/format";
 import Logo from "@/components/common/Logo";
+import NeedHelpCard from "@/components/common/NeedHelpCard";
 import { getQuotationByShareToken, buildPublicQuoteData } from "@/services/quotationService";
 import ReviewsSection from "@/components/reviews/ReviewsSection";
 import CampaignDayAccordion from "@/components/campaigns/CampaignDayAccordion";
@@ -397,18 +398,7 @@ export default async function PublicQuotePage({ params }: PageProps) {
               </a>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h3 className="text-sm font-bold text-slate-900 mb-2">Need Help?</h3>
-              <p className="text-xs text-slate-500 mb-4">Our travel experts are here for you</p>
-              <div className="space-y-2 text-sm">
-                <a href="tel:+919876543210" className="flex items-center gap-2 text-slate-700 hover:text-blue-600">
-                  <Phone className="w-4 h-4 text-blue-600" />+91 98765 43210
-                </a>
-                <a href="mailto:info@d2dholidays.com" className="flex items-center gap-2 text-slate-700 hover:text-blue-600 break-all">
-                  <Sparkles className="w-4 h-4 text-blue-600" />info@d2dholidays.com
-                </a>
-              </div>
-            </div>
+            <NeedHelpCard />
           </aside>
         </div>
       </section>

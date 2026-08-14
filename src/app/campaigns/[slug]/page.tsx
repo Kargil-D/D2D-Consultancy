@@ -4,12 +4,13 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
   Anchor, ArrowLeft, ArrowRight, Bed, Bus, Calendar, Car, CheckCircle2, Compass,
-  Fish, Heart, Home, MapPin, Phone, Plane, PlaneTakeoff, Sailboat, Ship,
+  Fish, Heart, Home, MapPin, Plane, PlaneTakeoff, Sailboat, Ship,
   Shield, Sparkles, Star, Waves,
   type LucideIcon,
 } from "lucide-react";
 import { formatINR } from "@/utils/format";
 import Logo from "@/components/common/Logo";
+import NeedHelpCard from "@/components/common/NeedHelpCard";
 import { getCampaignBySlug } from "@/services/campaignService";
 import { findItineraryByPackageId } from "@/services/campaignItineraryService";
 import { findHotelByPackageId } from "@/services/campaignHotelService";
@@ -70,7 +71,7 @@ export default async function CampaignDetailPage({ params }: PageProps) {
     listTransferTypes({ pageSize: 1000 }),
   ]);
 
-  const transferTypeNameById = new Map(transferTypesRes.items.map((t) => [t.id, t.name]));
+  const transferTypeById = new Map(transferTypesRes.items.map((t) => [t.id, { name: t.name, imageUrl: t.imageUrl }]));
 
   const days = (itinerary?.days as unknown as ItineraryDayDetail[] | undefined) ?? [];
   const hotels = (hotelPlan?.hotels as unknown as HotelStayDetail[] | undefined) ?? [];
@@ -156,14 +157,14 @@ export default async function CampaignDetailPage({ params }: PageProps) {
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
           <div className="space-y-8">
             {days.length > 0 && (
-              <section id="itinerary">
+              <section id="itinerary" className="scroll-mt-28 md:scroll-mt-36">
                 <h2 className="text-2xl font-bold text-slate-900 mb-4">Day-wise Itinerary</h2>
                 <CampaignDayAccordion days={days} />
               </section>
             )}
 
             {hotels.length > 0 && (
-              <section id="hotels">
+              <section id="hotels" className="scroll-mt-28 md:scroll-mt-36">
                 <div className="flex items-end justify-between mb-4">
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900">Your Hotel</h2>
@@ -192,62 +193,66 @@ export default async function CampaignDetailPage({ params }: PageProps) {
               </section>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {activities.length > 0 && (
-                <section id="activities" className="rounded-2xl border border-slate-200 bg-white p-6">
-                  <h3 className="text-lg font-bold text-slate-900 mb-4">Activities Included</h3>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
-                    {activities.map((a) => {
-                      const Icon = getIcon(a.icon);
-                      return (
-                        <div key={a.id} className="flex flex-col items-center text-center gap-2">
-                          <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 text-blue-600">
+            {activities.length > 0 && (
+              <section id="activities" className="scroll-mt-28 md:scroll-mt-36 rounded-2xl border border-slate-200 bg-white p-6">
+                <h3 className="text-lg font-bold text-slate-900 mb-4">Activities Included</h3>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-4">
+                  {activities.map((a) => {
+                    const Icon = getIcon(a.icon);
+                    return (
+                      <div key={a.id} className="flex flex-col items-center text-center gap-2">
+                        <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 text-blue-600">
+                          <Icon className="w-5 h-5" />
+                        </span>
+                        <span className="text-xs font-medium text-slate-700 leading-tight">{a.title}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+            {transfers.length > 0 && (
+              <section id="transfers" className="scroll-mt-28 md:scroll-mt-36 relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5">
+                <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-br from-cyan-500/10 via-teal-500/5 to-transparent pointer-events-none" />
+                <div className="relative mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-sm">
+                      <Plane className="w-3.5 h-3.5" />
+                    </span>
+                    Transfers
+                  </h3>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-700 bg-cyan-50 border border-cyan-100 rounded-full px-2 py-0.5">Included</span>
+                </div>
+                <ul className="relative space-y-3">
+                  {transfers.map((t) => {
+                    const type = (t.transferTypeId && transferTypeById.get(t.transferTypeId)) || null;
+                    const typeName = type?.name || "Transfer";
+                    const Icon = getTransferIcon(typeName);
+                    return (
+                      <li key={t.id} className="group relative grid grid-cols-[1fr_auto_auto] items-center gap-4 text-sm rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-cyan-200 hover:shadow-sm transition p-2.5">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="relative inline-flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-sm flex-shrink-0">
                             <Icon className="w-5 h-5" />
                           </span>
-                          <span className="text-xs font-medium text-slate-700 leading-tight">{a.title}</span>
+                          <span className="text-slate-800 font-medium truncate">{t.from} → {t.to}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-              {transfers.length > 0 && (
-                <section id="transfers" className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5">
-                  <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-br from-cyan-500/10 via-teal-500/5 to-transparent pointer-events-none" />
-                  <div className="relative mb-4 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-sm">
-                        <Plane className="w-3.5 h-3.5" />
-                      </span>
-                      Transfers
-                    </h3>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-700 bg-cyan-50 border border-cyan-100 rounded-full px-2 py-0.5">Included</span>
-                  </div>
-                  <ul className="relative space-y-3">
-                    {transfers.map((t) => {
-                      const typeName = (t.transferTypeId && transferTypeNameById.get(t.transferTypeId)) || "Transfer";
-                      const Icon = getTransferIcon(typeName);
-                      return (
-                        <li key={t.id} className="group relative flex items-center justify-between gap-3 text-sm rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-cyan-200 hover:shadow-sm transition p-2.5">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="relative inline-flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 text-white shadow-sm flex-shrink-0">
-                              <Icon className="w-5 h-5" />
-                            </span>
-                            <span className="text-slate-800 font-medium truncate">{t.from} → {t.to}</span>
-                          </div>
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white text-cyan-700 text-xs font-bold border border-cyan-200 shadow-sm whitespace-nowrap flex-shrink-0">
-                            <Icon className="w-3.5 h-3.5" />{typeName}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-              )}
-            </div>
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 flex-shrink-0">
+                          {type?.imageUrl && (
+                            <Image src={type.imageUrl} alt={typeName} fill sizes="64px" className="object-cover" unoptimized />
+                          )}
+                        </div>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white text-cyan-700 text-xs font-bold border border-cyan-200 shadow-sm whitespace-nowrap flex-shrink-0">
+                          <Icon className="w-3.5 h-3.5" />{typeName}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
 
             {(inclusionLines.length > 0 || exclusionLines.length > 0) && (
-              <section id="inclusions" className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <section id="inclusions" className="scroll-mt-28 md:scroll-mt-36 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-6">
                   <h3 className="text-lg font-bold text-emerald-700 mb-3 flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5" /> Inclusions
@@ -286,18 +291,7 @@ export default async function CampaignDetailPage({ params }: PageProps) {
               pricePerPerson={campaign.pricePerPerson}
             />
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h3 className="text-sm font-bold text-slate-900 mb-2">Need Help?</h3>
-              <p className="text-xs text-slate-500 mb-4">Our travel experts are here for you</p>
-              <div className="space-y-2 text-sm">
-                <a href="tel:+919876543210" className="flex items-center gap-2 text-slate-700 hover:text-blue-600">
-                  <Phone className="w-4 h-4 text-blue-600" />+91 98765 43210
-                </a>
-                <a href="mailto:info@d2dholidays.com" className="flex items-center gap-2 text-slate-700 hover:text-blue-600 break-all">
-                  <Sparkles className="w-4 h-4 text-blue-600" />info@d2dholidays.com
-                </a>
-              </div>
-            </div>
+            <NeedHelpCard />
           </aside>
         </div>
       </section>

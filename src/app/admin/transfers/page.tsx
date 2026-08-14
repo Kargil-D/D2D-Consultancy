@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import { Plus, Edit, Trash2 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
@@ -10,6 +11,7 @@ import Drawer from "@/components/admin/ui/Drawer";
 import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { StatusBadge } from "@/components/admin/ui/StatusToggle";
 import { Field, inputCls } from "@/components/admin/ui/Field";
+import ImageUpload from "@/components/admin/ui/ImageUpload";
 import { useToast } from "@/components/admin/ui/Toast";
 import { transferTypesApi } from "@/lib/adminApi";
 import type { AdminTransferType } from "@/types/admin";
@@ -18,6 +20,7 @@ const PAGE_SIZE = 10;
 
 const emptyForm = (): Partial<AdminTransferType> => ({
   name: "",
+  imageUrl: "",
   status: "Active",
 });
 
@@ -75,7 +78,18 @@ export default function TransfersAdminPage() {
   };
 
   const columns: Column<AdminTransferType>[] = [
-    { key: "name", label: "Transfer Type", render: (r) => <div className="font-semibold text-slate-900 text-sm">{r.name}</div> },
+    {
+      key: "name",
+      label: "Transfer Type",
+      render: (r) => (
+        <div className="flex items-center gap-3">
+          <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+            {r.imageUrl && <Image src={r.imageUrl} alt={r.name} fill sizes="40px" className="object-cover" unoptimized />}
+          </div>
+          <div className="font-semibold text-slate-900 text-sm">{r.name}</div>
+        </div>
+      ),
+    },
     { key: "status", label: "Status", render: (r) => <StatusBadge status={r.status} /> },
     {
       key: "actions", label: "Actions", className: "text-right",
@@ -124,6 +138,9 @@ export default function TransfersAdminPage() {
         <div className="space-y-5">
           <Field label="Transfer Type" required>
             <input className={inputCls} value={drawer.form.name ?? ""} onChange={(e) => setForm({ name: e.target.value })} placeholder="Speedboat" />
+          </Field>
+          <Field label="Transfer Image">
+            <ImageUpload value={drawer.form.imageUrl ?? ""} onChange={(url) => setForm({ imageUrl: url })} aspect="4/3" />
           </Field>
           <label className="flex items-center gap-2 text-sm text-slate-700">
             <input

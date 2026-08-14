@@ -3,7 +3,9 @@
 import Image from "next/image";
 import { Plus, Trash2, Copy, Ticket, X } from "lucide-react";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
-import { Field, inputCls, textareaCls } from "@/components/admin/ui/Field";
+import { Field, inputCls } from "@/components/admin/ui/Field";
+import { useToast } from "@/components/admin/ui/Toast";
+import { isWithinRange, dateRangeMessage } from "@/utils/dateRange";
 import type { QuotationActivityItem } from "@/types/admin";
 
 export const newActivityItem = (): QuotationActivityItem => ({
@@ -22,13 +24,26 @@ export const newActivityItem = (): QuotationActivityItem => ({
 interface QuotationActivitiesEditorProps {
   activities: QuotationActivityItem[];
   onChange: (activities: QuotationActivityItem[]) => void;
+  /** Trip's travel start/end dates (YYYY-MM-DD) — each activity date must fall within this range. */
+  minDate?: string;
+  maxDate?: string;
 }
 
-export default function QuotationActivitiesEditor({ activities, onChange }: QuotationActivitiesEditorProps) {
+export default function QuotationActivitiesEditor({ activities, onChange, minDate, maxDate }: QuotationActivitiesEditorProps) {
+  const { notify } = useToast();
   const update = (idx: number, patch: Partial<QuotationActivityItem>) => {
     const next = [...activities];
     next[idx] = { ...next[idx], ...patch };
     onChange(next);
+  };
+
+  /** Rejects an activity date outside the trip's travel dates instead of applying it. */
+  const updateDate = (idx: number, value: string) => {
+    if (!isWithinRange(value, minDate, maxDate)) {
+      notify(dateRangeMessage(minDate, maxDate), "error");
+      return;
+    }
+    update(idx, { activityDate: value });
   };
   const add = () => onChange([...activities, newActivityItem()]);
   const duplicate = (idx: number) => {
@@ -71,7 +86,7 @@ export default function QuotationActivitiesEditor({ activities, onChange }: Quot
               <input className={inputCls} value={a.name} onChange={(e) => update(i, { name: e.target.value })} placeholder="Safari World" />
             </Field>
             <Field label="Activity Date">
-              <input type="date" className={inputCls} value={a.activityDate} onChange={(e) => update(i, { activityDate: e.target.value })} />
+              <input type="date" className={inputCls} value={a.activityDate} min={minDate} max={maxDate} onChange={(e) => updateDate(i, e.target.value)} />
             </Field>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
@@ -88,12 +103,6 @@ export default function QuotationActivitiesEditor({ activities, onChange }: Quot
               <input type="number" min={0} className={inputCls} value={a.pax} onChange={(e) => update(i, { pax: Number(e.target.value) || 0 })} />
             </Field>
           </div>
-          <Field label="Description" className="mt-3">
-            <textarea className={textareaCls} value={a.description} onChange={(e) => update(i, { description: e.target.value })} />
-          </Field>
-          <Field label="Important Notes" className="mt-3">
-            <textarea className={textareaCls} value={a.notes} onChange={(e) => update(i, { notes: e.target.value })} />
-          </Field>
           <Field label="Images" className="mt-3">
             <div className="grid grid-cols-4 gap-2">
               {(a.images ?? []).map((url, imgIdx) => (

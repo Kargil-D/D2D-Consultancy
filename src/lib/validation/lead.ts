@@ -27,6 +27,7 @@ export const LeadCreateSchema = z.object({
   destinationId: z.string().min(1),
   travelDate: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.date().optional().nullable()),
   source: LeadSourceEnum,
+  travellerCount: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().optional().nullable()),
   adults: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().optional().nullable()),
   children: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().optional().nullable()),
   assignedToId: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional().nullable()),

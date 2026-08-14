@@ -3,7 +3,9 @@
 import Image from "next/image";
 import { Plus, Trash2, Copy, ArrowRightLeft, X } from "lucide-react";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
-import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
+import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
+import { useToast } from "@/components/admin/ui/Toast";
+import { isWithinRange, dateRangeMessage } from "@/utils/dateRange";
 import type { QuotationTransferItem } from "@/types/admin";
 
 export const newTransferItem = (): QuotationTransferItem => ({
@@ -26,13 +28,26 @@ export const newTransferItem = (): QuotationTransferItem => ({
 interface QuotationTransfersEditorProps {
   transfers: QuotationTransferItem[];
   onChange: (transfers: QuotationTransferItem[]) => void;
+  /** Trip's travel start/end dates (YYYY-MM-DD) — each transfer date must fall within this range. */
+  minDate?: string;
+  maxDate?: string;
 }
 
-export default function QuotationTransfersEditor({ transfers, onChange }: QuotationTransfersEditorProps) {
+export default function QuotationTransfersEditor({ transfers, onChange, minDate, maxDate }: QuotationTransfersEditorProps) {
+  const { notify } = useToast();
   const update = (idx: number, patch: Partial<QuotationTransferItem>) => {
     const next = [...transfers];
     next[idx] = { ...next[idx], ...patch };
     onChange(next);
+  };
+
+  /** Rejects a transfer date outside the trip's travel dates instead of applying it. */
+  const updateDate = (idx: number, value: string) => {
+    if (!isWithinRange(value, minDate, maxDate)) {
+      notify(dateRangeMessage(minDate, maxDate), "error");
+      return;
+    }
+    update(idx, { transferDate: value });
   };
   const add = () => onChange([...transfers, newTransferItem()]);
   const duplicate = (idx: number) => {
@@ -101,7 +116,7 @@ export default function QuotationTransfersEditor({ transfers, onChange }: Quotat
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
             <Field label="Transfer Date">
-              <input type="date" className={inputCls} value={t.transferDate} onChange={(e) => update(i, { transferDate: e.target.value })} />
+              <input type="date" className={inputCls} value={t.transferDate} min={minDate} max={maxDate} onChange={(e) => updateDate(i, e.target.value)} />
             </Field>
             <Field label="Duration">
               <input className={inputCls} value={t.duration} onChange={(e) => update(i, { duration: e.target.value })} placeholder="45 mins" />
@@ -113,12 +128,6 @@ export default function QuotationTransfersEditor({ transfers, onChange }: Quotat
               <input type="time" className={inputCls} value={t.dropTime} onChange={(e) => update(i, { dropTime: e.target.value })} />
             </Field>
           </div>
-          <Field label="Description" className="mt-3">
-            <textarea className={textareaCls} value={t.description} onChange={(e) => update(i, { description: e.target.value })} />
-          </Field>
-          <Field label="Notes" className="mt-3">
-            <textarea className={textareaCls} value={t.notes} onChange={(e) => update(i, { notes: e.target.value })} />
-          </Field>
           <Field label="Images" className="mt-3">
             <div className="grid grid-cols-4 gap-2">
               {(t.images ?? []).map((url, imgIdx) => (

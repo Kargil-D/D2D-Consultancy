@@ -285,9 +285,10 @@ model Transfer {
 }
 
 model TransferType {
-  id     String @id @default(uuid())
-  name   String
-  status Status @default(Active)
+  id       String  @id @default(uuid())
+  name     String
+  imageUrl String?
+  status   Status  @default(Active)
 
   createdBy   String?
   createdDate DateTime @default(now())
@@ -505,6 +506,7 @@ model Lead {
   destination   Destination @relation(fields: [destinationId], references: [id])
   travelDate    DateTime?
   source        LeadSource
+  travellerCount Int?
   adults        Int?
   children      Int?
   assignedToId  String?
@@ -599,7 +601,8 @@ model Quotation {
   shareToken    String?         @unique
 
   // Step 1 — Trip & Traveller Details (quotation-specific, independent of the linked Lead's own values)
-  travelDate DateTime?
+  travelDate    DateTime?
+  travelEndDate DateTime?
   days       Int?
   nights     Int?
   adults     Int       @default(1)

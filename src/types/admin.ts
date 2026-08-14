@@ -120,6 +120,8 @@ export interface AdminItinerary extends AuditColumns {
 /* -------------------------------------------------------------------------- */
 export interface HotelStayDetail {
   id: string;
+  /** Links back to the selected Hotel Master catalog entry — name/images/room options are sourced from there. */
+  hotelMasterId?: string;
   name: string;
   images?: string[];
   roomType: string;
@@ -154,6 +156,7 @@ export interface AdminTransfer extends AuditColumns {
 export interface AdminTransferType extends AuditColumns {
   id: string;
   name: string;
+  imageUrl?: string | null;
   status: Status;
 }
 
@@ -442,6 +445,7 @@ export interface AdminLead {
   destination?: AdminDestination;
   travelDate?: string | null;
   source: LeadSource;
+  travellerCount?: number | null;
   adults?: number | null;
   children?: number | null;
   assignedToId?: string | null;
@@ -645,6 +649,7 @@ export interface AdminQuotation {
 
   // Step 1 — Trip / Traveller / Other details
   travelDate?: string | null;
+  travelEndDate?: string | null;
   days?: number | null;
   nights?: number | null;
   adults: number;

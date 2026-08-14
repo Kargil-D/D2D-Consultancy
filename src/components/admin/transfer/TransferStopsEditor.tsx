@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Plus, Trash2, ArrowRightLeft } from "lucide-react";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
 import { transferTypesApi } from "@/lib/adminApi";
@@ -43,33 +44,47 @@ export default function TransferStopsEditor({ transfers, onChange }: TransferSto
           <Plus className="w-3.5 h-3.5" /> Add Transfer
         </button>
       </div>
-      {transfers.map((t, i) => (
-        <div key={t.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <ArrowRightLeft className="w-4 h-4 text-slate-400" />
-              <span className="font-bold text-slate-900">Transfer {i + 1}</span>
+      {transfers.map((t, i) => {
+        const selectedType = transferTypes.find((tt) => tt.id === t.transferTypeId);
+        return (
+          <div key={t.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft className="w-4 h-4 text-slate-400" />
+                <span className="font-bold text-slate-900">Transfer {i + 1}</span>
+              </div>
+              <button type="button" onClick={() => remove(i)} className="p-1.5 rounded text-rose-600 hover:bg-rose-50"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
-            <button type="button" onClick={() => remove(i)} className="p-1.5 rounded text-rose-600 hover:bg-rose-50"><Trash2 className="w-3.5 h-3.5" /></button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Field label="From">
+                <input className={inputCls} value={t.from} onChange={(e) => update(i, { from: e.target.value })} placeholder="Airport" />
+              </Field>
+              <Field label="Transfer Type">
+                <div className="flex items-center gap-2">
+                  <select
+                    className={selectCls}
+                    value={t.transferTypeId ?? ""}
+                    onChange={(e) => update(i, { transferTypeId: e.target.value || undefined })}
+                  >
+                    <option value="">Select transfer type</option>
+                    {transferTypes.map((tt) => (
+                      <option key={tt.id} value={tt.id}>{tt.name}</option>
+                    ))}
+                  </select>
+                  {selectedType?.imageUrl && (
+                    <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                      <Image src={selectedType.imageUrl} alt={selectedType.name} fill sizes="40px" className="object-cover" unoptimized />
+                    </div>
+                  )}
+                </div>
+              </Field>
+              <Field label="To">
+                <input className={inputCls} value={t.to} onChange={(e) => update(i, { to: e.target.value })} placeholder="Hotel" />
+              </Field>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="From">
-              <input className={inputCls} value={t.from} onChange={(e) => update(i, { from: e.target.value })} placeholder="Airport" />
-            </Field>
-            <Field label="Transfer Type">
-              <select className={selectCls} value={t.transferTypeId ?? ""} onChange={(e) => update(i, { transferTypeId: e.target.value || undefined })}>
-                <option value="">Select transfer type</option>
-                {transferTypes.map((tt) => (
-                  <option key={tt.id} value={tt.id}>{tt.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="To">
-              <input className={inputCls} value={t.to} onChange={(e) => update(i, { to: e.target.value })} placeholder="Hotel" />
-            </Field>
-          </div>
-        </div>
-      ))}
+        );
+      })}
       {transfers.length === 0 && <p className="text-center py-8 text-sm text-slate-500">No transfers yet. Click &quot;Add Transfer&quot; to begin.</p>}
     </div>
   );

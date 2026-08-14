@@ -166,12 +166,9 @@ function PlanTripContent() {
           state.traveller === "family"
             ? (state.travellerCount ?? 0) + (state.childrenCount ?? 0)
             : state.travellerCount!,
-        adultsCount:
-          state.traveller === "family" ? state.travellerCount! : undefined,
-        childrenCount:
-          state.traveller === "family"
-            ? state.childrenCount ?? 0
-            : undefined,
+        // Non-family traveller types have no separate children concept — everyone counted is an adult.
+        adultsCount: state.travellerCount ?? 0,
+        childrenCount: state.traveller === "family" ? state.childrenCount ?? 0 : 0,
         duration: formatDurationForPayload(state.duration!),
         departureCity: state.city!,
         language: state.language

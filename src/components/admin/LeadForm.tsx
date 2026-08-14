@@ -22,6 +22,7 @@ const emptyForm = (): Partial<AdminLead> => ({
   destinationId: "",
   travelDate: "",
   source: "Manual",
+  travellerCount: undefined,
   adults: undefined,
   children: undefined,
   assignedToId: "",
@@ -171,6 +172,15 @@ export default function LeadForm({ id }: LeadFormProps) {
               value={form.assignedToId ?? ""}
               onChange={(v) => onChange({ assignedToId: v || undefined })}
               placeholder="Search sales person…"
+            />
+          </Field>
+          <Field label="No. of Travellers" hint="From the enquiry form submission">
+            <input
+              type="number"
+              min={0}
+              className={inputCls}
+              value={form.travellerCount ?? ""}
+              onChange={(e) => onChange({ travellerCount: e.target.value ? Number(e.target.value) : undefined })}
             />
           </Field>
         </div>

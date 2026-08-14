@@ -33,7 +33,7 @@ export default function PriceBreakdownCard({
   defaultPersons = 1,
   pricePerPerson,
 }: PriceBreakdownCardProps) {
-  const [persons, setPersons] = useState(defaultPersons);
+  const [persons] = useState(defaultPersons);
 
   const insuranceTotal = insurancePerPerson * persons;
   const subtotal = totalPackageCost + platformFee + insuranceTotal;
@@ -56,8 +56,8 @@ export default function PriceBreakdownCard({
               type="number"
               min={1}
               value={persons}
-              onChange={(e) => setPersons(Math.max(1, Number(e.target.value) || 1))}
-              className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-right font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled
+              className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-right font-semibold text-slate-900 bg-slate-50 cursor-not-allowed"
             />
           </div>
 
