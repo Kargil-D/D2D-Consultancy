@@ -724,6 +724,7 @@ model Quotation {
 
   @@index([leadId])
   @@index([destinationId])
+  @@index([createdDate])
   @@map("quotations")
 }
 

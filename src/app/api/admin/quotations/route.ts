@@ -3,6 +3,7 @@ import { listQuotations, createQuotation } from "@/services/quotationService";
 import { QuotationCreateSchema } from "@/lib/validation/quotation";
 import { ApiError } from "@/lib/apiError";
 import { requireModuleAccess } from "@/lib/permissions";
+import { perfTime } from "@/lib/perf";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,7 +19,11 @@ export async function GET(req: NextRequest) {
     if (leadId) filter.leadId = leadId;
     if (status) filter.status = status;
 
-    const data = await listQuotations({ search, page, pageSize, filter });
+    const data = await perfTime(
+      "GET /api/admin/quotations",
+      () => listQuotations({ search, page, pageSize, filter }),
+      (d) => ({ rows: d.items.length, total: d.total, bytes: JSON.stringify(d).length }),
+    );
     return NextResponse.json({ success: true, message: "OK", data });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });

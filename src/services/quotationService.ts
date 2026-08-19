@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { perfTime } from "@/lib/perf";
 import type {
   Paginated,
   ActivityDetail,
@@ -26,6 +27,19 @@ const QUOTATION_INCLUDE = {
   salesExecutive: true,
   items: { orderBy: { sortOrder: "asc" as const } },
   bookings: { select: { id: true, status: true }, where: { isDeleted: false } },
+};
+
+/**
+ * The admin list table (`/admin/quotations`) only ever renders `lead`, `destination`, `items`,
+ * plus the quotation's own scalar fields — it never reads `campaign`, `salesExecutive`, or
+ * `bookings`. Those three are still fetched via the full `QUOTATION_INCLUDE` everywhere the
+ * builder/public-share/PDF paths actually need them (they read `campaign.*` for template
+ * fallbacks and `bookings` for the "already converted" check), just not here.
+ */
+const QUOTATION_LIST_INCLUDE = {
+  lead: true,
+  destination: true,
+  items: { orderBy: { sortOrder: "asc" as const } },
 };
 
 export interface ListQuery {
@@ -57,27 +71,43 @@ export async function listQuotations(query: ListQuery = {}) {
     };
   }
 
-  const total = await prisma.quotation.count({ where });
-  const items = await prisma.quotation.findMany({
-    where,
-    include: QUOTATION_INCLUDE,
-    orderBy: { createdDate: "desc" },
-    skip: (page - 1) * pageSize,
-    take: pageSize,
-  });
+  const [total, items] = await perfTime(
+    "quotationService.listQuotations",
+    () =>
+      Promise.all([
+        prisma.quotation.count({ where }),
+        prisma.quotation.findMany({
+          where,
+          include: QUOTATION_LIST_INCLUDE,
+          orderBy: { createdDate: "desc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+      ]),
+    ([total, items]) => ({ total, rows: items.length }),
+  );
 
   return { items, total, page, pageSize } satisfies Paginated<(typeof items)[number]>;
 }
 
 export async function getQuotation(id: string) {
-  return prisma.quotation.findUnique({ where: { id }, include: QUOTATION_INCLUDE });
+  return perfTime(
+    "quotationService.getQuotation",
+    () => prisma.quotation.findUnique({ where: { id }, include: QUOTATION_INCLUDE }),
+    (r) => ({ found: !!r, items: r?.items.length ?? 0 }),
+  );
 }
 
 export async function getQuotationByShareToken(token: string) {
-  return prisma.quotation.findFirst({
-    where: { shareToken: token, isDeleted: false },
-    include: QUOTATION_INCLUDE,
-  });
+  return perfTime(
+    "quotationService.getQuotationByShareToken",
+    () =>
+      prisma.quotation.findFirst({
+        where: { shareToken: token, isDeleted: false },
+        include: QUOTATION_INCLUDE,
+      }),
+    (r) => ({ found: !!r }),
+  );
 }
 
 const LEAD_PIPELINE_ORDER = ["New", "Contacted", "FollowUp"] as const;
@@ -101,8 +131,15 @@ export async function findOrCreateLeadForQuotation(
   source?: string | null,
 ) {
   const normalized = normalizeMobile(customer.mobile);
+  // No index accelerates `endsWith` on a plain btree (Lead.mobile isn't indexed at all today),
+  // so this is a full scan over every non-deleted Lead on every quotation save that touches
+  // Step 1 — timed here since it's the least obviously-expensive step in the save path.
   const candidates = normalized
-    ? await prisma.lead.findMany({ where: { isDeleted: false, mobile: { endsWith: normalized } } })
+    ? await perfTime(
+        "quotationService.findOrCreateLeadForQuotation.mobileScan",
+        () => prisma.lead.findMany({ where: { isDeleted: false, mobile: { endsWith: normalized } } }),
+        (r) => ({ scanned: r.length }),
+      )
     : [];
   const existing = candidates.find((l) => normalizeMobile(l.mobile) === normalized) ?? null;
 
@@ -209,29 +246,34 @@ export async function updateQuotation(id: string, input: QuotationUpdate) {
     }
   }
 
-  return prisma.$transaction(async (tx) => {
-    await tx.quotation.update({ where: { id }, data: quotationScalarData(input) });
-    if (input.items) {
-      await tx.quotationItem.deleteMany({ where: { quotationId: id } });
-      if (input.items.length > 0) {
-        await tx.quotationItem.createMany({
-          data: input.items.map((item, i) => ({
-            quotationId: id,
-            sourceId: item.sourceId ?? null,
-            component: item.component,
-            detail: item.detail ?? "",
-            qty: item.qty,
-            cost: item.cost,
-            currencyCode: item.currencyCode ?? "INR",
-            foreignAmount: item.foreignAmount ?? null,
-            exchangeRate: item.exchangeRate ?? 1,
-            sortOrder: item.sortOrder ?? i,
-          })),
-        });
-      }
-    }
-    return tx.quotation.findUniqueOrThrow({ where: { id }, include: QUOTATION_INCLUDE });
-  });
+  return perfTime(
+    "quotationService.updateQuotation",
+    () =>
+      prisma.$transaction(async (tx) => {
+        await tx.quotation.update({ where: { id }, data: quotationScalarData(input) });
+        if (input.items) {
+          await tx.quotationItem.deleteMany({ where: { quotationId: id } });
+          if (input.items.length > 0) {
+            await tx.quotationItem.createMany({
+              data: input.items.map((item, i) => ({
+                quotationId: id,
+                sourceId: item.sourceId ?? null,
+                component: item.component,
+                detail: item.detail ?? "",
+                qty: item.qty,
+                cost: item.cost,
+                currencyCode: item.currencyCode ?? "INR",
+                foreignAmount: item.foreignAmount ?? null,
+                exchangeRate: item.exchangeRate ?? 1,
+                sortOrder: item.sortOrder ?? i,
+              })),
+            });
+          }
+        }
+        return tx.quotation.findUniqueOrThrow({ where: { id }, include: QUOTATION_INCLUDE });
+      }),
+    (r) => ({ items: r.items.length, replacedItems: !!input.items }),
+  );
 }
 
 export async function removeQuotation(id: string) {

@@ -3,12 +3,17 @@ import { getQuotation, updateQuotation, removeQuotation } from "@/services/quota
 import { QuotationUpdateSchema } from "@/lib/validation/quotation";
 import { ApiError } from "@/lib/apiError";
 import { requireModuleAccess } from "@/lib/permissions";
+import { perfTime } from "@/lib/perf";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     await requireModuleAccess(req, "Quotations", "canView");
     const { id } = await ctx.params;
-    const rec = await getQuotation(id);
+    const rec = await perfTime(
+      "GET /api/admin/quotations/[id]",
+      () => getQuotation(id),
+      (r) => ({ found: !!r, bytes: JSON.stringify(r).length }),
+    );
     return NextResponse.json({ success: true, message: "OK", data: rec });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });
