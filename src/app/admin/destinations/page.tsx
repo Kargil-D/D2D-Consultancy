@@ -25,6 +25,8 @@ export default function DestinationsAdminPage() {
   const [country, setCountry] = useState("");
   const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -55,16 +57,40 @@ export default function DestinationsAdminPage() {
   const countries = Array.from(new Set(rows.map((r) => r.country))).sort();
 
   const remove = async () => {
-    if (!confirm.id) return;
-    await destinationsApi.remove(confirm.id);
-    notify("Destination deleted", "success");
-    setConfirm({ open: false, id: null });
-    reload();
+    if (!confirm.id || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await destinationsApi.remove(confirm.id);
+      if (!res.success) {
+        notify(res.message || "Unable to delete destination", "error");
+        return;
+      }
+      notify("Destination deleted", "success");
+      setConfirm({ open: false, id: null });
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to delete destination", "error");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const toggleStatus = async (id: string) => {
-    await destinationsApi.toggleStatus(id);
-    reload();
+    if (togglingId) return;
+    setTogglingId(id);
+    try {
+      const res = await destinationsApi.toggleStatus(id);
+      if (!res.success) {
+        notify(res.message || "Unable to update status", "error");
+        return;
+      }
+      notify("Status updated", "success");
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to update status", "error");
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const columns: Column<AdminDestination>[] = [
@@ -98,7 +124,7 @@ export default function DestinationsAdminPage() {
       label: "Status",
       render: (r) => (
         <div className="flex items-center gap-2">
-          <StatusToggle value={r.status} onChange={() => toggleStatus(r.id)} size="sm" />
+          <StatusToggle value={r.status} onChange={() => toggleStatus(r.id)} size="sm" loading={togglingId === r.id} />
           <StatusBadge status={r.status} />
         </div>
       ),
@@ -120,7 +146,12 @@ export default function DestinationsAdminPage() {
           >
             <Eye className="w-4 h-4" />
           </a>
-          <button onClick={() => setConfirm({ open: true, id: r.id })} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete">
+          <button
+            onClick={() => setConfirm({ open: true, id: r.id })}
+            disabled={deleting}
+            className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Delete"
+          >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
@@ -182,6 +213,7 @@ export default function DestinationsAdminPage() {
         title="Delete destination?"
         message="This will remove the destination from all listings. This action cannot be undone."
         confirmText="Delete"
+        loading={deleting}
         onCancel={() => setConfirm({ open: false, id: null })}
         onConfirm={remove}
       />

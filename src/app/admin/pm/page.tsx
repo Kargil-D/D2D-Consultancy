@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   MapPinned,
+  Ticket,
   Package,
   ArrowRightLeft,
   Sparkles,
@@ -21,6 +22,7 @@ import type { AdminModule } from "@/types/admin";
 const PM_TILES: { label: string; icon: typeof LayoutDashboard; href: string; module: AdminModule }[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard-stats", module: "Dashboard" },
   { label: "Destinations", icon: MapPinned, href: "/admin/destinations", module: "Destinations" },
+  { label: "Activities", icon: Ticket, href: "/admin/activities", module: "Activities" },
   { label: "Campaigns", icon: Package, href: "/admin/packages-master", module: "Campaigns" },
   { label: "Transfer Types", icon: ArrowRightLeft, href: "/admin/transfers", module: "TransferTypes" },
   { label: "Hero Section", icon: Sparkles, href: "/admin/hero", module: "HeroSection" },

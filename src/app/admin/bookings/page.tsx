@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Eye } from "lucide-react";
+import { Plus, Eye, Trash2 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DataTable, { type Column } from "@/components/admin/ui/DataTable";
 import Pagination from "@/components/admin/ui/Pagination";
+import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { useToast } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { canViewModule, type PermissionMap } from "@/lib/adminModules";
@@ -40,6 +41,8 @@ export default function BookingsAdminPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!authLoading && user && !canView) router.replace("/admin");
@@ -66,6 +69,25 @@ export default function BookingsAdminPage() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  const remove = async () => {
+    if (!confirm.id || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await bookingsApi.remove(confirm.id);
+      if (!res.success) {
+        notify(res.message || "Unable to delete booking", "error");
+        return;
+      }
+      notify("Booking deleted", "success");
+      setConfirm({ open: false, id: null });
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to delete booking", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (!canView) return null;
 
@@ -114,6 +136,14 @@ export default function BookingsAdminPage() {
           <Link href={`/admin/bookings/${r.id}`} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="View">
             <Eye className="w-4 h-4" />
           </Link>
+          <button
+            onClick={() => setConfirm({ open: true, id: r.id })}
+            disabled={deleting}
+            className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       ),
     },
@@ -165,6 +195,16 @@ export default function BookingsAdminPage() {
         }
       />
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Delete booking?"
+        message="This will permanently remove this booking record, including its cost sheet, payments and documents from this view."
+        confirmText="Delete"
+        loading={deleting}
+        onCancel={() => setConfirm({ open: false, id: null })}
+        onConfirm={remove}
+      />
     </AdminShell>
   );
 }

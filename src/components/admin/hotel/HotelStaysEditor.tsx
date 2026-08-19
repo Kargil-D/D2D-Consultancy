@@ -13,6 +13,8 @@ export const newHotelStay = (): HotelStayDetail => ({
   name: "",
   images: [],
   roomType: "",
+  mealPlan: "",
+  amenities: [],
   description: "",
 });
 
@@ -50,6 +52,9 @@ export default function HotelStaysEditor({ hotels, destinationId, onChange }: Ho
       name: hm?.name ?? "",
       images: hm?.images ?? [],
       roomType: "",
+      mealPlan: "",
+      amenities: hm?.amenities ?? [],
+      description: hm?.description ?? "",
     });
   };
 
@@ -64,7 +69,9 @@ export default function HotelStaysEditor({ hotels, destinationId, onChange }: Ho
       {hotels.map((h, i) => {
         const selectedHotel = hotelMasters.find((hm) => hm.id === h.hotelMasterId);
         const roomOptions = selectedHotel?.roomTypes ?? [];
+        const mealPlanOptions = selectedHotel?.mealPlans ?? [];
         const images = h.images ?? [];
+        const amenities = h.amenities ?? [];
         return (
           <div key={h.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
             <div className="flex items-center justify-between mb-3">
@@ -119,6 +126,34 @@ export default function HotelStaysEditor({ hotels, destinationId, onChange }: Ho
               </Field>
               <Field label="Description">
                 <textarea className={textareaCls} value={h.description} onChange={(e) => update(i, { description: e.target.value })} />
+              </Field>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+              <Field label="Meal Plan">
+                <select
+                  className={selectCls}
+                  value={h.mealPlan ?? ""}
+                  onChange={(e) => update(i, { mealPlan: e.target.value })}
+                  disabled={mealPlanOptions.length === 0}
+                >
+                  <option value="">{mealPlanOptions.length === 0 ? "Select a hotel first" : "Select meal plan"}</option>
+                  {mealPlanOptions.map((mp) => (
+                    <option key={mp} value={mp}>{mp}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Amenities" hint="From the Hotel Master catalog">
+                {amenities.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {amenities.map((a) => (
+                      <span key={a} className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-200">
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic px-1 py-2">Select a hotel above to show its amenities.</p>
+                )}
               </Field>
             </div>
           </div>

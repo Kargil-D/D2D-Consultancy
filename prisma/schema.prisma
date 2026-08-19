@@ -31,6 +31,7 @@ enum OtpPurpose {
 enum AdminModule {
   Dashboard
   Destinations
+  Activities
   Campaigns
   TransferTypes
   HotelMaster
@@ -170,8 +171,88 @@ model Destination {
   quotations   Quotation[]
   bookings     Booking[]
   hotelMasters HotelMaster[]
+  cities       DestinationCity[]
+  activities   Activity[]
 
   @@map("destinations")
+}
+
+/// Reusable city master, shared across Destinations, Activities and (future) Hotels/Transfers/
+/// Packages/Itinerary modules — see DestinationCity/ActivityCity for the per-entity mappings.
+model City {
+  id     String @id @default(uuid())
+  name   String
+  state  String?
+  country String?
+  status Status @default(Active)
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  destinations DestinationCity[]
+  activities   ActivityCity[]
+
+  @@map("cities")
+}
+
+/// Destination <-> City join table (many-to-many). A city can belong to several destinations
+/// (rare, but not disallowed) and a destination can list several cities.
+model DestinationCity {
+  id            String      @id @default(uuid())
+  destinationId String
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  cityId        String
+  city          City        @relation(fields: [cityId], references: [id], onDelete: Restrict)
+
+  createdDate DateTime @default(now())
+
+  @@unique([destinationId, cityId])
+  @@index([cityId])
+  @@map("destination_cities")
+}
+
+/// Reusable activity catalog (Batu Caves & KL City Tour, etc.) — selected later when building a
+/// Quotation/Package/Itinerary's Activities step. Belongs to exactly one Destination (mirrors
+/// Campaign's required-destination pattern); its cities must be a subset of that Destination's
+/// own DestinationCity mappings — enforced in activityService, not at the schema level.
+model Activity {
+  id            String      @id @default(uuid())
+  name          String
+  destinationId String
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Restrict)
+  description   String
+  imageUrl      String?
+  displayOrder  Int         @default(0)
+  status        Status      @default(Active)
+
+  createdBy   String?
+  createdDate DateTime @default(now())
+  updatedBy   String?
+  updatedDate DateTime @updatedAt
+  isDeleted   Boolean  @default(false)
+
+  cities ActivityCity[]
+
+  @@index([destinationId])
+  @@map("activities")
+}
+
+/// Activity <-> City join table (many-to-many).
+model ActivityCity {
+  id         String   @id @default(uuid())
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  cityId     String
+  city       City     @relation(fields: [cityId], references: [id], onDelete: Restrict)
+
+  createdDate DateTime @default(now())
+
+  @@unique([activityId, cityId])
+  @@index([cityId])
+  @@map("activity_cities")
 }
 
 model Campaign {
@@ -187,9 +268,6 @@ model Campaign {
   thumbnail           String?
   coverBanner         String?
   shortDescription    String      @default("")
-  highlights          String[]    @default([])
-  inclusions          String[]    @default([])
-  exclusions          String[]    @default([])
   bestTimeToVisit     String?
   travelTypes         String[]    @default([])
   isFeatured          Boolean     @default(false)
@@ -599,6 +677,8 @@ model Quotation {
   gstPercent    Float           @default(5)
   status        QuotationStatus @default(Draft)
   shareToken    String?         @unique
+  /** Set (and overwritten) each time the PDF route renders this quotation — there's no persisted PDF file, just a "last generated" timestamp for the Document Status panel. */
+  pdfGeneratedAt DateTime?
 
   // Step 1 — Trip & Traveller Details (quotation-specific, independent of the linked Lead's own values)
   travelDate    DateTime?
@@ -768,6 +848,11 @@ enum BookingDocumentType {
   Insurance
 }
 
+enum EmailRecipientType {
+  Customer
+  Supplier
+}
+
 model Booking {
   id                 String        @id @default(uuid())
   seq                Int           @unique @default(autoincrement())
@@ -806,11 +891,28 @@ model Booking {
   supplierPayments BookingSupplierPayment[]
   timeline         BookingTimelineEvent[]
   notes            BookingNote[]
+  emailDrafts      BookingEmailDraft[]
 
   @@index([leadId])
   @@index([bookingExecutiveId])
   @@index([customerSupportId])
   @@map("bookings")
+}
+
+model BookingEmailDraft {
+  id            String             @id @default(uuid())
+  bookingId     String
+  booking       Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  recipientType EmailRecipientType
+  toEmail       String             @default("")
+  cc            String             @default("")
+  bcc           String             @default("")
+  subject       String             @default("")
+  bodyHtml      String             @default("")
+  updatedDate   DateTime           @updatedAt
+
+  @@unique([bookingId, recipientType])
+  @@map("booking_email_drafts")
 }
 
 model BookingDocument {
@@ -1005,6 +1107,8 @@ model BookingCustomerPayment {
   paymentMode          PaymentMode @default(Cash)
   amount               Int
   transactionReference String?
+  /** Uploaded proof-of-payment (receipt/screenshot) — same image-hosting flow as every other ImageUpload field in the admin, just a URL. */
+  referenceImageUrl    String?
   remarks              String?
   createdDate          DateTime    @default(now())
 

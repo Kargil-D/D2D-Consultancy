@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Edit, Eye } from "lucide-react";
+import { Plus, Edit, Eye, Trash2 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DataTable, { type Column } from "@/components/admin/ui/DataTable";
 import Pagination from "@/components/admin/ui/Pagination";
+import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { useToast } from "@/components/admin/ui/Toast";
 import { LeadStatusBadge } from "@/components/admin/lead/LeadStatusBadge";
 import { leadsApi, salesUsersApi } from "@/lib/adminApi";
@@ -30,6 +31,8 @@ export default function LeadsAdminPage() {
   const [assignedToId, setAssignedToId] = useState("");
   const [salesUsers, setSalesUsers] = useState<AdminSalesUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     salesUsersApi.list().then((res) => {
@@ -62,6 +65,25 @@ export default function LeadsAdminPage() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  const remove = async () => {
+    if (!confirm.id || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await leadsApi.remove(confirm.id);
+      if (!res.success) {
+        notify(res.message || "Unable to delete lead", "error");
+        return;
+      }
+      notify("Lead deleted", "success");
+      setConfirm({ open: false, id: null });
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to delete lead", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const columns: Column<AdminLead>[] = [
     {
@@ -112,6 +134,14 @@ export default function LeadsAdminPage() {
           <Link href={`/admin/leads/${r.id}/edit`} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Edit">
             <Edit className="w-4 h-4" />
           </Link>
+          <button
+            onClick={() => setConfirm({ open: true, id: r.id })}
+            disabled={deleting}
+            className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       ),
     },
@@ -197,6 +227,16 @@ export default function LeadsAdminPage() {
         }
       />
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Delete lead?"
+        message="This will permanently remove this lead and cannot be undone. Any linked quotations or bookings will keep their own records."
+        confirmText="Delete"
+        loading={deleting}
+        onCancel={() => setConfirm({ open: false, id: null })}
+        onConfirm={remove}
+      />
     </AdminShell>
   );
 }

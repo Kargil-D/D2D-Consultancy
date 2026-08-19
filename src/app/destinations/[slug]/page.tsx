@@ -40,7 +40,7 @@ export default async function DestinationPage({ params }: PageProps) {
     title: c.name,
     duration: `${c.days}D / ${c.nights}N`,
     price: c.offerPrice ?? c.startingPrice,
-    highlights: c.highlights,
+    highlights: [],
     image: c.thumbnail || c.coverBanner || destination.thumbnailImage || destination.bannerImage || "",
     tag: c.isFeatured ? "Featured" : undefined,
     campaignSlug: c.slug,

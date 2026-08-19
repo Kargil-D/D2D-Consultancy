@@ -10,13 +10,16 @@
  */
 
 import type {
+  AdminActivity,
   AdminBooking,
   AdminBookingActivity,
+  AdminBookingEmailDraft,
   AdminBookingFlight,
   AdminBookingHotel,
   AdminBookingInsurance,
   AdminBookingTransfer,
   AdminBookingVisa,
+  AdminCity,
   AdminCurrency,
   AdminCurrencyRateHistory,
   AdminDestination,
@@ -42,6 +45,7 @@ import type {
   AdminTransfer,
   AdminTransferType,
   ApiResponse,
+  EmailRecipientType,
   LeadStatus,
   Paginated,
   QuotationCustomerInput,
@@ -262,6 +266,63 @@ export const destinationsApi = {
   },
 };
 
+export const activitiesApi = {
+  list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminActivity>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", String(query.search));
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const { destinationId, cityId, status } = query.filter ?? {};
+    if (typeof destinationId === "string") params.set("destinationId", destinationId);
+    if (typeof cityId === "string") params.set("cityId", cityId);
+    if (typeof status === "string") params.set("status", status);
+    const res = await adminFetch(`/api/admin/activities?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminActivity>>;
+  },
+  all: async (): Promise<ApiResponse<AdminActivity[]>> => {
+    const res = await adminFetch(`/api/admin/activities?page=1&pageSize=1000`);
+    const json = await res.json();
+    return { success: json.success, message: json.message, data: json.data.items };
+  },
+  get: async (id: string): Promise<ApiResponse<AdminActivity | null>> => {
+    const res = await adminFetch(`/api/admin/activities/${id}`);
+    return (await res.json()) as ApiResponse<AdminActivity | null>;
+  },
+  create: async (payload: Omit<AdminActivity, "id" | "createdDate" | "updatedDate">): Promise<ApiResponse<AdminActivity>> => {
+    const res = await adminFetch(`/api/admin/activities`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminActivity>;
+  },
+  update: async (id: string, payload: Partial<AdminActivity>): Promise<ApiResponse<AdminActivity | null>> => {
+    const res = await adminFetch(`/api/admin/activities/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminActivity | null>;
+  },
+  remove: async (id: string): Promise<ApiResponse<boolean>> => {
+    const res = await adminFetch(`/api/admin/activities/${id}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  toggleStatus: async (id: string): Promise<ApiResponse<AdminActivity | null>> => {
+    const res = await adminFetch(`/api/admin/activities/${id}/toggle-status`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminActivity | null>;
+  },
+};
+
+export const citiesApi = {
+  list: async (query: { search?: string; page?: number; pageSize?: number; country?: string } = {}): Promise<ApiResponse<Paginated<AdminCity>>> => {
+    const params = new URLSearchParams();
+    if (query.search) params.set("search", query.search);
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    if (query.country) params.set("country", query.country);
+    const res = await adminFetch(`/api/admin/cities?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminCity>>;
+  },
+  /** Find-or-create: reuses an existing city (case-insensitive) or adds a new one to the master, tagged with `country` when creating. */
+  create: async (name: string, country?: string): Promise<ApiResponse<AdminCity>> => {
+    const res = await adminFetch(`/api/admin/cities`, { method: "POST", body: JSON.stringify({ name, country }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminCity>;
+  },
+};
+
 export const leadsApi = {
   list: async (query: ListQuery = {}): Promise<ApiResponse<Paginated<AdminLead>>> => {
     const params = new URLSearchParams();
@@ -433,7 +494,7 @@ export const bookingsApi = {
   },
   addCustomerPayment: async (
     id: string,
-    payload: { paymentDate: string; paymentMode: string; amount: number; transactionReference?: string | null; remarks?: string | null },
+    payload: { paymentDate: string; paymentMode: string; amount: number; transactionReference?: string | null; referenceImageUrl?: string | null; remarks?: string | null },
   ): Promise<ApiResponse<unknown>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/payments/customer`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<unknown>;
@@ -448,6 +509,24 @@ export const bookingsApi = {
   addNote: async (id: string, authorName: string, message: string): Promise<ApiResponse<unknown>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/notes`, { method: "POST", body: JSON.stringify({ authorName, message }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<unknown>;
+  },
+  getEmailDraft: async (id: string, type: EmailRecipientType): Promise<ApiResponse<AdminBookingEmailDraft | null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/email-draft?type=${type}`);
+    return (await res.json()) as ApiResponse<AdminBookingEmailDraft | null>;
+  },
+  saveEmailDraft: async (
+    id: string,
+    payload: { recipientType: EmailRecipientType; toEmail: string; cc: string; bcc: string; subject: string; bodyHtml: string },
+  ): Promise<ApiResponse<AdminBookingEmailDraft | null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/email-draft`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBookingEmailDraft | null>;
+  },
+  sendMail: async (
+    id: string,
+    payload: { recipientType: EmailRecipientType; toEmail: string; cc: string; bcc: string; subject: string; bodyHtml: string },
+  ): Promise<ApiResponse<null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/send-mail`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<null>;
   },
 };
 

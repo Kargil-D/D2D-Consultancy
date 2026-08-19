@@ -15,6 +15,18 @@ export type AuditColumns = {
 export type Status = "Active" | "Inactive";
 
 /* -------------------------------------------------------------------------- */
+/*  City Master (reusable across Destinations, Activities, Hotels, Transfers,  */
+/*  Packages and Itinerary)                                                    */
+/* -------------------------------------------------------------------------- */
+export interface AdminCity extends AuditColumns {
+  id: string;
+  name: string;
+  state?: string | null;
+  country?: string | null;
+  status: Status;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Destination Master                                                         */
 /* -------------------------------------------------------------------------- */
 export interface AdminDestination extends AuditColumns {
@@ -22,7 +34,12 @@ export interface AdminDestination extends AuditColumns {
   name: string;
   country: string;
   state?: string;
+  /** @deprecated superseded by `cities` (multi-select, many-to-many). Left in place so existing records with a single legacy value aren't lost. */
   city?: string;
+  /** Cities mapped to this destination, read from the DestinationCity join table. */
+  cities?: AdminCity[];
+  /** Write-side: full replacement set of city ids to save on create/update. */
+  cityIds?: string[];
   slug: string;
   shortDescription: string;
   fullDescription: string;
@@ -35,6 +52,26 @@ export interface AdminDestination extends AuditColumns {
   importantNotes?: string;
   status: Status;
   isDomestic: boolean;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Activity Master (reusable catalog — selected later from Quotation/Package/ */
+/*  Itinerary Activities steps)                                                */
+/* -------------------------------------------------------------------------- */
+export interface AdminActivity extends AuditColumns {
+  id: string;
+  name: string;
+  destinationId: string;
+  /** Read-side: populated destination, including its own `cities` list (used to scope the City field). */
+  destination?: AdminDestination | null;
+  /** Cities mapped to this activity, read from the ActivityCity join table. Must be a subset of `destination.cities`. */
+  cities?: AdminCity[];
+  /** Write-side: full replacement set of city ids to save on create/update. */
+  cityIds?: string[];
+  description: string;
+  imageUrl?: string | null;
+  displayOrder: number;
+  status: Status;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -60,9 +97,6 @@ export interface AdminPackage extends AuditColumns {
   thumbnail: string;
   coverBanner: string;
   shortDescription: string;
-  highlights: string[];
-  inclusions: string[];
-  exclusions: string[];
   bestTimeToVisit?: string;
   travelTypes: TravelType[];
   isFeatured: boolean;
@@ -120,11 +154,14 @@ export interface AdminItinerary extends AuditColumns {
 /* -------------------------------------------------------------------------- */
 export interface HotelStayDetail {
   id: string;
-  /** Links back to the selected Hotel Master catalog entry — name/images/room options are sourced from there. */
+  /** Links back to the selected Hotel Master catalog entry — name/images/room/meal-plan options are sourced from there. */
   hotelMasterId?: string;
   name: string;
   images?: string[];
   roomType: string;
+  mealPlan?: string;
+  /** Read-only copy of the Hotel Master's amenities at time of selection — not editable per stay. */
+  amenities?: string[];
   description: string;
 }
 
@@ -313,6 +350,7 @@ export interface AdminMyRoster {
 export type AdminModule =
   | "Dashboard"
   | "Destinations"
+  | "Activities"
   | "Campaigns"
   | "TransferTypes"
   | "HotelMaster"
@@ -646,6 +684,7 @@ export interface AdminQuotation {
   gstPercent: number;
   status: QuotationStatus;
   shareToken?: string | null;
+  pdfGeneratedAt?: string | null;
 
   // Step 1 — Trip / Traveller / Other details
   travelDate?: string | null;
@@ -845,6 +884,7 @@ export interface AdminBookingCustomerPayment {
   paymentMode: PaymentMode;
   amount: number;
   transactionReference?: string | null;
+  referenceImageUrl?: string | null;
   remarks?: string | null;
   createdDate?: string;
 }
@@ -908,6 +948,18 @@ export interface AdminBooking {
   notes: AdminBookingNote[];
   createdDate: string;
   updatedDate: string;
+}
+
+export type EmailRecipientType = "Customer" | "Supplier";
+
+export interface AdminBookingEmailDraft {
+  recipientType: EmailRecipientType;
+  toEmail: string;
+  cc: string;
+  bcc: string;
+  subject: string;
+  bodyHtml: string;
+  updatedDate?: string;
 }
 
 /* -------------------------------------------------------------------------- */

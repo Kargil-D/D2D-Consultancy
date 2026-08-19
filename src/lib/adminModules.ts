@@ -28,6 +28,7 @@ export const DEPARTMENTS: Department[] = [
     modules: [
       { module: "Dashboard", actions: ["canView"] },
       { module: "Destinations", actions: FULL_CRUD },
+      { module: "Activities", actions: FULL_CRUD },
       { module: "Campaigns", actions: FULL_CRUD },
       { module: "TransferTypes", actions: FULL_CRUD },
       { module: "HeroSection", actions: ["canView", "canEdit"] },

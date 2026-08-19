@@ -3,22 +3,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Plus, Edit, Power, Image as ImageIcon, X } from "lucide-react";
+import { Plus, Edit, Power, Trash2, Image as ImageIcon, X } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DataTable, { type Column } from "@/components/admin/ui/DataTable";
 import Pagination from "@/components/admin/ui/Pagination";
 import Drawer from "@/components/admin/ui/Drawer";
+import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import StatusToggle, { StatusBadge } from "@/components/admin/ui/StatusToggle";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import TagInput from "@/components/admin/ui/TagInput";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
 import { useToast } from "@/components/admin/ui/Toast";
+import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import { destinationsApi, hotelMasterApi } from "@/lib/adminApi";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AdminDestination, AdminHotelMaster } from "@/types/admin";
 
 const PAGE_SIZE = 10;
+
+const MEAL_PLANS = ["Bed & Breakfast", "Half Board", "Full Board", "All Inclusive"];
 
 const emptyForm = (): Partial<AdminHotelMaster> => ({
   name: "",
@@ -51,6 +55,10 @@ export default function HotelMasterPage() {
     open: false,
     form: emptyForm(),
   });
+  const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !isAdmin)) {
@@ -81,6 +89,11 @@ export default function HotelMasterPage() {
   const openCreate = () => setDrawer({ open: true, form: emptyForm() });
   const openEdit = (row: AdminHotelMaster) => setDrawer({ open: true, form: { ...row } });
 
+  const closeDrawer = () => {
+    if (saving) return;
+    setDrawer({ open: false, form: emptyForm() });
+  };
+
   const setForm = (patch: Partial<AdminHotelMaster>) =>
     setDrawer((d) => ({ ...d, form: { ...d.form, ...patch } }));
 
@@ -93,21 +106,62 @@ export default function HotelMasterPage() {
   };
 
   const save = async () => {
+    if (saving) return;
     const f = drawer.form;
     if (!f.name?.trim()) return notify("Hotel name is required", "error");
 
-    const res = f.id ? await hotelMasterApi.update(f.id, f) : await hotelMasterApi.create(f);
-    if (!res.success) return notify(res.message || "Unable to save hotel", "error");
-    notify(f.id ? "Hotel updated" : "Hotel added", "success");
-    setDrawer({ open: false, form: emptyForm() });
-    reload();
+    setSaving(true);
+    try {
+      const res = f.id ? await hotelMasterApi.update(f.id, f) : await hotelMasterApi.create(f);
+      if (!res.success) {
+        notify(res.message || "Unable to save hotel", "error");
+        return;
+      }
+      notify(f.id ? "Hotel updated" : "Hotel added", "success");
+      setDrawer({ open: false, form: emptyForm() });
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleStatus = async (row: AdminHotelMaster) => {
-    const res = await hotelMasterApi.toggleStatus(row.id);
-    if (!res.success) return notify(res.message || "Unable to update status", "error");
-    notify(`${row.name} is now ${res.data?.status}`, "success");
-    reload();
+    if (togglingId) return;
+    setTogglingId(row.id);
+    try {
+      const res = await hotelMasterApi.toggleStatus(row.id);
+      if (!res.success) {
+        notify(res.message || "Unable to update status", "error");
+        return;
+      }
+      notify(`${row.name} is now ${res.data?.status}`, "success");
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to update status", "error");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const remove = async () => {
+    if (!confirm.id || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await hotelMasterApi.remove(confirm.id);
+      if (!res.success) {
+        notify(res.message || "Unable to delete hotel", "error");
+        return;
+      }
+      notify("Hotel deleted", "success");
+      setConfirm({ open: false, id: null });
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to delete hotel", "error");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const columns: Column<AdminHotelMaster>[] = [
@@ -141,14 +195,28 @@ export default function HotelMasterPage() {
         <div className="flex items-center justify-end gap-1">
           <button
             onClick={() => toggleStatus(r)}
-            className="p-2 rounded-lg text-slate-600 hover:bg-slate-100"
+            disabled={togglingId === r.id}
+            className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label={r.status === "Active" ? "Deactivate hotel" : "Activate hotel"}
             title={r.status === "Active" ? "Deactivate" : "Activate"}
           >
-            <Power className="w-4 h-4" />
+            {togglingId === r.id ? (
+              <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Power className="w-4 h-4" />
+            )}
           </button>
           <button onClick={() => openEdit(r)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Edit hotel" title="Edit">
             <Edit className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setConfirm({ open: true, id: r.id })}
+            disabled={deleting}
+            className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Delete hotel"
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       ),
@@ -199,18 +267,24 @@ export default function HotelMasterPage() {
         open={drawer.open}
         title={drawer.form.id ? "Edit Hotel" : "Add Hotel"}
         width="xl"
-        onClose={() => setDrawer({ open: false, form: emptyForm() })}
+        onClose={closeDrawer}
         footer={
           <>
-            <button onClick={() => setDrawer({ open: false, form: emptyForm() })} className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100">
+            <button onClick={closeDrawer} disabled={saving} className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed">
               Cancel
             </button>
-            <button onClick={save} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-              {drawer.form.id ? "Update" : "Create"}
+            <button
+              onClick={save}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving && <span className="inline-block w-3.5 h-3.5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />}
+              {drawer.form.id ? (saving ? "Updating…" : "Update") : saving ? "Creating…" : "Create"}
             </button>
           </>
         }
       >
+        <LoadingOverlay show={saving} label={drawer.form.id ? "Updating hotel…" : "Creating hotel…"} />
         <div className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="Hotel Name" required>
@@ -264,7 +338,18 @@ export default function HotelMasterPage() {
               <TagInput value={drawer.form.roomTypes ?? []} onChange={(v) => setForm({ roomTypes: v })} placeholder="Deluxe Room" />
             </Field>
             <Field label="Meal Plans">
-              <TagInput value={drawer.form.mealPlans ?? []} onChange={(v) => setForm({ mealPlans: v })} placeholder="Breakfast Included" />
+              <select
+                className={selectCls}
+                value={drawer.form.mealPlans?.[0] ?? ""}
+                onChange={(e) => setForm({ mealPlans: e.target.value ? [e.target.value] : [] })}
+              >
+                <option value="">Select meal plan</option>
+                {MEAL_PLANS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
             </Field>
             <Field label="Amenities">
               <TagInput value={drawer.form.amenities ?? []} onChange={(v) => setForm({ amenities: v })} placeholder="Pool, WiFi" />
@@ -275,6 +360,16 @@ export default function HotelMasterPage() {
           </Field>
         </div>
       </Drawer>
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Delete hotel?"
+        message="This will remove the hotel from the catalog. This action cannot be undone."
+        confirmText="Delete"
+        loading={deleting}
+        onCancel={() => setConfirm({ open: false, id: null })}
+        onConfirm={remove}
+      />
     </AdminShell>
   );
 }

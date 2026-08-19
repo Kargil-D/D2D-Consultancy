@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
@@ -8,10 +8,13 @@ import {
   Plus,
   Trash2,
   FileDown,
+  Download,
   Share2,
   Copy,
   Save,
   Check,
+  CheckCircle2,
+  FileText,
   ArrowLeft,
   ArrowRight,
   User as UserIcon,
@@ -22,9 +25,12 @@ import {
   Wallet,
   ListChecks,
   Briefcase,
+  X,
 } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
+import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
+import ImageUpload from "@/components/admin/ui/ImageUpload";
 import {
   bookingsApi, currenciesApi, destinationsApi, hotelMasterApi, hotelsApi, itinerariesApi, leadsApi,
   packagesApi, quotationsApi, salesUsersApi, transferTypesApi, transfersApi,
@@ -34,6 +40,7 @@ import QuotationItineraryDaysEditor, { newQuotationDay } from "@/components/admi
 import QuotationHotelOptionsEditor from "@/components/admin/quotation/QuotationHotelOptionsEditor";
 import QuotationTransfersEditor from "@/components/admin/quotation/QuotationTransfersEditor";
 import QuotationActivitiesEditor from "@/components/admin/quotation/QuotationActivitiesEditor";
+import { isFutureDate, todayIso, tomorrowIso } from "@/utils/dateRange";
 import type {
   AdminCurrency,
   AdminDestination,
@@ -41,6 +48,7 @@ import type {
   AdminQuotationItem,
   AdminSalesUser,
   LeadSource,
+  PaymentMode,
   QuotationActivityItem,
   QuotationComponentType,
   QuotationCustomerInput,
@@ -192,7 +200,31 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   const [draft, setDraft] = useState<Draft>(emptyDraft());
   const [status, setStatus] = useState<string>("Draft");
   const [shareToken, setShareToken] = useState<string | null>(null);
+  const [pdfGeneratedAt, setPdfGeneratedAt] = useState<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [existingBookingId, setExistingBookingId] = useState<string | null>(null);
+
+  interface ConvertPaymentForm {
+    paymentDate: string;
+    paymentMode: PaymentMode;
+    amount: number;
+    transactionReference: string;
+    referenceImageUrl: string;
+    remarks: string;
+  }
+  const [convertModalOpen, setConvertModalOpen] = useState(false);
+  const [convertPayment, setConvertPayment] = useState<ConvertPaymentForm>({
+    paymentDate: "",
+    paymentMode: "Cash",
+    amount: 0,
+    transactionReference: "",
+    referenceImageUrl: "",
+    remarks: "",
+  });
+  /** Blocks opening the payment dialog (no Advance Amount set yet) — its own small centered popup. */
+  const [convertGateError, setConvertGateError] = useState<string | null>(null);
+  /** Validation failures inside the payment dialog itself — shown as an inline banner in that same popup. */
+  const [convertFormError, setConvertFormError] = useState<string | null>(null);
 
   const [destinations, setDestinations] = useState<AdminDestination[]>([]);
   const [campaigns, setCampaigns] = useState<AdminPackage[]>([]);
@@ -202,6 +234,11 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   const [loading, setLoading] = useState(!!initialId);
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+
+  type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipNextAutoSaveRef = useRef(true);
 
   const patch = (next: Partial<Draft>) => setDraft((d) => ({ ...d, ...next }));
 
@@ -304,14 +341,49 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
         });
         setStatus(q.status);
         setShareToken(q.shareToken ?? null);
+        setPdfGeneratedAt(q.pdfGeneratedAt ? new Date(q.pdfGeneratedAt) : null);
+        setLastUpdated(q.updatedDate);
         setExistingBookingId(q.bookings && q.bookings.length > 0 ? q.bookings[0].id : null);
       } else {
         notify(res.message || "Unable to load quotation", "error");
       }
+      skipNextAutoSaveRef.current = true;
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialId]);
+
+  // Auto-save Hotels/Transfers/Activities as the user edits them — the other steps still rely
+  // on the explicit Save Draft/Save & Next buttons. Skipped while there's no id yet (nothing to
+  // PUT to) or right after a fresh load (that's not a user edit).
+  useEffect(() => {
+    if (!id || loading) return;
+    if (skipNextAutoSaveRef.current) {
+      skipNextAutoSaveRef.current = false;
+      return;
+    }
+    setAutoSaveStatus("saving");
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      if (saving) return;
+      try {
+        const res = await quotationsApi.update(id, buildPayload());
+        if (!res.success) {
+          setAutoSaveStatus("error");
+          notify(res.message || "Auto-save failed — use Save Draft", "error");
+          return;
+        }
+        setAutoSaveStatus("saved");
+      } catch (error) {
+        setAutoSaveStatus("error");
+        notify(error instanceof Error ? error.message : "Auto-save failed — use Save Draft", "error");
+      }
+    }, 1500);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.hotelOptions, draft.transfers, draft.activities]);
 
   // Selecting an Itinerary Template pre-loads Steps 2–6 from the campaign's own content
   // (only for a fresh/empty builder — see hasManualRows guard below).
@@ -464,6 +536,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
       notify("Customer name, mobile, destination, travel date and travel end date are required", "error");
       return null;
     }
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     setSaving(true);
     try {
       if (id) {
@@ -472,6 +545,8 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           notify(res.message || "Unable to save quotation", "error");
           return null;
         }
+        if (res.data?.updatedDate) setLastUpdated(res.data.updatedDate);
+        setAutoSaveStatus("saved");
         return id;
       }
       const res = await quotationsApi.create(buildPayload());
@@ -480,6 +555,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
         return null;
       }
       setId(res.data.id);
+      setLastUpdated(res.data.updatedDate);
       router.replace(`/admin/quotations/${res.data.id}/edit`);
       return res.data.id;
     } finally {
@@ -510,6 +586,14 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
       const savedId = await persist();
       if (!savedId) return;
       window.open(`/api/admin/quotations/${savedId}/pdf`, "_blank");
+      setPdfGeneratedAt(new Date());
+    });
+
+  const downloadPdf = () =>
+    withBusy("pdf-download", async () => {
+      const savedId = await persist();
+      if (!savedId) return;
+      window.open(`/api/admin/quotations/${savedId}/pdf?download=1`, "_blank");
     });
 
   const generateLink = () =>
@@ -521,8 +605,14 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
       setShareToken(res.data.token);
       setStatus("Sent");
       await navigator.clipboard.writeText(res.data.url).catch(() => {});
-      notify("Shareable link copied to clipboard", "success");
+      notify("Shareable link generated and copied to clipboard", "success");
     });
+
+  const copyShareLink = async () => {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl).catch(() => {});
+    notify("Shareable link copied to clipboard", "success");
+  };
 
   const duplicate = () =>
     withBusy("duplicate", async () => {
@@ -533,9 +623,38 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
       router.push(`/admin/quotations/${res.data.id}/edit`);
     });
 
-  /** Creates a real Booking record from this quotation (Lead, destination, travel date, selling price) and hands off to the Operations Workspace. */
-  const convertToBooking = () =>
-    withBusy("convert", async () => {
+  /** Opens the advance-payment collection dialog — the actual conversion runs from there, in confirmConvertToBooking.
+   * Gated on the quotation actually declaring an Advance Amount (Pricing step) — that field is the
+   * source of truth for "what advance is required to confirm this booking", not just a hint. */
+  const openConvertModal = () => {
+    if (!draft.advanceAmount || draft.advanceAmount <= 0) {
+      return setConvertGateError(
+        `Set an Advance Amount on the Pricing step before converting into a booking (suggested: ${formatINR(advanceSuggested)}).`,
+      );
+    }
+    setConvertFormError(null);
+    setConvertPayment({
+      paymentDate: todayIso(),
+      paymentMode: "Cash",
+      amount: draft.advanceAmount,
+      transactionReference: "",
+      referenceImageUrl: "",
+      remarks: "",
+    });
+    setConvertModalOpen(true);
+  };
+
+  /** Creates a real Booking record from this quotation (Lead, destination, travel date, selling price),
+   * records the collected advance payment against it, then hands off to the Operations Workspace. */
+  const confirmConvertToBooking = () => {
+    if (!convertPayment.paymentDate || convertPayment.amount <= 0) {
+      return setConvertFormError("Payment date and a payment amount greater than zero are required.");
+    }
+    if (convertPayment.amount < draft.advanceAmount) {
+      return setConvertFormError(`The payment amount must be at least the declared Advance Amount (${formatINR(draft.advanceAmount)}).`);
+    }
+    setConvertFormError(null);
+    return withBusy("convert", async () => {
       const savedId = await persist();
       if (!savedId) return;
       const res = await quotationsApi.get(savedId);
@@ -546,12 +665,25 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
         destinationId: res.data.destinationId,
         travelDate: res.data.travelDate ? res.data.travelDate.slice(0, 10) : null,
         totalAmount: sellingPrice,
-        remarks: draft.advanceAmount > 0 ? `Advance amount required to confirm booking: ${formatINR(draft.advanceAmount)}.` : null,
       });
       if (!bookingRes.success || !bookingRes.data) return notify(bookingRes.message || "Unable to create booking", "error");
-      notify("Booking created from this quotation", "success");
+      const paymentRes = await bookingsApi.addCustomerPayment(bookingRes.data.id, {
+        paymentDate: convertPayment.paymentDate,
+        paymentMode: convertPayment.paymentMode,
+        amount: convertPayment.amount,
+        transactionReference: convertPayment.transactionReference || null,
+        referenceImageUrl: convertPayment.referenceImageUrl || null,
+        remarks: convertPayment.remarks || null,
+      });
+      if (!paymentRes.success) {
+        notify(`Booking created, but the payment could not be recorded: ${paymentRes.message || "unknown error"}`, "error");
+      } else {
+        notify("Booking created and advance payment recorded", "success");
+      }
+      setConvertModalOpen(false);
       router.push(`/admin/bookings/${bookingRes.data.id}`);
     });
+  };
 
   // Costing helpers (Step 6 — unchanged pricing logic).
   const updateItem = (index: number, itemPatch: Partial<AdminQuotationItem>) => {
@@ -630,41 +762,128 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   const sellingPrice = preGstSubtotal + gstValue;
   const advanceSuggested = Math.round(sellingPrice * 0.2);
 
+  const busyLabels: Record<string, string> = {
+    pdf: "Generating PDF…",
+    "pdf-download": "Preparing download…",
+    link: "Generating link…",
+    duplicate: "Duplicating quotation…",
+    convert: "Creating booking…",
+  };
+  const anyBusy = saving || busyAction !== null;
+  const busyLabel = busyAction ? busyLabels[busyAction] ?? "Working…" : "Saving quotation…";
+
+  const shareUrl = shareToken && typeof window !== "undefined" ? `${window.location.origin}/quote/${shareToken}` : null;
+  const formatDateTime = (value: Date | string) =>
+    new Date(value).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", " ·");
+
   if (loading) {
     return (
       <div className="rounded-2xl bg-white border border-slate-200 p-10 text-center text-sm text-slate-500">
+        <span className="inline-block w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2 align-middle" />
         Loading…
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_260px] gap-6">
+    <div className="relative grid grid-cols-1 lg:grid-cols-[220px_1fr_260px] gap-6">
+      <LoadingOverlay show={anyBusy} label={busyLabel} />
       {/* Actions panel (left) */}
       <div className="rounded-2xl bg-white border border-slate-200 p-4 h-fit space-y-2 order-2 lg:order-1">
         <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Actions</h3>
-        <button type="button" onClick={() => persist()} disabled={saving} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-          <Save className="w-4 h-4" /> Save Draft
+        <button type="button" onClick={() => persist()} disabled={anyBusy} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+          {saving ? <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />} {saving ? "Saving…" : "Save Draft"}
         </button>
-        <button type="button" onClick={generatePdf} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-          <FileDown className="w-4 h-4" /> Generate PDF
+        {id && autoSaveStatus !== "idle" && (
+          <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-slate-400" aria-live="polite">
+            {autoSaveStatus === "saving" && (
+              <>
+                <span className="inline-block w-3 h-3 border-2 border-slate-300 border-t-transparent rounded-full animate-spin" />
+                Auto-saving Hotels/Transfers/Activities…
+              </>
+            )}
+            {autoSaveStatus === "saved" && (
+              <>
+                <Check className="w-3 h-3 text-emerald-500" />
+                All changes saved
+              </>
+            )}
+            {autoSaveStatus === "error" && <span className="text-rose-500">Auto-save failed — use Save Draft</span>}
+          </div>
+        )}
+        <button type="button" onClick={generatePdf} disabled={anyBusy} className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+          <span className="inline-flex items-center gap-2">
+            {busyAction === "pdf" ? <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <FileDown className="w-4 h-4" />} {busyAction === "pdf" ? "Generating…" : "Generate PDF"}
+          </span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-600 border border-rose-200">PDF</span>
         </button>
-        <button type="button" onClick={generateLink} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-          <Share2 className="w-4 h-4" /> Generate Shareable Link
-        </button>
-        {id && (
-          <button type="button" onClick={duplicate} disabled={busyAction !== null} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
-            <Copy className="w-4 h-4" /> Duplicate
+        {pdfGeneratedAt && (
+          <button type="button" onClick={downloadPdf} disabled={anyBusy} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            {busyAction === "pdf-download" ? <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <Download className="w-4 h-4" />} {busyAction === "pdf-download" ? "Preparing…" : "Download PDF"}
           </button>
         )}
+        <button type="button" onClick={generateLink} disabled={anyBusy} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+          {busyAction === "link" ? <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <Share2 className="w-4 h-4" />} {busyAction === "link" ? "Working…" : "Share Link"}
+        </button>
         {shareToken && (
-          <Link href={`/quote/${shareToken}`} target="_blank" className="block text-center text-xs text-cyan-700 hover:underline pt-1">
-            View public link
-          </Link>
+          <div className="flex items-center gap-1.5 px-0.5 text-[11px] text-emerald-600 font-medium">
+            <Check className="w-3 h-3" /> Link generated
+          </div>
+        )}
+        {shareToken && (
+          <button type="button" onClick={copyShareLink} disabled={anyBusy} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <Copy className="w-4 h-4" /> Copy Shareable Link
+          </button>
         )}
         {id && (
-          <div className="text-xs text-slate-400 pt-2 border-t border-slate-100 mt-2">
-            Status: <span className="font-semibold text-slate-600">{status}</span>
+          <button type="button" onClick={duplicate} disabled={anyBusy} className="w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            {busyAction === "duplicate" ? <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <Copy className="w-4 h-4" />} {busyAction === "duplicate" ? "Duplicating…" : "Duplicate"}
+          </button>
+        )}
+
+        {(shareToken || pdfGeneratedAt) && (
+          <div className="pt-3 mt-1 border-t border-slate-100 space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Document Status</h3>
+            {shareToken && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Shareable Link
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Generated</span>
+                </div>
+                {shareUrl && (
+                  <div className="flex items-center gap-1.5 pl-5">
+                    <Link href={`/quote/${shareToken}`} target="_blank" className="text-[11px] text-cyan-700 hover:underline truncate">
+                      {shareUrl}
+                    </Link>
+                    <button type="button" onClick={copyShareLink} className="text-slate-400 hover:text-slate-600 flex-shrink-0" aria-label="Copy link">
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {pdfGeneratedAt && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+                    <FileText className="w-3.5 h-3.5 text-rose-500" /> PDF Document
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Generated</span>
+                </div>
+                <div className="pl-5 text-[11px] text-slate-400">Generated on {formatDateTime(pdfGeneratedAt)}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {id && (
+          <div className="text-xs text-slate-400 pt-2 border-t border-slate-100 mt-2 space-y-0.5">
+            <div>
+              Status: <span className="font-semibold text-blue-600">{status}</span>
+            </div>
+            {lastUpdated && <div>Last updated: {formatDateTime(lastUpdated)}</div>}
           </div>
         )}
       </div>
@@ -734,11 +953,37 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                         ))}
                       </select>
                     </Field>
-                    <Field label="Travel Date" required>
-                      <input type="date" className={inputCls} value={draft.travelDate} onChange={(e) => patch({ travelDate: e.target.value })} />
+                    <Field label="Travel Date" required hint="Must be a future date">
+                      <input
+                        type="date"
+                        className={inputCls}
+                        min={tomorrowIso()}
+                        value={draft.travelDate}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value && !isFutureDate(value)) {
+                            notify("Travel date must be after today", "error");
+                            return;
+                          }
+                          patch({ travelDate: value });
+                        }}
+                      />
                     </Field>
-                    <Field label="Travel End Date" required>
-                      <input type="date" className={inputCls} value={draft.travelEndDate} onChange={(e) => patch({ travelEndDate: e.target.value })} />
+                    <Field label="Travel End Date" required hint="Must be a future date">
+                      <input
+                        type="date"
+                        className={inputCls}
+                        min={tomorrowIso()}
+                        value={draft.travelEndDate}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value && !isFutureDate(value)) {
+                            notify("Travel end date must be after today", "error");
+                            return;
+                          }
+                          patch({ travelEndDate: value });
+                        }}
+                      />
                     </Field>
                     <Field label="Days">
                       <input type="number" min={0} className={inputCls} value={draft.days} onChange={(e) => patch({ days: e.target.value })} />
@@ -1101,11 +1346,11 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                   ) : (
                     <button
                       type="button"
-                      onClick={convertToBooking}
-                      disabled={busyAction !== null}
+                      onClick={openConvertModal}
+                      disabled={anyBusy}
                       className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
                     >
-                      <Briefcase className="w-4 h-4" /> Convert into Booking
+                      {busyAction === "convert" ? <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> : <Briefcase className="w-4 h-4" />} {busyAction === "convert" ? "Creating…" : "Convert into Booking"}
                     </button>
                   )}
                 </div>
@@ -1121,14 +1366,15 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
               <button
                 type="button"
                 onClick={goNext}
-                disabled={saving || (step === 0 && !canSaveStep1)}
+                disabled={anyBusy || (step === 0 && !canSaveStep1)}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
               >
-                {step === 0 ? "Save & Next" : "Next"} <ArrowRight className="w-4 h-4" />
+                {saving && <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />}
+                {step === 0 ? (saving ? "Saving…" : "Save & Next") : "Next"} <ArrowRight className="w-4 h-4" />
               </button>
             ) : (
-              <button type="button" onClick={() => persist()} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
-                <Save className="w-4 h-4" /> Save Quotation
+              <button type="button" onClick={() => persist()} disabled={anyBusy} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50">
+                {saving ? <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />} {saving ? "Saving…" : "Save Quotation"}
               </button>
             )}
           </div>
@@ -1161,6 +1407,118 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           <span className="text-lg font-bold text-emerald-700">{formatINR(sellingPrice)}</span>
         </div>
       </div>
+
+      {convertGateError && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-5">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-rose-50 flex items-center justify-center flex-shrink-0">
+                  <Briefcase className="w-4 h-4 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Advance Amount required</h3>
+                  <p className="mt-1 text-sm text-slate-600">{convertGateError}</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end px-5 py-3 bg-slate-50 border-t border-slate-100">
+              <button type="button" onClick={() => setConvertGateError(null)} className="px-4 py-2 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800">
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {convertModalOpen && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Record Advance Payment</h3>
+              <button type="button" onClick={() => { setConvertModalOpen(false); setConvertFormError(null); }} className="text-slate-400 hover:text-slate-600" aria-label="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-slate-500">
+                Record the customer&apos;s advance payment before converting this quotation into a Booking. It&apos;s saved to the new Booking&apos;s Customer Payments.
+              </p>
+              {convertFormError && (
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-700">
+                  <span>{convertFormError}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Payment Date" required>
+                  <input
+                    type="date"
+                    className={inputCls}
+                    value={convertPayment.paymentDate}
+                    onChange={(e) => setConvertPayment((p) => ({ ...p, paymentDate: e.target.value }))}
+                  />
+                </Field>
+                <Field label="Payment Mode">
+                  <select
+                    className={selectCls}
+                    value={convertPayment.paymentMode}
+                    onChange={(e) => setConvertPayment((p) => ({ ...p, paymentMode: e.target.value as PaymentMode }))}
+                  >
+                    {(["Cash", "BankTransfer", "Card", "UPI", "Cheque", "Other"] as PaymentMode[]).map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Amount" required hint={`Minimum ${formatINR(draft.advanceAmount)} (this quotation's declared Advance Amount)`}>
+                  <input
+                    type="number"
+                    min={draft.advanceAmount}
+                    className={inputCls}
+                    value={convertPayment.amount}
+                    onChange={(e) => setConvertPayment((p) => ({ ...p, amount: Number(e.target.value) || 0 }))}
+                  />
+                </Field>
+                <Field label="Transaction Ref">
+                  <input
+                    className={inputCls}
+                    value={convertPayment.transactionReference}
+                    onChange={(e) => setConvertPayment((p) => ({ ...p, transactionReference: e.target.value }))}
+                  />
+                </Field>
+              </div>
+              <Field label="Reference Image">
+                <ImageUpload
+                  value={convertPayment.referenceImageUrl}
+                  onChange={(url) => setConvertPayment((p) => ({ ...p, referenceImageUrl: url }))}
+                  label="Upload"
+                  compact
+                />
+              </Field>
+              <Field label="Remarks">
+                <input
+                  className={inputCls}
+                  value={convertPayment.remarks}
+                  onChange={(e) => setConvertPayment((p) => ({ ...p, remarks: e.target.value }))}
+                />
+              </Field>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3 bg-slate-50 border-t border-slate-100">
+              <button type="button" onClick={() => { setConvertModalOpen(false); setConvertFormError(null); }} className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmConvertToBooking}
+                disabled={anyBusy}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {busyAction === "convert" ? <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> : <Briefcase className="w-4 h-4" />}
+                {busyAction === "convert" ? "Creating…" : "Confirm & Convert"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

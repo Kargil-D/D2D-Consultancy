@@ -32,11 +32,14 @@ export async function POST(req: NextRequest) {
     await requireModuleAccess(req, "Destinations", "canAdd");
 
     const payload = await req.json();
-    const parsed = DestinationCreateSchema.parse(payload);
-    const created = await createDestination({
-      ...parsed,
-      slug: parsed.slug?.trim() || toSlug(parsed.name),
-    });
+    const { cityIds, ...parsed } = DestinationCreateSchema.parse(payload);
+    const created = await createDestination(
+      {
+        ...parsed,
+        slug: parsed.slug?.trim() || toSlug(parsed.name),
+      },
+      cityIds ?? [],
+    );
     return NextResponse.json({ success: true, message: "Created", data: created });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });

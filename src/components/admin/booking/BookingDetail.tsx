@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
+import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import BookingStatusStepper from "@/components/admin/booking/BookingStatusStepper";
 import BookingFlightsEditor from "@/components/admin/booking/BookingFlightsEditor";
 import BookingHotelsEditor, { type HotelQuotationMeta } from "@/components/admin/booking/BookingHotelsEditor";
@@ -21,6 +22,7 @@ import BookingPayments from "@/components/admin/booking/BookingPayments";
 import BookingDocumentsTab from "@/components/admin/booking/BookingDocumentsTab";
 import BookingChatTab from "@/components/admin/booking/BookingChatTab";
 import BookingTimelineTab from "@/components/admin/booking/BookingTimelineTab";
+import SendMailMenu from "@/components/admin/booking/SendMailMenu";
 import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
 import { bookingsApi, quotationsApi, salesUsersApi, currenciesApi } from "@/lib/adminApi";
 import type {
@@ -332,20 +334,25 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   for (const [id, m] of transferQuotationMeta) d2dCostBySourceId.set(id, m.qty * m.cost);
 
   const changeStatus = async (status: BookingStatus) => {
-    if (!booking || status === booking.status) return;
+    if (!booking || status === booking.status || updatingStatus) return;
     setUpdatingStatus(true);
     try {
       const res = await bookingsApi.updateStatus(id, status);
-      if (!res.success) return notify(res.message || "Unable to update status", "error");
+      if (!res.success) {
+        notify(res.message || "Unable to update status", "error");
+        return;
+      }
       notify(`Status updated to ${status}`, "success");
-      reload();
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to update status", "error");
     } finally {
       setUpdatingStatus(false);
     }
   };
 
   const saveDetails = async () => {
-    if (!booking) return;
+    if (!booking || savingDetails) return;
     setSavingDetails(true);
     try {
       const res = await bookingsApi.update(id, {
@@ -356,66 +363,101 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         totalAmount: detailTotalAmount,
         remarks: detailRemarks,
       });
-      if (!res.success) return notify(res.message || "Unable to update booking", "error");
+      if (!res.success) {
+        notify(res.message || "Unable to update booking", "error");
+        return;
+      }
       if (detailStatus !== booking.status) await bookingsApi.updateStatus(id, detailStatus);
       notify("Booking details updated", "success");
-      reload();
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSavingDetails(false);
     }
   };
 
   const saveDmc = async () => {
+    if (savingDmc) return;
     setSavingDmc(true);
     try {
       const res = await bookingsApi.updateDmc(id, { dmcName, dmcEmailSentDate: dmcEmailSentDate || null, dmcResponse, dmcRemarks });
-      if (!res.success) return notify(res.message || "Unable to save DMC details", "error");
+      if (!res.success) {
+        notify(res.message || "Unable to save DMC details", "error");
+        return;
+      }
       notify("DMC communication saved", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSavingDmc(false);
     }
   };
 
   const saveFlights = async () => {
+    if (savingFlights) return;
     setSavingFlights(true);
     try {
       const res = await bookingsApi.saveFlights(id, flights);
-      if (!res.success) return notify(res.message || "Unable to save flights", "error");
+      if (!res.success) {
+        notify(res.message || "Unable to save flights", "error");
+        return;
+      }
       notify("Flights saved", "success");
-      reload();
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSavingFlights(false);
     }
   };
   const saveHotels = async () => {
+    if (savingHotels) return;
     setSavingHotels(true);
     try {
       const res = await bookingsApi.saveHotels(id, hotels);
-      if (!res.success) return notify(res.message || "Unable to save hotels", "error");
+      if (!res.success) {
+        notify(res.message || "Unable to save hotels", "error");
+        return;
+      }
       notify("Hotels saved", "success");
-      reload();
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSavingHotels(false);
     }
   };
   const saveActivities = async () => {
+    if (savingActivities) return;
     setSavingActivities(true);
     try {
       const res = await bookingsApi.saveActivities(id, activities);
-      if (!res.success) return notify(res.message || "Unable to save activities", "error");
+      if (!res.success) {
+        notify(res.message || "Unable to save activities", "error");
+        return;
+      }
       notify("Activities saved", "success");
-      reload();
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSavingActivities(false);
     }
   };
   const saveTransfers = async () => {
+    if (savingTransfers) return;
     setSavingTransfers(true);
     try {
       const res = await bookingsApi.saveTransfers(id, transfers);
-      if (!res.success) return notify(res.message || "Unable to save transfers", "error");
+      if (!res.success) {
+        notify(res.message || "Unable to save transfers", "error");
+        return;
+      }
       notify("Transfers saved", "success");
-      reload();
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSavingTransfers(false);
     }
@@ -497,23 +539,35 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   };
 
   const saveVisas = async () => {
+    if (savingVisas) return;
     setSavingVisas(true);
     try {
       const res = await bookingsApi.saveVisas(id, visas);
-      if (!res.success) return notify(res.message || "Unable to save visas", "error");
+      if (!res.success) {
+        notify(res.message || "Unable to save visas", "error");
+        return;
+      }
       notify("Visas saved", "success");
-      reload();
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSavingVisas(false);
     }
   };
   const saveInsurances = async () => {
+    if (savingInsurances) return;
     setSavingInsurances(true);
     try {
       const res = await bookingsApi.saveInsurances(id, insurances);
-      if (!res.success) return notify(res.message || "Unable to save insurance", "error");
+      if (!res.success) {
+        notify(res.message || "Unable to save insurance", "error");
+        return;
+      }
       notify("Insurance saved", "success");
-      reload();
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSavingInsurances(false);
     }
@@ -526,7 +580,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     reload();
   };
 
-  const addCustomerPayment = async (payload: { paymentDate: string; paymentMode: PaymentMode; amount: number; transactionReference?: string; remarks?: string }) => {
+  const addCustomerPayment = async (payload: { paymentDate: string; paymentMode: PaymentMode; amount: number; transactionReference?: string; referenceImageUrl?: string; remarks?: string }) => {
     const res = await bookingsApi.addCustomerPayment(id, payload);
     if (!res.success) return notify(res.message || "Unable to record payment", "error");
     notify("Customer payment recorded", "success");
@@ -560,6 +614,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   if (loading) {
     return (
       <div className="rounded-2xl bg-white border border-slate-200 p-10 text-center text-sm text-slate-500">
+        <span className="inline-block w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2 align-middle" />
         Loading…
       </div>
     );
@@ -594,8 +649,32 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     : null;
   const totalPaid = booking.customerPayments.reduce((sum, p) => sum + p.amount, 0);
 
+  const anyBusy =
+    updatingStatus || savingDetails || savingDmc || savingFlights || savingHotels ||
+    savingActivities || savingTransfers || savingVisas || savingInsurances;
+  const busyLabel = updatingStatus
+    ? "Updating status…"
+    : savingDetails
+    ? "Updating booking details…"
+    : savingDmc
+    ? "Saving DMC details…"
+    : savingFlights
+    ? "Saving flights…"
+    : savingHotels
+    ? "Saving hotels…"
+    : savingActivities
+    ? "Saving activities…"
+    : savingTransfers
+    ? "Saving transfers…"
+    : savingVisas
+    ? "Saving visas…"
+    : savingInsurances
+    ? "Saving insurance…"
+    : "";
+
   return (
     <div className="space-y-6">
+      <LoadingOverlay show={anyBusy} label={busyLabel} />
       {/* Identity + quick actions */}
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -655,6 +734,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
           <a href={`/api/admin/bookings/${id}/invoice?kind=customer`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700">
             <Mail className="w-3.5 h-3.5" /> Generate Invoice
           </a>
+          <SendMailMenu bookingId={id} />
         </div>
       </div>
 
@@ -668,7 +748,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             disabled={savingDetails}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
           >
-            Update
+            {savingDetails && <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />}
+            {savingDetails ? "Updating…" : "Update"}
           </button>
         </div>
 
@@ -732,6 +813,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             <Field label="Total Amount (INR)">
               <input type="number" min={0} className={inputCls} value={detailTotalAmount} onChange={(e) => setDetailTotalAmount(Number(e.target.value) || 0)} />
             </Field>
+            <Field label="Paid Amount" hint="Sum of Customer Payments — add or edit payments in the Payments tab">
+              <input className={inputCls} value={formatINR(totalPaid)} disabled />
+            </Field>
           </div>
 
           <Field label="Remarks">
@@ -751,8 +835,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             <Field label="Response"><input className={inputCls} value={dmcResponse} onChange={(e) => setDmcResponse(e.target.value)} /></Field>
             <Field label="Remarks"><input className={inputCls} value={dmcRemarks} onChange={(e) => setDmcRemarks(e.target.value)} /></Field>
           </div>
-          <button type="button" onClick={saveDmc} disabled={savingDmc} className="mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-            Save DMC Details
+          <button type="button" onClick={saveDmc} disabled={savingDmc} className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+            {savingDmc && <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />}
+            {savingDmc ? "Saving…" : "Save DMC Details"}
           </button>
         </div>
       </div>
@@ -907,7 +992,7 @@ function TabSaveWrapper({
       {children}
       <div className="pt-2 border-t border-slate-100">
         <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
-          <Save className="w-4 h-4" /> {label}
+          {saving ? <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" /> : <Save className="w-4 h-4" />} {saving ? "Saving…" : label}
         </button>
       </div>
     </div>

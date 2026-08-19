@@ -123,15 +123,6 @@ export default async function CampaignDetailPage({ params }: PageProps) {
             </div>
             <div className="text-white/80 text-sm">Per Person</div>
           </div>
-          {campaign.highlights.length > 0 && (
-            <div className="mt-6 flex flex-wrap gap-2">
-              {campaign.highlights.map((h) => (
-                <span key={h} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-white text-xs font-semibold">
-                  <Sparkles className="w-3.5 h-3.5" />{h}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </section>
 

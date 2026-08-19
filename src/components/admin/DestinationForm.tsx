@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
 import BulletTextarea from "@/components/admin/ui/BulletTextarea";
+import CityMultiSelect from "@/components/admin/ui/CityMultiSelect";
 import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
+import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import { destinationsApi } from "@/lib/adminApi";
 import type { AdminDestination, Status } from "@/types/admin";
 import { toSlug } from "@/utils/slug";
@@ -19,7 +21,7 @@ const emptyForm = (): Partial<AdminDestination> => ({
   name: "",
   country: "",
   state: "",
-  city: "",
+  cities: [],
   slug: "",
   shortDescription: "",
   fullDescription: "",
@@ -61,15 +63,18 @@ export default function DestinationForm({ id }: DestinationFormProps) {
   const canSave = !!form.name && !!form.country;
 
   const save = async () => {
+    if (saving) return;
     if (!form.name || !form.country) return notify("Name and country are required", "error");
+    const { cities, ...rest } = form;
     const payload: Partial<AdminDestination> = {
-      ...form,
+      ...rest,
       slug: form.slug?.trim() || toSlug(form.name),
       shortDescription: form.shortDescription ?? "",
       fullDescription: form.fullDescription ?? "",
       status: form.status ?? "Active",
       displayOrder: form.displayOrder ?? 0,
       isDomestic: form.isDomestic ?? false,
+      cityIds: (cities ?? []).map((c) => c.id),
     };
 
     setSaving(true);
@@ -94,6 +99,7 @@ export default function DestinationForm({ id }: DestinationFormProps) {
   if (loading) {
     return (
       <div className="rounded-2xl bg-white border border-slate-200 p-10 text-center text-sm text-slate-500">
+        <span className="inline-block w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2 align-middle" />
         Loading…
       </div>
     );
@@ -101,12 +107,17 @@ export default function DestinationForm({ id }: DestinationFormProps) {
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
+      <LoadingOverlay show={saving} label={id ? "Updating destination…" : "Saving destination…"} />
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
         <h2 className="text-xl font-bold text-slate-900">{id ? "Edit Destination" : "New Destination"}</h2>
         <div className="flex items-center gap-2">
           <Link
             href="/admin/destinations"
-            className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100"
+            aria-disabled={saving}
+            onClick={(e) => saving && e.preventDefault()}
+            className={`px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100 ${
+              saving ? "opacity-50 cursor-not-allowed pointer-events-none" : ""
+            }`}
           >
             Cancel
           </Link>
@@ -118,7 +129,10 @@ export default function DestinationForm({ id }: DestinationFormProps) {
               !canSave || saving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
             }`}
           >
-            {id ? "Update" : "Save Destination"}
+            {saving && (
+              <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+            )}
+            {id ? (saving ? "Updating…" : "Update") : saving ? "Saving…" : "Save Destination"}
           </button>
         </div>
       </div>
@@ -149,8 +163,8 @@ export default function DestinationForm({ id }: DestinationFormProps) {
           <Field label="State / Region">
             <input className={inputCls} value={form.state ?? ""} onChange={(e) => onChange({ state: e.target.value })} />
           </Field>
-          <Field label="City">
-            <input className={inputCls} value={form.city ?? ""} onChange={(e) => onChange({ city: e.target.value })} />
+          <Field label="City" hint={!form.country ? "Enter a country first to scope city search" : undefined}>
+            <CityMultiSelect value={form.cities ?? []} onChange={(cities) => onChange({ cities })} countryFilter={form.country} />
           </Field>
           <Field label="Display Order">
             <input type="number" className={inputCls} value={form.displayOrder ?? 0} onChange={(e) => onChange({ displayOrder: Number(e.target.value) })} />
@@ -166,10 +180,10 @@ export default function DestinationForm({ id }: DestinationFormProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Thumbnail Image">
-            <ImageUpload value={form.thumbnailImage} onChange={(url) => onChange({ thumbnailImage: url })} aspect="4/3" />
+            <ImageUpload value={form.thumbnailImage} onChange={(url) => onChange({ thumbnailImage: url })} aspect="4/3" size="md" />
           </Field>
           <Field label="Banner Image">
-            <ImageUpload value={form.bannerImage} onChange={(url) => onChange({ bannerImage: url })} aspect="16/9" />
+            <ImageUpload value={form.bannerImage} onChange={(url) => onChange({ bannerImage: url })} aspect="16/9" size="md" />
           </Field>
         </div>
 

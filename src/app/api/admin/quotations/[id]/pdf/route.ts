@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getQuotation, buildPublicQuoteData } from "@/services/quotationService";
+import { getQuotation, buildPublicQuoteData, markPdfGenerated } from "@/services/quotationService";
 import { renderQuotationPdf } from "@/lib/quotationPdf";
 
 export const runtime = "nodejs"; // @react-pdf/renderer needs the Node runtime
@@ -14,11 +14,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
     const pdfData = await buildPublicQuoteData(quotation);
     const buffer = await renderQuotationPdf(pdfData);
+    const download = new URL(req.url).searchParams.get("download") === "1";
+    await markPdfGenerated(id);
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${pdfData.quoteCode}.pdf"`,
+        "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${pdfData.quoteCode}.pdf"`,
       },
     });
   } catch (err) {

@@ -1,7 +1,7 @@
 import { buildTransport, senderAddress } from "@/lib/mailer";
 import type { OtpPurpose } from "@/generated/prisma/client";
 
-function wrapper(title: string, body: string): string {
+export function wrapper(title: string, body: string): string {
   return `
   <div style="font-family:Inter,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#ffffff;">
     <div style="background:linear-gradient(135deg,#06b6d4,#14b8a6);color:#fff;padding:24px;border-radius:18px 18px 0 0;">
@@ -80,6 +80,28 @@ export async function sendQuotationEmail(
        <p>The full quote is attached as a PDF.${opts.shareUrl ? ` You can also view it online: <a href="${opts.shareUrl}">${opts.shareUrl}</a>` : ""}</p>`,
     ),
     attachments: [{ filename: `${opts.quoteCode}.pdf`, content: opts.pdfBuffer, contentType: "application/pdf" }],
+  });
+}
+
+/** Splits a comma-separated address list into the array shape Nodemailer's cc/bcc options expect. */
+function splitAddresses(value?: string): string[] | undefined {
+  const list = (value ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return list.length > 0 ? list : undefined;
+}
+
+/** Generic composed-email sender behind the Mail Drafter — subject/body are user-edited, wrapped in the same branded shell as every other outbound email. */
+export async function sendComposedEmail(
+  to: string,
+  opts: { cc?: string; bcc?: string; subject: string; html: string },
+) {
+  const transport = buildTransport();
+  await transport.sendMail({
+    from: senderAddress(),
+    to,
+    cc: splitAddresses(opts.cc),
+    bcc: splitAddresses(opts.bcc),
+    subject: opts.subject,
+    html: wrapper(opts.subject, opts.html),
   });
 }
 

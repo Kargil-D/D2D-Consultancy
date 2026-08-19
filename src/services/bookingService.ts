@@ -165,6 +165,10 @@ async function logTimeline(tx: Tx, bookingId: string, message: string) {
   await tx.bookingTimelineEvent.create({ data: { bookingId, message } });
 }
 
+export async function addBookingTimelineEvent(bookingId: string, message: string) {
+  await prisma.bookingTimelineEvent.create({ data: { bookingId, message } });
+}
+
 export async function addBookingNote(bookingId: string, authorName: string, message: string) {
   return prisma.bookingNote.create({ data: { bookingId, authorName, message } });
 }
@@ -397,6 +401,7 @@ export async function addCustomerPayment(bookingId: string, input: CustomerPayme
         paymentMode: input.paymentMode,
         amount: input.amount,
         transactionReference: input.transactionReference,
+        referenceImageUrl: input.referenceImageUrl,
         remarks: input.remarks,
       },
     });

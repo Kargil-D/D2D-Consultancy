@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/admin/ui/StatusToggle";
 import { Field, inputCls } from "@/components/admin/ui/Field";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
 import { useToast } from "@/components/admin/ui/Toast";
+import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import { transferTypesApi } from "@/lib/adminApi";
 import type { AdminTransferType } from "@/types/admin";
 
@@ -36,6 +37,8 @@ export default function TransfersAdminPage() {
   });
   const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -52,29 +55,56 @@ export default function TransfersAdminPage() {
   const openCreate = () => setDrawer({ open: true, form: emptyForm() });
   const openEdit = (row: AdminTransferType) => setDrawer({ open: true, form: { ...row } });
 
+  const closeDrawer = () => {
+    if (saving) return;
+    setDrawer({ open: false, form: emptyForm() });
+  };
+
   const setForm = (patch: Partial<AdminTransferType>) =>
     setDrawer((d) => ({ ...d, form: { ...d.form, ...patch } }));
 
   const save = async () => {
+    if (saving) return;
     const f = drawer.form;
     if (!f.name?.trim()) return notify("Transfer type name is required", "error");
-    if (f.id) {
-      await transferTypesApi.update(f.id, f);
-      notify("Transfer type updated");
-    } else {
-      await transferTypesApi.create(f as Omit<AdminTransferType, "id">);
-      notify("Transfer type created");
+
+    setSaving(true);
+    try {
+      if (f.id) {
+        const res = await transferTypesApi.update(f.id, f);
+        if (!res.success) return notify(res.message || "Unable to update transfer type", "error");
+        notify("Transfer type updated", "success");
+      } else {
+        const res = await transferTypesApi.create(f as Omit<AdminTransferType, "id">);
+        if (!res.success) return notify(res.message || "Unable to create transfer type", "error");
+        notify("Transfer type created", "success");
+      }
+      setDrawer({ open: false, form: emptyForm() });
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
+    } finally {
+      setSaving(false);
     }
-    setDrawer({ open: false, form: emptyForm() });
-    reload();
   };
 
   const remove = async () => {
-    if (!confirm.id) return;
-    await transferTypesApi.remove(confirm.id);
-    notify("Transfer type deleted");
-    setConfirm({ open: false, id: null });
-    reload();
+    if (!confirm.id || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await transferTypesApi.remove(confirm.id);
+      if (!res.success) {
+        notify(res.message || "Unable to delete transfer type", "error");
+        return;
+      }
+      notify("Transfer type deleted", "success");
+      setConfirm({ open: false, id: null });
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to delete transfer type", "error");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const columns: Column<AdminTransferType>[] = [
@@ -95,8 +125,15 @@ export default function TransfersAdminPage() {
       key: "actions", label: "Actions", className: "text-right",
       render: (r) => (
         <div className="flex items-center justify-end gap-1">
-          <button onClick={() => openEdit(r)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100"><Edit className="w-4 h-4" /></button>
-          <button onClick={() => setConfirm({ open: true, id: r.id })} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50"><Trash2 className="w-4 h-4" /></button>
+          <button onClick={() => openEdit(r)} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Edit"><Edit className="w-4 h-4" /></button>
+          <button
+            onClick={() => setConfirm({ open: true, id: r.id })}
+            disabled={deleting}
+            className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       ),
     },
@@ -125,16 +162,22 @@ export default function TransfersAdminPage() {
       <Drawer
         open={drawer.open}
         title={drawer.form.id ? "Edit Transfer Type" : "New Transfer Type"}
-        onClose={() => setDrawer({ open: false, form: emptyForm() })}
+        onClose={closeDrawer}
         footer={
           <>
-            <button onClick={() => setDrawer({ open: false, form: emptyForm() })} className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100">Cancel</button>
-            <button onClick={save} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">
-              {drawer.form.id ? "Update" : "Create"}
+            <button onClick={closeDrawer} disabled={saving} className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed">Cancel</button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving && <span className="inline-block w-3.5 h-3.5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />}
+              {drawer.form.id ? (saving ? "Updating…" : "Update") : saving ? "Creating…" : "Create"}
             </button>
           </>
         }
       >
+        <LoadingOverlay show={saving} label={drawer.form.id ? "Updating transfer type…" : "Creating transfer type…"} />
         <div className="space-y-5">
           <Field label="Transfer Type" required>
             <input className={inputCls} value={drawer.form.name ?? ""} onChange={(e) => setForm({ name: e.target.value })} placeholder="Speedboat" />
@@ -156,7 +199,7 @@ export default function TransfersAdminPage() {
 
       <ConfirmModal
         open={confirm.open} title="Delete transfer type?" message="This will remove the transfer type permanently."
-        confirmText="Delete" onCancel={() => setConfirm({ open: false, id: null })} onConfirm={remove}
+        confirmText="Delete" loading={deleting} onCancel={() => setConfirm({ open: false, id: null })} onConfirm={remove}
       />
     </AdminShell>
   );

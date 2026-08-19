@@ -6,12 +6,14 @@ interface StatusToggleProps {
   value: Status;
   onChange: (next: Status) => void;
   size?: "sm" | "md";
+  loading?: boolean;
 }
 
 export default function StatusToggle({
   value,
   onChange,
   size = "md",
+  loading = false,
 }: StatusToggleProps) {
   const active = value === "Active";
   const dims = size === "sm" ? "w-9 h-5" : "w-11 h-6";
@@ -24,14 +26,20 @@ export default function StatusToggle({
     <button
       type="button"
       onClick={() => onChange(active ? "Inactive" : "Active")}
+      disabled={loading}
       className={`relative inline-flex items-center ${dims} rounded-full transition-colors ${
         active ? "bg-emerald-500" : "bg-slate-300"
-      }`}
+      } ${loading ? "opacity-60 cursor-not-allowed" : ""}`}
       aria-pressed={active}
+      aria-busy={loading}
     >
-      <span
-        className={`inline-block ${knob} rounded-full bg-white shadow transform transition-transform`}
-      />
+      {loading ? (
+        <span className="inline-block w-3 h-3 mx-auto border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
+      ) : (
+        <span
+          className={`inline-block ${knob} rounded-full bg-white shadow transform transition-transform`}
+        />
+      )}
     </button>
   );
 }

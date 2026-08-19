@@ -22,8 +22,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     await requireModuleAccess(req, "Destinations", "canEdit");
     const { id } = await ctx.params;
     const payload = await req.json();
-    const parsed = DestinationUpdateSchema.parse(payload);
-    const updated = await updateDestination(id, parsed);
+    const { cityIds, ...parsed } = DestinationUpdateSchema.parse(payload);
+    const updated = await updateDestination(id, parsed, cityIds);
     return NextResponse.json({ success: true, message: "Updated", data: updated });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });

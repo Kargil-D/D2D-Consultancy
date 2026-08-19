@@ -164,6 +164,7 @@ export const CustomerPaymentSchema = z.object({
   paymentMode: z.enum(["Cash", "BankTransfer", "Card", "UPI", "Cheque", "Other"]).default("Cash"),
   amount: z.coerce.number().min(0),
   transactionReference: nullableStr,
+  referenceImageUrl: nullableStr,
   remarks: nullableStr,
 });
 

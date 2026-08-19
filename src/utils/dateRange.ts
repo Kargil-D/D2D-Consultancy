@@ -1,3 +1,21 @@
+/** Today's date as YYYY-MM-DD in the local timezone — matches the value format of <input type="date">. */
+export function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Tomorrow's date as YYYY-MM-DD — the minimum selectable value for a "must be a future date" <input type="date">. */
+export function tomorrowIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** True when dateStr is strictly after today (local time). Empty string is not a future date. */
+export function isFutureDate(dateStr: string): boolean {
+  return !!dateStr && dateStr > todayIso();
+}
+
 /** "2026-08-12" -> "12/08/26" — the DD/MM/YY format used in the "pick a date between X and Y" message. */
 export function formatShortDate(isoDate: string): string {
   const [y, m, d] = isoDate.split("-");

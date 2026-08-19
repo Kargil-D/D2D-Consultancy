@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Edit } from "lucide-react";
+import { Edit, Trash2 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DataTable, { type Column } from "@/components/admin/ui/DataTable";
 import Pagination from "@/components/admin/ui/Pagination";
+import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { useToast } from "@/components/admin/ui/Toast";
 import { quotationsApi } from "@/lib/adminApi";
 import type { AdminQuotation, QuotationStatus } from "@/types/admin";
@@ -26,6 +27,8 @@ export default function QuotationsAdminPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
+  const [deleting, setDeleting] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -47,6 +50,25 @@ export default function QuotationsAdminPage() {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  const remove = async () => {
+    if (!confirm.id || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await quotationsApi.remove(confirm.id);
+      if (!res.success) {
+        notify(res.message || "Unable to delete quotation", "error");
+        return;
+      }
+      notify("Quotation deleted", "success");
+      setConfirm({ open: false, id: null });
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to delete quotation", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const columns: Column<AdminQuotation>[] = [
     {
@@ -93,6 +115,14 @@ export default function QuotationsAdminPage() {
           <Link href={`/admin/quotations/${r.id}/edit`} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Edit">
             <Edit className="w-4 h-4" />
           </Link>
+          <button
+            onClick={() => setConfirm({ open: true, id: r.id })}
+            disabled={deleting}
+            className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       ),
     },
@@ -144,6 +174,16 @@ export default function QuotationsAdminPage() {
         }
       />
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+
+      <ConfirmModal
+        open={confirm.open}
+        title="Delete quotation?"
+        message="This will permanently remove this quotation. Any booking already converted from it will keep its own record."
+        confirmText="Delete"
+        loading={deleting}
+        onCancel={() => setConfirm({ open: false, id: null })}
+        onConfirm={remove}
+      />
     </AdminShell>
   );
 }

@@ -93,7 +93,7 @@ const QuotationActivityItemSchema = z.object({
   notes: z.string().optional().default(""),
 });
 
-export const QuotationCreateSchema = z.object({
+const QuotationFieldsSchema = z.object({
   // Step 1 — Customer Details (drives find-or-create-Lead; not persisted verbatim on Quotation)
   customer: QuotationCustomerSchema,
   destinationId: z.string().min(1),
@@ -133,8 +133,31 @@ export const QuotationCreateSchema = z.object({
   advanceAmount: z.coerce.number().min(0).default(0),
 });
 
-export const QuotationUpdateSchema = QuotationCreateSchema.partial();
+/** Edits reuse the plain (unrefined) field shape — an existing quotation's travel date lapsing
+ * into the past as real time moves on shouldn't lock out saving unrelated edits (pricing, notes,
+ * etc.) to that record. */
+export const QuotationUpdateSchema = QuotationFieldsSchema.partial();
 
-export type QuotationCreate = z.infer<typeof QuotationCreateSchema>;
+/** True when `d` is strictly after today (UTC midnight, matching how z.coerce.date() parses a
+ * plain "YYYY-MM-DD" input), or when no date was given at all — an absent date isn't this
+ * check's concern. */
+function isStrictlyFutureDate(d: Date | null | undefined): boolean {
+  if (!d) return true;
+  const now = new Date();
+  const todayUtcMidnight = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return d.getTime() > todayUtcMidnight;
+}
+
+/** New quotations must have future travel dates (see QuotationUpdateSchema for why edits don't
+ * carry this same check). */
+export const QuotationCreateSchema = QuotationFieldsSchema.refine((data) => isStrictlyFutureDate(data.travelDate), {
+  message: "Travel date must be after today",
+  path: ["travelDate"],
+}).refine((data) => isStrictlyFutureDate(data.travelEndDate), {
+  message: "Travel end date must be after today",
+  path: ["travelEndDate"],
+});
+
+export type QuotationCreate = z.infer<typeof QuotationFieldsSchema>;
 export type QuotationUpdate = z.infer<typeof QuotationUpdateSchema>;
 export type QuotationItemInput = z.infer<typeof QuotationItemSchema>;

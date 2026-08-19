@@ -3,8 +3,9 @@ import { z } from "zod";
 export const DestinationCreateSchema = z.object({
   name: z.string().min(1),
   country: z.string().min(1),
-  state: z.string().optional(),
-  city: z.string().optional(),
+  state: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  cityIds: z.array(z.string().min(1)).optional(),
   slug: z.string().optional(),
   shortDescription: z.string().optional().nullable().transform((value) => value ?? ""),
   fullDescription: z.string().optional().nullable().transform((value) => value ?? ""),

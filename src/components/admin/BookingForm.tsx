@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
 import { useToast } from "@/components/admin/ui/Toast";
+import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import { bookingsApi, leadsApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
 import type { AdminLead, AdminQuotation, AdminSalesUser, BookingStatus } from "@/types/admin";
 
@@ -130,6 +131,7 @@ export default function BookingForm({ id }: BookingFormProps) {
   const canSave = !!leadId && !!destinationId;
 
   const save = async () => {
+    if (saving) return;
     if (!canSave) return notify("Won Lead and destination are required", "error");
     const payload = {
       leadId,
@@ -165,6 +167,7 @@ export default function BookingForm({ id }: BookingFormProps) {
   if (loading) {
     return (
       <div className="rounded-2xl bg-white border border-slate-200 p-10 text-center text-sm text-slate-500">
+        <span className="inline-block w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2 align-middle" />
         Loading…
       </div>
     );
@@ -172,10 +175,18 @@ export default function BookingForm({ id }: BookingFormProps) {
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
+      <LoadingOverlay show={saving} label={id ? "Updating booking…" : "Saving booking…"} />
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
         <h2 className="text-xl font-bold text-slate-900">{id ? "Edit Booking" : "New Booking"}</h2>
         <div className="flex items-center gap-2">
-          <Link href="/admin/bookings" className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100">
+          <Link
+            href="/admin/bookings"
+            aria-disabled={saving}
+            onClick={(e) => saving && e.preventDefault()}
+            className={`px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100 ${
+              saving ? "opacity-50 cursor-not-allowed pointer-events-none" : ""
+            }`}
+          >
             Cancel
           </Link>
           <button
@@ -186,7 +197,10 @@ export default function BookingForm({ id }: BookingFormProps) {
               !canSave || saving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
             }`}
           >
-            {id ? "Update" : "Save Booking"}
+            {saving && (
+              <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+            )}
+            {id ? (saving ? "Updating…" : "Update") : saving ? "Saving…" : "Save Booking"}
           </button>
         </div>
       </div>

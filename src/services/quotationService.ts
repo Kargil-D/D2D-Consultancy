@@ -288,8 +288,14 @@ export async function duplicateQuotation(id: string) {
   });
 }
 
+/**
+ * Idempotent: reuses the existing shareToken if one was already issued, instead of minting a
+ * new one on every call. A fresh token would silently 404 any link already shared with the
+ * customer (e.g. over WhatsApp), since the old token stops matching any row.
+ */
 export async function generateShareLink(id: string) {
-  const token = crypto.randomBytes(24).toString("hex");
+  const existing = await prisma.quotation.findUniqueOrThrow({ where: { id }, select: { shareToken: true } });
+  const token = existing.shareToken ?? crypto.randomBytes(24).toString("hex");
   const quotation = await prisma.quotation.update({
     where: { id },
     data: { shareToken: token, status: "Sent" },
@@ -299,6 +305,13 @@ export async function generateShareLink(id: string) {
 
 export async function markQuotationSent(id: string) {
   return prisma.quotation.update({ where: { id }, data: { status: "Sent" } });
+}
+
+/** No PDF file is persisted — each hit of the PDF route re-renders on the fly — so this just
+ * stamps "last generated at" for the Document Status panel. */
+export async function markPdfGenerated(id: string) {
+  const quotation = await prisma.quotation.update({ where: { id }, data: { pdfGeneratedAt: new Date() } });
+  return quotation.pdfGeneratedAt as Date;
 }
 
 export const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
@@ -330,14 +343,14 @@ function hotelOptionsFromCampaign(hotels: HotelStayDetail[]): QuotationHotelOpti
       label: "Option A",
       hotels: hotels.map((h) => ({
         id: h.id,
-        hotelMasterId: null,
+        hotelMasterId: h.hotelMasterId ?? null,
         hotelName: h.name,
         images: h.images ?? [],
         description: h.description,
         category: null,
         roomType: h.roomType,
-        mealPlan: "",
-        amenities: [],
+        mealPlan: h.mealPlan ?? "",
+        amenities: h.amenities ?? [],
         googleMapUrl: null,
         website: null,
         checkIn: "",
@@ -476,7 +489,9 @@ export async function buildPublicQuoteData(quotation: NonNullable<Awaited<Return
     sellingPrice,
     status: quotation.status,
     advanceAmount: quotation.advanceAmount,
-    highlights: campaign?.highlights ?? [],
+    // Campaign no longer has a highlights field (removed from the admin form/table) — the PDF's
+    // "Trip Highlights" section is guarded by `hasHighlights` and simply won't render.
+    highlights: [],
   };
 }
 

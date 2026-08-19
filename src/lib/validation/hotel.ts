@@ -2,9 +2,12 @@ import { z } from "zod";
 
 const HotelStayDetailSchema = z.object({
   id: z.string(),
+  hotelMasterId: z.string().optional(),
   name: z.string(),
   images: z.array(z.string()).optional(),
   roomType: z.string(),
+  mealPlan: z.string().optional(),
+  amenities: z.array(z.string()).optional(),
   description: z.string(),
 });
 

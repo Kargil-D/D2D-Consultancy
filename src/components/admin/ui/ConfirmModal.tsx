@@ -9,6 +9,7 @@ interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   tone?: "danger" | "primary";
+  loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -20,6 +21,7 @@ export default function ConfirmModal({
   confirmText = "Confirm",
   cancelText = "Cancel",
   tone = "danger",
+  loading = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -55,16 +57,21 @@ export default function ConfirmModal({
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100"
+            disabled={loading}
+            className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelText}
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-semibold text-white rounded-lg ${confirmCls}`}
+            disabled={loading}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg ${confirmCls} disabled:opacity-60 disabled:cursor-not-allowed`}
           >
-            {confirmText}
+            {loading && (
+              <span className="inline-block w-3.5 h-3.5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+            )}
+            {loading ? "Please wait…" : confirmText}
           </button>
         </div>
       </div>

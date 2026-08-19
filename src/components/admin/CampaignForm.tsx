@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
-import TagInput from "@/components/admin/ui/TagInput";
 import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
+import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import { destinationsApi, packagesApi, itinerariesApi, hotelsApi, transfersApi } from "@/lib/adminApi";
 import type { AdminDestination, AdminHotel, AdminItinerary, AdminPackage, AdminTransfer, Status, TravelType } from "@/types/admin";
 import { toSlug } from "@/utils/slug";
@@ -33,9 +33,6 @@ const emptyForm = (): Partial<AdminPackage> => ({
   thumbnail: "",
   coverBanner: "",
   shortDescription: "",
-  highlights: [],
-  inclusions: [],
-  exclusions: [],
   bestTimeToVisit: "",
   travelTypes: [],
   isFeatured: false,
@@ -129,7 +126,19 @@ export default function CampaignForm({ id }: CampaignFormProps) {
   const priceGst = Math.round((priceSubtotal * (form.gstPercent ?? 0)) / 100);
   const priceGrandTotal = priceSubtotal + priceGst;
 
+  const anyBusy = saving || itinerarySaving || hotelSaving || transferSaving;
+  const busyLabel = saving
+    ? id ? "Updating campaign…" : "Saving campaign…"
+    : itinerarySaving
+    ? itinerary?.id ? "Updating itinerary…" : "Saving itinerary…"
+    : hotelSaving
+    ? hotelPlan?.id ? "Updating hotel…" : "Saving hotel…"
+    : transferSaving
+    ? transferPlan?.id ? "Updating transfer…" : "Saving transfer…"
+    : "";
+
   const save = async () => {
+    if (saving) return;
     if (!form.name || !form.destinationId) return notify("Name and destination are required", "error");
     const payload: Partial<AdminPackage> = {
       ...form,
@@ -157,7 +166,7 @@ export default function CampaignForm({ id }: CampaignFormProps) {
   };
 
   const saveItinerary = async () => {
-    if (!id || !itinerary) return;
+    if (!id || !itinerary || itinerarySaving) return;
     setItinerarySaving(true);
     try {
       const payload = { ...itinerary, packageId: id, totalDays: itinerary.days?.length ?? 0 };
@@ -180,7 +189,7 @@ export default function CampaignForm({ id }: CampaignFormProps) {
   };
 
   const saveHotelPlan = async () => {
-    if (!id || !hotelPlan) return;
+    if (!id || !hotelPlan || hotelSaving) return;
     setHotelSaving(true);
     try {
       const payload = { ...hotelPlan, packageId: id };
@@ -203,7 +212,7 @@ export default function CampaignForm({ id }: CampaignFormProps) {
   };
 
   const saveTransferPlan = async () => {
-    if (!id || !transferPlan) return;
+    if (!id || !transferPlan || transferSaving) return;
     setTransferSaving(true);
     try {
       const payload = { ...transferPlan, packageId: id };
@@ -228,6 +237,7 @@ export default function CampaignForm({ id }: CampaignFormProps) {
   if (loading) {
     return (
       <div className="rounded-2xl bg-white border border-slate-200 p-10 text-center text-sm text-slate-500">
+        <span className="inline-block w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2 align-middle" />
         Loading…
       </div>
     );
@@ -235,12 +245,17 @@ export default function CampaignForm({ id }: CampaignFormProps) {
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
+      <LoadingOverlay show={anyBusy} label={busyLabel} />
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
         <h2 className="text-xl font-bold text-slate-900">{id ? "Edit Campaign" : "New Campaign"}</h2>
         <div className="flex items-center gap-2">
           <Link
             href="/admin/packages-master"
-            className="px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100"
+            aria-disabled={anyBusy}
+            onClick={(e) => anyBusy && e.preventDefault()}
+            className={`px-4 py-2 text-sm font-medium text-slate-700 rounded-lg hover:bg-slate-100 ${
+              anyBusy ? "opacity-50 cursor-not-allowed pointer-events-none" : ""
+            }`}
           >
             Cancel
           </Link>
@@ -252,7 +267,10 @@ export default function CampaignForm({ id }: CampaignFormProps) {
               !canSave || saving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
             }`}
           >
-            {id ? "Update" : "Save Campaign"}
+            {saving && (
+              <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+            )}
+            {id ? (saving ? "Updating…" : "Update") : saving ? "Saving…" : "Save Campaign"}
           </button>
         </div>
       </div>
@@ -302,10 +320,10 @@ export default function CampaignForm({ id }: CampaignFormProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Thumbnail Image">
-            <ImageUpload value={form.thumbnail} onChange={(url) => onChange({ thumbnail: url })} aspect="4/3" />
+            <ImageUpload value={form.thumbnail} onChange={(url) => onChange({ thumbnail: url })} aspect="4/3" size="md" />
           </Field>
           <Field label="Cover Banner">
-            <ImageUpload value={form.coverBanner} onChange={(url) => onChange({ coverBanner: url })} aspect="16/9" />
+            <ImageUpload value={form.coverBanner} onChange={(url) => onChange({ coverBanner: url })} aspect="16/9" size="md" />
           </Field>
         </div>
 
@@ -328,18 +346,6 @@ export default function CampaignForm({ id }: CampaignFormProps) {
             })}
           </div>
         </Field>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="Highlights">
-            <TagInput value={form.highlights ?? []} onChange={(v) => onChange({ highlights: v })} placeholder="Sunset cruise" />
-          </Field>
-          <Field label="Inclusions">
-            <TagInput value={form.inclusions ?? []} onChange={(v) => onChange({ inclusions: v })} placeholder="All meals" />
-          </Field>
-          <Field label="Exclusions">
-            <TagInput value={form.exclusions ?? []} onChange={(v) => onChange({ exclusions: v })} placeholder="Visa fees" />
-          </Field>
-        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -409,7 +415,10 @@ export default function CampaignForm({ id }: CampaignFormProps) {
                         itinerarySaving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
                       }`}
                     >
-                      {itinerary?.id ? "Update Itinerary" : "Save Itinerary"}
+                      {itinerarySaving && (
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                      )}
+                      {itinerary?.id ? (itinerarySaving ? "Updating…" : "Update Itinerary") : itinerarySaving ? "Saving…" : "Save Itinerary"}
                     </button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -464,7 +473,10 @@ export default function CampaignForm({ id }: CampaignFormProps) {
                         hotelSaving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
                       }`}
                     >
-                      {hotelPlan?.id ? "Update Hotel" : "Save Hotel"}
+                      {hotelSaving && (
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                      )}
+                      {hotelPlan?.id ? (hotelSaving ? "Updating…" : "Update Hotel") : hotelSaving ? "Saving…" : "Save Hotel"}
                     </button>
                   </div>
                   <HotelStaysEditor
@@ -508,7 +520,10 @@ export default function CampaignForm({ id }: CampaignFormProps) {
                         transferSaving ? "opacity-50 cursor-not-allowed hover:bg-blue-600" : ""
                       }`}
                     >
-                      {transferPlan?.id ? "Update Transfer" : "Save Transfer"}
+                      {transferSaving && (
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                      )}
+                      {transferPlan?.id ? (transferSaving ? "Updating…" : "Update Transfer") : transferSaving ? "Saving…" : "Save Transfer"}
                     </button>
                   </div>
                   <TransferStopsEditor

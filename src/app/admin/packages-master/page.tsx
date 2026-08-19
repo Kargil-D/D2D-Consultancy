@@ -29,6 +29,8 @@ export default function PackagesMasterPage() {
   const [travelTypeFilter, setTravelTypeFilter] = useState("");
   const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -60,16 +62,40 @@ export default function PackagesMasterPage() {
   const destName = (id: string) => destinations.find((d) => d.id === id)?.name ?? "—";
 
   const remove = async () => {
-    if (!confirm.id) return;
-    await packagesApi.remove(confirm.id);
-    notify("Package deleted");
-    setConfirm({ open: false, id: null });
-    reload();
+    if (!confirm.id || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await packagesApi.remove(confirm.id);
+      if (!res.success) {
+        notify(res.message || "Unable to delete campaign", "error");
+        return;
+      }
+      notify("Campaign deleted", "success");
+      setConfirm({ open: false, id: null });
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to delete campaign", "error");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const toggleStatus = async (id: string) => {
-    await packagesApi.toggleStatus(id);
-    reload();
+    if (togglingId) return;
+    setTogglingId(id);
+    try {
+      const res = await packagesApi.toggleStatus(id);
+      if (!res.success) {
+        notify(res.message || "Unable to update status", "error");
+        return;
+      }
+      notify("Status updated", "success");
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unable to update status", "error");
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const columns: Column<AdminPackage>[] = [
@@ -121,7 +147,7 @@ export default function PackagesMasterPage() {
       label: "Status",
       render: (r) => (
         <div className="flex items-center gap-2">
-          <StatusToggle value={r.status} onChange={() => toggleStatus(r.id)} size="sm" />
+          <StatusToggle value={r.status} onChange={() => toggleStatus(r.id)} size="sm" loading={togglingId === r.id} />
           <StatusBadge status={r.status} />
         </div>
       ),
@@ -135,7 +161,12 @@ export default function PackagesMasterPage() {
           <Link href={`/admin/packages-master/${r.id}/edit`} className="p-2 rounded-lg text-slate-600 hover:bg-slate-100" aria-label="Edit">
             <Edit className="w-4 h-4" />
           </Link>
-          <button onClick={() => setConfirm({ open: true, id: r.id })} className="p-2 rounded-lg text-rose-600 hover:bg-rose-50" aria-label="Delete">
+          <button
+            onClick={() => setConfirm({ open: true, id: r.id })}
+            disabled={deleting}
+            className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Delete"
+          >
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
@@ -191,6 +222,7 @@ export default function PackagesMasterPage() {
         title="Delete campaign?"
         message="This will remove the campaign from all listings."
         confirmText="Delete"
+        loading={deleting}
         onCancel={() => setConfirm({ open: false, id: null })}
         onConfirm={remove}
       />
