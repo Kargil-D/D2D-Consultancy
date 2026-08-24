@@ -5,25 +5,39 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUpRight, ChevronDown, Sparkles } from "lucide-react";
 import {
-  PACKAGES_MENU,
   type PackageMenuColumn,
   type PackageMenuItem,
 } from "@/data/packagesMenu";
 
-function useCampaignsMenu() {
-  const [menuColumns, setMenuColumns] = useState<PackageMenuColumn[]>(PACKAGES_MENU);
+type CampaignsMenuState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; columns: PackageMenuColumn[] };
+
+/**
+ * Fetches the live campaigns menu from the database. There is no
+ * static/fallback data — the caller renders a loading skeleton while
+ * status is "loading" and an empty/error state otherwise, so the menu
+ * never flashes stale content.
+ */
+function useCampaignsMenu(): CampaignsMenuState {
+  const [state, setState] = useState<CampaignsMenuState>({ status: "loading" });
 
   useEffect(() => {
     let isMounted = true;
 
     fetch("/api/campaigns/menu")
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Request failed"))))
       .then((payload) => {
-        if (!isMounted || !payload?.success) return;
-        setMenuColumns(payload.data as PackageMenuColumn[]);
+        if (!isMounted) return;
+        if (!payload?.success || !Array.isArray(payload.data)) {
+          setState({ status: "error" });
+          return;
+        }
+        setState({ status: "ready", columns: payload.data as PackageMenuColumn[] });
       })
       .catch(() => {
-        // Keep fallback static menu if API fails.
+        if (isMounted) setState({ status: "error" });
       });
 
     return () => {
@@ -31,7 +45,7 @@ function useCampaignsMenu() {
     };
   }, []);
 
-  return menuColumns;
+  return state;
 }
 
 interface PackagesMegaMenuProps {
@@ -62,8 +76,11 @@ export default function PackagesMegaMenu({
   onFocus,
   onBlur,
 }: PackagesMegaMenuProps) {
-  const menuColumns = useCampaignsMenu();
-  const singleColumn = menuColumns.length === 1;
+  const menuState = useCampaignsMenu();
+  // The campaigns API only ever returns a single column ("By Destination"),
+  // so default to the single-column layout while loading/empty/erroring to
+  // avoid a width jump once real data arrives.
+  const singleColumn = menuState.status !== "ready" || menuState.columns.length === 1;
   const popupWidthClass = singleColumn ? "w-[min(72vw,420px)]" : "w-[min(92vw,620px)]";
   const gridColsClass = singleColumn ? "md:grid-cols-1" : "md:grid-cols-2";
   return (
@@ -111,11 +128,27 @@ export default function PackagesMegaMenu({
               {/* Soft top gradient accent */}
               <div className="pointer-events-none absolute inset-x-0 -top-16 h-32 bg-gradient-to-b from-cyan-50/80 via-white/0 to-transparent" />
 
-              <div className={`relative grid grid-cols-1 gap-4 ${gridColsClass} md:gap-5`}>
-                {menuColumns.map((column) => (
-                  <Column key={column.title} column={column} />
-                ))}
-              </div>
+              {menuState.status === "loading" && (
+                <div className={`relative grid grid-cols-1 gap-4 ${gridColsClass} md:gap-5`}>
+                  <ColumnSkeleton />
+                </div>
+              )}
+
+              {menuState.status === "error" && (
+                <MenuMessage text="Unable to load campaigns right now." />
+              )}
+
+              {menuState.status === "ready" && (
+                menuState.columns.every((column) => column.items.length === 0) ? (
+                  <MenuMessage text="No campaigns available right now." />
+                ) : (
+                  <div className={`relative grid grid-cols-1 gap-4 ${gridColsClass} md:gap-5`}>
+                    {menuState.columns.map((column) => (
+                      <Column key={column.title} column={column} />
+                    ))}
+                  </div>
+                )
+              )}
 
               <div className="relative mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
                 <span className="inline-flex items-center gap-1.5">
@@ -193,6 +226,36 @@ function PackageCard({ item }: { item: PackageMenuItem }) {
   );
 }
 
+function ColumnSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="mb-2 flex items-baseline justify-between">
+        <div className="h-3 w-24 rounded bg-slate-200" />
+        <div className="h-3 w-20 rounded bg-slate-100" />
+      </div>
+      <ul className="space-y-1">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <li key={i} className="flex items-center gap-2.5 p-1.5">
+            <span className="block h-10 w-10 flex-shrink-0 rounded-lg bg-slate-200" />
+            <span className="min-w-0 flex-1 space-y-1.5">
+              <span className="block h-3 w-28 rounded bg-slate-200" />
+              <span className="block h-2.5 w-36 rounded bg-slate-100" />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MenuMessage({ text }: { text: string }) {
+  return (
+    <div className="relative flex min-h-[160px] items-center justify-center py-6 text-center text-sm text-slate-500">
+      {text}
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Mobile accordion variant                                                   */
 /* -------------------------------------------------------------------------- */
@@ -204,10 +267,27 @@ interface PackagesMegaMenuMobileProps {
 export function PackagesMegaMenuMobile({
   onNavigate,
 }: PackagesMegaMenuMobileProps) {
-  const menuColumns = useCampaignsMenu();
+  const menuState = useCampaignsMenu();
+
+  if (menuState.status === "loading") {
+    return (
+      <div className="animate-pulse rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="h-3 w-32 rounded bg-slate-200" />
+      </div>
+    );
+  }
+
+  if (menuState.status === "error") {
+    return <MenuMessage text="Unable to load campaigns right now." />;
+  }
+
+  if (menuState.columns.every((column) => column.items.length === 0)) {
+    return <MenuMessage text="No campaigns available right now." />;
+  }
+
   return (
     <div className="space-y-3">
-      {menuColumns.map((column) => (
+      {menuState.columns.map((column) => (
         <MobileColumn
           key={column.title}
           column={column}

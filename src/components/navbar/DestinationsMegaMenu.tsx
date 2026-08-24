@@ -5,10 +5,51 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUpRight, ChevronDown, MapPin } from "lucide-react";
 import {
-  DESTINATIONS_MENU,
   type DestinationMenuColumn,
   type DestinationMenuItem,
 } from "@/data/destinationsMenu";
+
+/** Number of columns the destinations menu always renders (International + Domestic). */
+const DESTINATIONS_COLUMN_COUNT = 2;
+
+type DestinationsMenuState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "ready"; columns: DestinationMenuColumn[] };
+
+/**
+ * Fetches the live destinations menu from the database. There is no
+ * static/fallback data — the caller is responsible for rendering a
+ * loading skeleton while status is "loading" and an empty/error state
+ * otherwise, so the menu never flashes stale content.
+ */
+function useDestinationsMenu(): DestinationsMenuState {
+  const [state, setState] = useState<DestinationsMenuState>({ status: "loading" });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch("/api/destinations/menu")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Request failed"))))
+      .then((payload) => {
+        if (!isMounted) return;
+        if (!payload?.success || !Array.isArray(payload.data)) {
+          setState({ status: "error" });
+          return;
+        }
+        setState({ status: "ready", columns: payload.data as DestinationMenuColumn[] });
+      })
+      .catch(() => {
+        if (isMounted) setState({ status: "error" });
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return state;
+}
 
 interface DestinationsMegaMenuProps {
   /** Whether the dropdown is open (desktop hover state). */
@@ -40,25 +81,7 @@ export default function DestinationsMegaMenu({
   onFocus,
   onBlur,
 }: DestinationsMegaMenuProps) {
-  const [menuColumns, setMenuColumns] = useState<DestinationMenuColumn[]>(DESTINATIONS_MENU);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    fetch("/api/destinations/menu")
-      .then((res) => res.ok ? res.json() : null)
-      .then((payload) => {
-        if (!isMounted || !payload?.success) return;
-        setMenuColumns(payload.data as DestinationMenuColumn[]);
-      })
-      .catch(() => {
-        // Keep fallback static menu if API fails.
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const menuState = useDestinationsMenu();
 
   return (
     <div
@@ -105,11 +128,29 @@ export default function DestinationsMegaMenu({
               {/* Soft top gradient accent */}
               <div className="pointer-events-none absolute inset-x-0 -top-16 h-32 bg-gradient-to-b from-cyan-50/80 via-white/0 to-transparent" />
 
-              <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
-                {menuColumns.map((column) => (
-                  <Column key={column.title} column={column} />
-                ))}
-              </div>
+              {menuState.status === "loading" && (
+                <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
+                  {Array.from({ length: DESTINATIONS_COLUMN_COUNT }).map((_, i) => (
+                    <ColumnSkeleton key={i} />
+                  ))}
+                </div>
+              )}
+
+              {menuState.status === "error" && (
+                <MenuMessage text="Unable to load destinations right now." />
+              )}
+
+              {menuState.status === "ready" && (
+                menuState.columns.every((column) => column.items.length === 0) ? (
+                  <MenuMessage text="No destinations available right now." />
+                ) : (
+                  <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
+                    {menuState.columns.map((column) => (
+                      <Column key={column.title} column={column} />
+                    ))}
+                  </div>
+                )
+              )}
 
               <div className="relative mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
                 <span className="inline-flex items-center gap-1.5">
@@ -190,6 +231,36 @@ function DestinationCard({ item }: { item: DestinationMenuItem }) {
   );
 }
 
+function ColumnSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="mb-2 flex items-baseline justify-between">
+        <div className="h-3 w-20 rounded bg-slate-200" />
+        <div className="h-3 w-16 rounded bg-slate-100" />
+      </div>
+      <ul className="space-y-1">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <li key={i} className="flex items-center gap-2.5 p-1.5">
+            <span className="block h-10 w-10 flex-shrink-0 rounded-lg bg-slate-200" />
+            <span className="min-w-0 flex-1 space-y-1.5">
+              <span className="block h-3 w-24 rounded bg-slate-200" />
+              <span className="block h-2.5 w-32 rounded bg-slate-100" />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MenuMessage({ text }: { text: string }) {
+  return (
+    <div className="relative flex min-h-[160px] items-center justify-center py-6 text-center text-sm text-slate-500">
+      {text}
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Mobile accordion variant                                                   */
 /* -------------------------------------------------------------------------- */
@@ -206,29 +277,31 @@ interface DestinationsMegaMenuMobileProps {
 export function DestinationsMegaMenuMobile({
   onNavigate,
 }: DestinationsMegaMenuMobileProps) {
-  const [menuColumns, setMenuColumns] = useState<DestinationMenuColumn[]>(DESTINATIONS_MENU);
+  const menuState = useDestinationsMenu();
 
-  useEffect(() => {
-    let isMounted = true;
+  if (menuState.status === "loading") {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: DESTINATIONS_COLUMN_COUNT }).map((_, i) => (
+          <div key={i} className="animate-pulse rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="h-3 w-32 rounded bg-slate-200" />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
-    fetch("/api/destinations/menu")
-      .then((res) => res.ok ? res.json() : null)
-      .then((payload) => {
-        if (!isMounted || !payload?.success) return;
-        setMenuColumns(payload.data as DestinationMenuColumn[]);
-      })
-      .catch(() => {
-        // Keep fallback static menu if API fails.
-      });
+  if (menuState.status === "error") {
+    return <MenuMessage text="Unable to load destinations right now." />;
+  }
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  if (menuState.columns.every((column) => column.items.length === 0)) {
+    return <MenuMessage text="No destinations available right now." />;
+  }
 
   return (
     <div className="space-y-3">
-      {menuColumns.map((column) => (
+      {menuState.columns.map((column) => (
         <MobileColumn
           key={column.title}
           column={column}
