@@ -82,6 +82,7 @@ const QuotationTransferItemSchema = z.object({
 /** Step 5 — one activity. */
 const QuotationActivityItemSchema = z.object({
   id: z.string(),
+  activityMasterId: z.string().optional().nullable(),
   name: z.string().optional().default(""),
   description: z.string().optional().default(""),
   images: z.array(z.string()).optional().default([]),

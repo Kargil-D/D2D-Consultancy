@@ -660,6 +660,8 @@ export interface QuotationTransferItem {
 /** Step 5 — one activity. */
 export interface QuotationActivityItem {
   id: string;
+  /** Activity Master this line is linked to. Name/description/images are read-only, sourced from this record. */
+  activityMasterId?: string | null;
   name: string;
   description: string;
   images: string[];

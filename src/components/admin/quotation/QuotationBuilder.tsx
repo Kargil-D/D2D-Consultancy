@@ -1098,6 +1098,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
               <QuotationActivitiesEditor
                 activities={draft.activities}
                 onChange={(activities) => patch({ activities })}
+                destinationId={draft.destinationId}
                 minDate={draft.travelDate}
                 maxDate={draft.travelEndDate}
               />
