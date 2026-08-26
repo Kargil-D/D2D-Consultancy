@@ -203,6 +203,11 @@ function quotationScalarData(input: Partial<QuotationCreate | QuotationUpdate>) 
   } satisfies Prisma.QuotationUncheckedUpdateInput;
 }
 
+/** Quotation content (itineraryDays/hotelOptions/transfers/activities) can carry sizeable
+ * base64-encoded images inline, which makes these writes slow enough on production DB latency
+ * to blow past Prisma's 5s default interactive-transaction timeout — hence the longer timeout. */
+const QUOTATION_TRANSACTION_OPTIONS = { timeout: 20_000 };
+
 export async function createQuotation(input: QuotationCreate) {
   const lead = await findOrCreateLeadForQuotation(input.customer, input.destinationId, input.source);
 
@@ -230,7 +235,7 @@ export async function createQuotation(input: QuotationCreate) {
       });
     }
     return tx.quotation.findUniqueOrThrow({ where: { id: quotation.id }, include: QUOTATION_INCLUDE });
-  });
+  }, QUOTATION_TRANSACTION_OPTIONS);
 }
 
 export async function updateQuotation(id: string, input: QuotationUpdate) {
@@ -271,7 +276,7 @@ export async function updateQuotation(id: string, input: QuotationUpdate) {
           }
         }
         return tx.quotation.findUniqueOrThrow({ where: { id }, include: QUOTATION_INCLUDE });
-      }),
+      }, QUOTATION_TRANSACTION_OPTIONS),
     (r) => ({ items: r.items.length, replacedItems: !!input.items }),
   );
 }
@@ -327,7 +332,7 @@ export async function duplicateQuotation(id: string) {
       });
     }
     return tx.quotation.findUniqueOrThrow({ where: { id: copy.id }, include: QUOTATION_INCLUDE });
-  });
+  }, QUOTATION_TRANSACTION_OPTIONS);
 }
 
 /**
