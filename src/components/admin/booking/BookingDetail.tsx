@@ -8,6 +8,7 @@ import {
   CreditCard, FolderOpen, MessageCircle, History,
 } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import BookingStatusStepper from "@/components/admin/booking/BookingStatusStepper";
@@ -779,7 +780,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               <input className={inputCls} value={booking.lead?.email ?? ""} disabled />
             </Field>
             <Field label="Travel Date">
-              <input type="date" className={inputCls} value={detailTravelDate} onChange={(e) => setDetailTravelDate(e.target.value)} />
+              <DateInput value={detailTravelDate} onChange={(iso) => setDetailTravelDate(iso)} />
             </Field>
             <Field label="Booking Status">
               <select className={selectCls} value={detailStatus} onChange={(e) => setDetailStatus(e.target.value as BookingStatus)}>
@@ -831,7 +832,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
           <h3 className="text-sm font-bold text-slate-900 mb-4">DMC Communication</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="DMC Name"><input className={inputCls} value={dmcName} onChange={(e) => setDmcName(e.target.value)} /></Field>
-            <Field label="Email Sent Date"><input type="date" className={inputCls} value={dmcEmailSentDate} onChange={(e) => setDmcEmailSentDate(e.target.value)} /></Field>
+            <Field label="Email Sent Date"><DateInput value={dmcEmailSentDate} onChange={(iso) => setDmcEmailSentDate(iso)} /></Field>
             <Field label="Response"><input className={inputCls} value={dmcResponse} onChange={(e) => setDmcResponse(e.target.value)} /></Field>
             <Field label="Remarks"><input className={inputCls} value={dmcRemarks} onChange={(e) => setDmcRemarks(e.target.value)} /></Field>
           </div>

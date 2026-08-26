@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
@@ -954,13 +955,10 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                       </select>
                     </Field>
                     <Field label="Travel Date" required hint="Must be a future date">
-                      <input
-                        type="date"
-                        className={inputCls}
+                      <DateInput
                         min={tomorrowIso()}
                         value={draft.travelDate}
-                        onChange={(e) => {
-                          const value = e.target.value;
+                        onChange={(value) => {
                           if (value && !isFutureDate(value)) {
                             notify("Travel date must be after today", "error");
                             return;
@@ -970,13 +968,10 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                       />
                     </Field>
                     <Field label="Travel End Date" required hint="Must be a future date">
-                      <input
-                        type="date"
-                        className={inputCls}
+                      <DateInput
                         min={tomorrowIso()}
                         value={draft.travelEndDate}
-                        onChange={(e) => {
-                          const value = e.target.value;
+                        onChange={(value) => {
                           if (value && !isFutureDate(value)) {
                             notify("Travel end date must be after today", "error");
                             return;
@@ -1028,7 +1023,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                       </select>
                     </Field>
                     <Field label="Quotation Validity">
-                      <input type="date" className={inputCls} value={draft.validUntil} onChange={(e) => patch({ validUntil: e.target.value })} />
+                      <DateInput value={draft.validUntil} onChange={(iso) => patch({ validUntil: iso })} />
                     </Field>
                   </div>
                   <Field label="Internal Notes" hint="Visible only to Admin/Sales — never shown to the customer" className="mt-4">
@@ -1453,11 +1448,9 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field label="Payment Date" required>
-                  <input
-                    type="date"
-                    className={inputCls}
+                  <DateInput
                     value={convertPayment.paymentDate}
-                    onChange={(e) => setConvertPayment((p) => ({ ...p, paymentDate: e.target.value }))}
+                    onChange={(iso) => setConvertPayment((p) => ({ ...p, paymentDate: iso }))}
                   />
                 </Field>
                 <Field label="Payment Mode">

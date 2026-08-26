@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/Field";
 import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
+import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import { destinationsApi, leadsApi, salesUsersApi } from "@/lib/adminApi";
 import type { AdminDestination, AdminLead, AdminSalesUser, LeadSource } from "@/types/admin";
@@ -139,7 +140,7 @@ export default function LeadForm({ id }: LeadFormProps) {
             </select>
           </Field>
           <Field label="Travel Date">
-            <input type="date" className={inputCls} value={form.travelDate ?? ""} onChange={(e) => onChange({ travelDate: e.target.value })} />
+            <DateInput value={form.travelDate} onChange={(iso) => onChange({ travelDate: iso })} />
           </Field>
           <Field label="Source" required>
             <select className={selectCls} value={form.source ?? "Manual"} onChange={(e) => onChange({ source: e.target.value as LeadSource })}>

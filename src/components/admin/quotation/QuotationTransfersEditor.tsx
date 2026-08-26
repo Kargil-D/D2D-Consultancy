@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Plus, Trash2, Copy, ArrowRightLeft } from "lucide-react";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import { isWithinRange, dateRangeMessage } from "@/utils/dateRange";
 import { transferTypesApi } from "@/lib/adminApi";
@@ -179,7 +180,7 @@ export default function QuotationTransfersEditor({ transfers, onChange, minDate,
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
             <Field label="Transfer Date">
-              <input type="date" className={inputCls} value={t.transferDate} min={minDate} max={maxDate} onChange={(e) => updateDate(i, e.target.value)} />
+              <DateInput value={t.transferDate} min={minDate} max={maxDate} onChange={(iso) => updateDate(i, iso)} />
             </Field>
             <Field label="Duration">
               <input className={inputCls} value={t.duration} onChange={(e) => update(i, { duration: e.target.value })} placeholder="45 mins" />

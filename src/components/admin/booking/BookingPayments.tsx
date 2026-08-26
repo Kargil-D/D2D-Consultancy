@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { Plus, Receipt } from "lucide-react";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
 import type { AdminBookingCustomerPayment, PaymentMode } from "@/types/admin";
 
@@ -45,7 +46,7 @@ export default function BookingPayments({ customerPayments, onAddCustomerPayment
     <div>
       <h3 className="text-sm font-bold text-slate-900 mb-3">Customer Payments</h3>
       <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 grid grid-cols-1 md:grid-cols-6 gap-3 items-end mb-3">
-        <Field label="Payment Date"><input type="date" className={inputCls} value={cDate} onChange={(e) => setCDate(e.target.value)} /></Field>
+        <Field label="Payment Date"><DateInput value={cDate} onChange={(iso) => setCDate(iso)} /></Field>
         <Field label="Payment Mode">
           <select className={selectCls} value={cMode} onChange={(e) => setCMode(e.target.value as PaymentMode)}>
             {MODES.map((m) => (<option key={m} value={m}>{m}</option>))}

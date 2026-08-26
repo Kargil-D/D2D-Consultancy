@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { selectCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { GridField as Field, PAYMENT_MODES, cellInputCls, formatINR, readonlyBoxCls } from "@/components/admin/booking/BookingGridField";
 import type { AdminBookingCostSheetEntry, AdminBookingHotel, PaymentMode } from "@/types/admin";
 
@@ -172,7 +173,7 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
                   </select>
                 </Field>
                 <Field label="Booking Date">
-                  <input type="date" className={cellInputCls} value={h.bookingDate ?? ""} onChange={(e) => update(i, { bookingDate: e.target.value || null })} />
+                  <DateInput value={h.bookingDate} onChange={(iso) => update(i, { bookingDate: iso || null })} />
                 </Field>
                 <Field label="Booking PNR">
                   <input className={cellInputCls} value={h.bookingPnr} onChange={(e) => update(i, { bookingPnr: e.target.value })} />

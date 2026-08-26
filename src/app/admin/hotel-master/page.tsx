@@ -338,18 +338,31 @@ export default function HotelMasterPage() {
               <TagInput value={drawer.form.roomTypes ?? []} onChange={(v) => setForm({ roomTypes: v })} placeholder="Deluxe Room" />
             </Field>
             <Field label="Meal Plans">
-              <select
-                className={selectCls}
-                value={drawer.form.mealPlans?.[0] ?? ""}
-                onChange={(e) => setForm({ mealPlans: e.target.value ? [e.target.value] : [] })}
-              >
-                <option value="">Select meal plan</option>
-                {MEAL_PLANS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-wrap gap-2">
+                {MEAL_PLANS.map((o) => {
+                  const selected = (drawer.form.mealPlans ?? []).includes(o);
+                  return (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() =>
+                        setForm({
+                          mealPlans: selected
+                            ? (drawer.form.mealPlans ?? []).filter((mp) => mp !== o)
+                            : [...(drawer.form.mealPlans ?? []), o],
+                        })
+                      }
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                        selected
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-slate-600 border-slate-300 hover:border-blue-400"
+                      }`}
+                    >
+                      {o}
+                    </button>
+                  );
+                })}
+              </div>
             </Field>
             <Field label="Amenities">
               <TagInput value={drawer.form.amenities ?? []} onChange={(v) => setForm({ amenities: v })} placeholder="Pool, WiFi" />

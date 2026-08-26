@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type { Paginated } from "@/types/admin";
 import type { Prisma } from "@/generated/prisma/client";
@@ -53,15 +54,39 @@ export async function getDestination(id: string) {
   return rec ? mapDestination(rec) : null;
 }
 
-/** Best-effort lookup for free-text destination names (e.g. from the public enquiry form). */
-export async function findDestinationByNameOrSlug(nameOrSlug: string) {
+/** Small scalar fields only — everything the public navbar mega-menu renders. Excludes the
+ * cities join and remaining columns so menu traffic stays light on the database. */
+const DESTINATION_MENU_SELECT = {
+  name: true,
+  shortDescription: true,
+  fullDescription: true,
+  thumbnailImage: true,
+  bannerImage: true,
+  isDomestic: true,
+} satisfies Prisma.DestinationSelect;
+
+export type DestinationMenuEntry = Prisma.DestinationGetPayload<{ select: typeof DESTINATION_MENU_SELECT }>;
+
+export async function listDestinationMenuEntries(): Promise<DestinationMenuEntry[]> {
+  return prisma.destination.findMany({
+    where: { isDeleted: false, status: "Active" },
+    select: DESTINATION_MENU_SELECT,
+    orderBy: { displayOrder: "asc" },
+    take: 100,
+  });
+}
+
+/** Best-effort lookup for free-text destination names (e.g. from the public enquiry form).
+ * React-cached: generateMetadata and the page body both call this per request — cache() makes
+ * that one database query instead of two. */
+export const findDestinationByNameOrSlug = cache(async (nameOrSlug: string) => {
   return prisma.destination.findFirst({
     where: {
       isDeleted: false,
       OR: [{ slug: nameOrSlug }, { name: { equals: nameOrSlug, mode: "insensitive" } }],
     },
   });
-}
+});
 
 export async function createDestination(payload: Prisma.DestinationCreateInput, cityIds: string[] = []) {
   const rec = await prisma.destination.create({

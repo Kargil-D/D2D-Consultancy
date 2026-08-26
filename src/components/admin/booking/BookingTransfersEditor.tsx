@@ -5,6 +5,7 @@ import { Plus, Trash2, Copy, ArrowRightLeft } from "lucide-react";
 import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import GenerateVoucherLink from "@/components/admin/booking/GenerateVoucherLink";
 import { selectCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { GridField as Field, PAYMENT_MODES, cellInputCls, formatINR, readonlyBoxCls } from "@/components/admin/booking/BookingGridField";
 import type { AdminBookingCostSheetEntry, AdminBookingTransfer, PaymentMode, TourType } from "@/types/admin";
 
@@ -205,7 +206,7 @@ export default function BookingTransfersEditor({
                   </select>
                 </Field>
                 <Field label="Booking Date">
-                  <input type="date" className={cellInputCls} value={t.bookingDate ?? ""} onChange={(e) => update(i, { bookingDate: e.target.value || null })} />
+                  <DateInput value={t.bookingDate} onChange={(iso) => update(i, { bookingDate: iso || null })} />
                 </Field>
                 <Field label="Booking PNR">
                   <input className={cellInputCls} value={t.bookingPnr} onChange={(e) => update(i, { bookingPnr: e.target.value })} />

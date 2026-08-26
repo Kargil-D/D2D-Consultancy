@@ -12,6 +12,7 @@ import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import StatusToggle, { StatusBadge } from "@/components/admin/ui/StatusToggle";
 import ImageUpload from "@/components/admin/ui/ImageUpload";
 import { Field, inputCls, textareaCls, selectCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import { destinationsApi, packagesApi, reviewsApi } from "@/lib/adminApi";
 import type { AdminDestination, AdminPackage, AdminReview, Status } from "@/types/admin";
@@ -198,7 +199,7 @@ function ReviewFormBody({
           <input className={inputCls} value={form.customerName ?? ""} onChange={(e) => onChange({ customerName: e.target.value })} />
         </Field>
         <Field label="Review Date">
-          <input type="date" className={inputCls} value={form.reviewDate ?? ""} onChange={(e) => onChange({ reviewDate: e.target.value })} />
+          <DateInput value={form.reviewDate} onChange={(iso) => onChange({ reviewDate: iso })} />
         </Field>
       </div>
       <Field label="Customer Image">

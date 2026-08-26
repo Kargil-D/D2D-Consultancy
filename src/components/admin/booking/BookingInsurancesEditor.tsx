@@ -3,6 +3,7 @@
 import { Plus, Trash2, Copy, ShieldCheck } from "lucide-react";
 import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import { Field, inputCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import type { AdminBookingInsurance } from "@/types/admin";
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -72,8 +73,8 @@ export default function BookingInsurancesEditor({ insurances, onChange }: Props)
             </Field>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-            <Field label="Travel Start Date"><input type="date" className={inputCls} value={ins.travelStartDate ?? ""} onChange={(e) => update(i, { travelStartDate: e.target.value || null })} /></Field>
-            <Field label="Travel End Date"><input type="date" className={inputCls} value={ins.travelEndDate ?? ""} onChange={(e) => update(i, { travelEndDate: e.target.value || null })} /></Field>
+            <Field label="Travel Start Date"><DateInput value={ins.travelStartDate} onChange={(iso) => update(i, { travelStartDate: iso || null })} /></Field>
+            <Field label="Travel End Date"><DateInput value={ins.travelEndDate} onChange={(iso) => update(i, { travelEndDate: iso || null })} /></Field>
           </div>
           <div className="mt-3">
             <DocumentUpload label="Insurance Policy PDF" value={ins.policyPdfUrl ?? ""} onChange={(url) => update(i, { policyPdfUrl: url || null })} />

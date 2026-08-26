@@ -5,6 +5,7 @@ import { Plus, Trash2, Copy, Ticket } from "lucide-react";
 import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import GenerateVoucherLink from "@/components/admin/booking/GenerateVoucherLink";
 import { selectCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { GridField as Field, PAYMENT_MODES, cellInputCls, formatINR, readonlyBoxCls } from "@/components/admin/booking/BookingGridField";
 import type { AdminBookingActivity, AdminBookingCostSheetEntry, PaymentMode, TourType } from "@/types/admin";
 
@@ -102,7 +103,7 @@ export default function BookingActivitiesEditor({
                   <input className={cellInputCls} value={a.activityName} onChange={(e) => update(i, { activityName: e.target.value })} />
                 </Field>
                 <Field label="Activity Date">
-                  <input type="date" className={cellInputCls} value={a.activityDate ?? ""} onChange={(e) => update(i, { activityDate: e.target.value || null })} />
+                  <DateInput value={a.activityDate} onChange={(iso) => update(i, { activityDate: iso || null })} />
                 </Field>
                 <Field label="Activity Time">
                   <input type="time" className={cellInputCls} value={a.activityTime} onChange={(e) => update(i, { activityTime: e.target.value })} />
@@ -208,7 +209,7 @@ export default function BookingActivitiesEditor({
                   </select>
                 </Field>
                 <Field label="Booking Date">
-                  <input type="date" className={cellInputCls} value={a.bookingDate ?? ""} onChange={(e) => update(i, { bookingDate: e.target.value || null })} />
+                  <DateInput value={a.bookingDate} onChange={(iso) => update(i, { bookingDate: iso || null })} />
                 </Field>
                 <Field label="Booking PNR">
                   <input className={cellInputCls} value={a.bookingPnr} onChange={(e) => update(i, { bookingPnr: e.target.value })} />

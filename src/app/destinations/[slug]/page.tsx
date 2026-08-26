@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft, ArrowRight, MapPin, Sparkles } from "lucide-react";
 import { findDestinationByNameOrSlug } from "@/services/destinationService";
-import { listCampaigns } from "@/services/campaignService";
+import { listCampaignSummaries } from "@/services/campaignService";
 import Logo from "@/components/common/Logo";
 import DestinationPackagesGrid from "@/components/packages/DestinationPackagesGrid";
 import type { DestinationPackage } from "@/data/destinationPackages";
@@ -13,7 +13,9 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export const dynamic = "force-dynamic";
+/** ISR: serve a cached page and regenerate at most every 10 minutes — admin edits show up
+ * within that window, and visitor/bot traffic stops hitting the database on every view. */
+export const revalidate = 600;
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
@@ -30,7 +32,7 @@ export default async function DestinationPage({ params }: PageProps) {
   const destination = await findDestinationByNameOrSlug(slug);
   if (!destination || destination.status !== "Active") notFound();
 
-  const { items: campaigns } = await listCampaigns({
+  const campaigns = await listCampaignSummaries({
     pageSize: 50,
     filter: { destinationId: destination.id, status: "Active" },
   });

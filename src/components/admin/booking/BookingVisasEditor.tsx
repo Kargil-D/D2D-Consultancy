@@ -3,6 +3,7 @@
 import { Plus, Trash2, Copy, Stamp } from "lucide-react";
 import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import type { AdminBookingVisa, VisaProcessStatus } from "@/types/admin";
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -70,9 +71,9 @@ export default function BookingVisasEditor({ visas, onChange }: Props) {
             <Field label="Visa Number"><input className={inputCls} value={v.visaNumber} onChange={(e) => update(i, { visaNumber: e.target.value })} /></Field>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-            <Field label="Application Date"><input type="date" className={inputCls} value={v.applicationDate ?? ""} onChange={(e) => update(i, { applicationDate: e.target.value || null })} /></Field>
-            <Field label="Issue Date"><input type="date" className={inputCls} value={v.issueDate ?? ""} onChange={(e) => update(i, { issueDate: e.target.value || null })} /></Field>
-            <Field label="Expiry Date"><input type="date" className={inputCls} value={v.expiryDate ?? ""} onChange={(e) => update(i, { expiryDate: e.target.value || null })} /></Field>
+            <Field label="Application Date"><DateInput value={v.applicationDate} onChange={(iso) => update(i, { applicationDate: iso || null })} /></Field>
+            <Field label="Issue Date"><DateInput value={v.issueDate} onChange={(iso) => update(i, { issueDate: iso || null })} /></Field>
+            <Field label="Expiry Date"><DateInput value={v.expiryDate} onChange={(iso) => update(i, { expiryDate: iso || null })} /></Field>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             <Field label="Status">

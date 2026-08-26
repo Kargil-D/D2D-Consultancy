@@ -275,11 +275,17 @@ function SkyHills({ width, height }: { width: number; height: number }) {
   );
 }
 
-/** Low-opacity wave arcs + a flight path with a plane glyph — the recurring page watermark on content pages. */
+/**
+ * Low-opacity wave arcs + a flight path with a plane glyph — the recurring page watermark on
+ * content pages. Rendered as a direct, `fixed` child of <Page> (a sibling of the flowing
+ * content, never nested inside it) so react-pdf repeats it identically on every physical page
+ * without folding its absolute box into the flow container's auto-height calculation — nesting
+ * it there is what silently inserted a blank leading page once a section's content ran long.
+ */
 function PageWatermark() {
   const y = PAGE_H - 190;
   return (
-    <Svg width={PAGE_W} height={220} viewBox={`0 0 ${PAGE_W} 220`} style={{ position: "absolute", left: 0, bottom: 0 }}>
+    <Svg width={PAGE_W} height={220} viewBox={`0 0 ${PAGE_W} 220`} style={{ position: "absolute", left: 0, bottom: 0 }} fixed>
       {[0, 1, 2, 3].map((i) => (
         <Path
           key={i}
@@ -304,21 +310,24 @@ function PageWatermark() {
 
 function PageBand({ quoteCode, destinationName }: { quoteCode: string; destinationName: string }) {
   return (
-    <View style={styles.band}>
+    <View style={styles.band} fixed>
       <BrandLogo size={18} />
       <Text style={styles.bandRightText}>Quotation <Text style={styles.bandRightBold}>{quoteCode}</Text> · {destinationName}</Text>
     </View>
   );
 }
 
-function PageFooter({ pageLabel }: { pageLabel: string }) {
+/** Page number is derived by react-pdf from actual pagination (`render`), never hand-counted —
+ * content now flows continuously across as many physical pages as it needs, so a hardcoded
+ * label would drift out of sync (and did: two physical pages sharing the same "04"/"07"). */
+function PageFooter() {
   return (
     <View style={styles.footerBand} fixed>
       <View>
         <Text style={styles.footerLeft}>{SUPPORT_PHONES.join(" · ")} · {SUPPORT_EMAIL}</Text>
         <Text style={styles.footerSmall}>Indicative quotation, subject to availability.</Text>
       </View>
-      <Text style={styles.footerN}>{pageLabel}</Text>
+      <Text style={styles.footerN} render={({ pageNumber }) => String(pageNumber).padStart(2, "0")} />
     </View>
   );
 }
@@ -403,11 +412,11 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
         </View>
       </Page>
 
-      {/* ========================================================== Page 2 · Overview == */}
+      {/* ================================================ Pages 2+ · everything else, flowing continuously across as many physical pages as the content needs — no forced per-section page breaks == */}
       <Page size="A4" style={styles.page}>
+        <PageWatermark />
         {band}
         <View style={styles.content}>
-          <PageWatermark />
           <SectionHead title="Trip Overview" />
           <View style={styles.grid2}>
             <View style={[styles.card, styles.officeCard, { flex: 1.35 }]}>
@@ -453,120 +462,94 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
               </View>
             </>
           )}
-        </View>
-        <PageFooter pageLabel="02" />
-      </Page>
 
-      {/* ========================================================== Page 3 · Itinerary == */}
-      {hasItinerary && (
-        <Page size="A4" style={styles.page}>
-          {band}
-          <View style={styles.content}>
-            <PageWatermark />
-            <SectionHead title="Day-Wise Itinerary" />
-            {data.itineraryDays.map((d) => (
-              <View key={d.id} style={[styles.card, styles.day]} wrap={false}>
-                <View style={styles.dhead}>
-                  <Text style={styles.dpill}>Day {d.dayNumber}</Text>
-                  <Text style={styles.ddate}>{d.title}</Text>
-                </View>
-                {d.description && <Text style={styles.dbody}>{d.description}</Text>}
-                {d.meals.length > 0 && <Text style={styles.dbody}>Meals: {d.meals.join(", ")}</Text>}
-                {d.notes && <Text style={styles.dnote}>Note: {d.notes}</Text>}
-              </View>
-            ))}
-          </View>
-          <PageFooter pageLabel="03" />
-        </Page>
-      )}
-
-      {/* ========================================================== Page 4 · Stay + Activities == */}
-      {hasStayPage && (
-        <Page size="A4" style={styles.page}>
-          {band}
-          <View style={styles.content}>
-            <PageWatermark />
-            {hasHotels && (
-              <>
-                <SectionHead title="Your Stay" />
-                {data.hotelOptions.map((group) =>
-                  group.hotels.map((h, i) => (
-                    <View key={h.id} style={[styles.split, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
-                      <View style={styles.splitTxt}>
-                        <Text style={styles.splitH3}>{h.hotelName}</Text>
-                        {h.roomType && <View style={styles.srow}><Text style={styles.srowK}>Room</Text><Text style={styles.srowV}>{h.roomType}</Text></View>}
-                        {h.checkIn && <View style={styles.srow}><Text style={styles.srowK}>Check-in</Text><Text style={styles.srowV}>{h.checkIn}</Text></View>}
-                        {h.checkOut && <View style={styles.srow}><Text style={styles.srowK}>Check-out</Text><Text style={styles.srowV}>{h.checkOut}</Text></View>}
-                        {h.mealPlan && <View style={styles.srow}><Text style={styles.srowK}>Plan</Text><Text style={styles.srowV}>{h.mealPlan}</Text></View>}
-                        {h.googleMapUrl && <View style={styles.srow}><Text style={styles.srowK}>Map</Text><Link src={h.googleMapUrl} style={styles.srowV}>View on Map</Link></View>}
-                        {h.website && <View style={styles.srow}><Text style={styles.srowK}>Website</Text><Link src={h.website} style={styles.srowV}>Visit Website</Link></View>}
-                        <Text style={styles.npill}>{h.nights || 1} {h.nights === 1 ? "Night" : "Nights"}</Text>
-                      </View>
-                      <SplitPic src={h.images?.[0]} />
-                    </View>
-                  )),
-                )}
-              </>
-            )}
-
-            {hasActivities && (
-              <View style={{ marginTop: hasHotels ? 4 : 0 }}>
-                <SectionHead title="Activities Included" />
-                {data.activities.map((a, i) => (
-                  <View key={a.id} style={[styles.split, styles.splitCream, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
-                    <View style={styles.splitTxt}>
-                      <Text style={styles.splitH3}>{a.name}</Text>
-                      {a.activityDate && <View style={styles.srow}><Text style={styles.srowK}>Date</Text><Text style={styles.srowV}>{a.activityDate}</Text></View>}
-                      {(a.activityTime || a.duration || a.pax) && (
-                        <View style={styles.srow}>
-                          <Text style={styles.srowK}>Timing</Text>
-                          <Text style={styles.srowV}>{[a.activityTime && `Starts ${a.activityTime}`, a.duration, a.pax ? `${a.pax} Pax` : null].filter(Boolean).join(" · ")}</Text>
-                        </View>
-                      )}
-                      {a.reportingTime && <View style={styles.srow}><Text style={styles.srowK}>Reporting</Text><Text style={styles.srowV}>{a.reportingTime}</Text></View>}
-                    </View>
-                    <SplitPic src={a.images?.[0]} />
+          {hasItinerary && (
+            <>
+              <SectionHead title="Day-Wise Itinerary" />
+              {data.itineraryDays.map((d) => (
+                <View key={d.id} style={[styles.card, styles.day]} wrap={false}>
+                  <View style={styles.dhead}>
+                    <Text style={styles.dpill}>Day {d.dayNumber}</Text>
+                    <Text style={styles.ddate}>{d.title}</Text>
                   </View>
-                ))}
-              </View>
-            )}
-          </View>
-          <PageFooter pageLabel="04" />
-        </Page>
-      )}
-
-      {/* ========================================================== Page 5 · Transfers == */}
-      {hasTransfers && (
-        <Page size="A4" style={styles.page}>
-          {band}
-          <View style={styles.content}>
-            <PageWatermark />
-            <SectionHead title="Transfers" />
-            {data.transfers.map((t, i) => (
-              <View key={t.id} style={[styles.split, i % 2 === 0 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
-                <View style={styles.splitTxt}>
-                  <Text style={[styles.splitH3, styles.splitH3Route]}>{t.pickupLocation || "-"} → {t.dropLocation || "-"}</Text>
-                  {(t.vehicleType || t.name) && <View style={styles.srow}><Text style={styles.srowK}>Vehicle</Text><Text style={styles.srowV}>{t.vehicleType || t.name}</Text></View>}
-                  {(t.transferDate || t.duration) && (
-                    <View style={styles.srow}><Text style={styles.srowK}>Date</Text><Text style={styles.srowV}>{[t.transferDate, t.duration].filter(Boolean).join(" · ")}</Text></View>
-                  )}
-                  {(t.pickupTime || t.dropTime) && (
-                    <View style={styles.srow}><Text style={styles.srowK}>Pickup</Text><Text style={styles.srowV}>{[t.pickupTime, t.dropTime].filter(Boolean).join(" → ")}</Text></View>
-                  )}
+                  {d.description && <Text style={styles.dbody}>{d.description}</Text>}
+                  {d.meals.length > 0 && <Text style={styles.dbody}>Meals: {d.meals.join(", ")}</Text>}
+                  {d.notes && <Text style={styles.dnote}>Note: {d.notes}</Text>}
                 </View>
-                <SplitPic src={t.images?.[0]} />
-              </View>
-            ))}
-          </View>
-          <PageFooter pageLabel="05" />
-        </Page>
-      )}
+              ))}
+            </>
+          )}
 
-      {/* ========================================================== Page 6 · Inclusions + Price == */}
-      <Page size="A4" style={styles.page}>
-        {band}
-        <View style={styles.content}>
-          <PageWatermark />
+          {hasStayPage && (
+            <>
+              {hasHotels && (
+                <>
+                  <SectionHead title="Your Stay" />
+                  {data.hotelOptions.map((group) =>
+                    group.hotels.map((h, i) => (
+                      <View key={h.id} style={[styles.split, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
+                        <View style={styles.splitTxt}>
+                          <Text style={styles.splitH3}>{h.hotelName}</Text>
+                          {h.roomType && <View style={styles.srow}><Text style={styles.srowK}>Room</Text><Text style={styles.srowV}>{h.roomType}</Text></View>}
+                          {h.checkIn && <View style={styles.srow}><Text style={styles.srowK}>Check-in</Text><Text style={styles.srowV}>{h.checkIn}</Text></View>}
+                          {h.checkOut && <View style={styles.srow}><Text style={styles.srowK}>Check-out</Text><Text style={styles.srowV}>{h.checkOut}</Text></View>}
+                          {h.mealPlan && <View style={styles.srow}><Text style={styles.srowK}>Plan</Text><Text style={styles.srowV}>{h.mealPlan}</Text></View>}
+                          {h.googleMapUrl && <View style={styles.srow}><Text style={styles.srowK}>Map</Text><Link src={h.googleMapUrl} style={styles.srowV}>View on Map</Link></View>}
+                          {h.website && <View style={styles.srow}><Text style={styles.srowK}>Website</Text><Link src={h.website} style={styles.srowV}>Visit Website</Link></View>}
+                          <Text style={styles.npill}>{h.nights || 1} {h.nights === 1 ? "Night" : "Nights"}</Text>
+                        </View>
+                        <SplitPic src={h.images?.[0]} />
+                      </View>
+                    )),
+                  )}
+                </>
+              )}
+
+              {hasActivities && (
+                <View style={{ marginTop: hasHotels ? 4 : 0 }}>
+                  <SectionHead title="Activities Included" />
+                  {data.activities.map((a, i) => (
+                    <View key={a.id} style={[styles.split, styles.splitCream, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
+                      <View style={styles.splitTxt}>
+                        <Text style={styles.splitH3}>{a.name}</Text>
+                        {a.activityDate && <View style={styles.srow}><Text style={styles.srowK}>Date</Text><Text style={styles.srowV}>{a.activityDate}</Text></View>}
+                        {(a.activityTime || a.duration || a.pax) && (
+                          <View style={styles.srow}>
+                            <Text style={styles.srowK}>Timing</Text>
+                            <Text style={styles.srowV}>{[a.activityTime && `Starts ${a.activityTime}`, a.duration, a.pax ? `${a.pax} Pax` : null].filter(Boolean).join(" · ")}</Text>
+                          </View>
+                        )}
+                        {a.reportingTime && <View style={styles.srow}><Text style={styles.srowK}>Reporting</Text><Text style={styles.srowV}>{a.reportingTime}</Text></View>}
+                      </View>
+                      <SplitPic src={a.images?.[0]} />
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
+          {hasTransfers && (
+            <>
+              <SectionHead title="Transfers" />
+              {data.transfers.map((t, i) => (
+                <View key={t.id} style={[styles.split, i % 2 === 0 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
+                  <View style={styles.splitTxt}>
+                    <Text style={[styles.splitH3, styles.splitH3Route]}>{t.pickupLocation || "-"} → {t.dropLocation || "-"}</Text>
+                    {(t.vehicleType || t.name) && <View style={styles.srow}><Text style={styles.srowK}>Vehicle</Text><Text style={styles.srowV}>{t.vehicleType || t.name}</Text></View>}
+                    {(t.transferDate || t.duration) && (
+                      <View style={styles.srow}><Text style={styles.srowK}>Date</Text><Text style={styles.srowV}>{[t.transferDate, t.duration].filter(Boolean).join(" · ")}</Text></View>
+                    )}
+                    {(t.pickupTime || t.dropTime) && (
+                      <View style={styles.srow}><Text style={styles.srowK}>Pickup</Text><Text style={styles.srowV}>{[t.pickupTime, t.dropTime].filter(Boolean).join(" → ")}</Text></View>
+                    )}
+                  </View>
+                  <SplitPic src={t.images?.[0]} />
+                </View>
+              ))}
+            </>
+          )}
+
           <SectionHead title="Inclusions & Exclusions" />
           <View style={styles.grid2}>
             <View style={[styles.card, styles.ieCard, { flex: 1 }]}>
@@ -613,15 +596,7 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
           <Text style={styles.pnote}>
             Inclusive of GST{data.validUntil ? ` · Valid until ${data.validUntil}` : ""} · Rates are dynamic and subject to availability at the time of booking.
           </Text>
-        </View>
-        <PageFooter pageLabel="06" />
-      </Page>
 
-      {/* ========================================================== Page 7 · Terms + CTA + Lockup == */}
-      <Page size="A4" style={styles.page}>
-        {band}
-        <View style={styles.content}>
-          <PageWatermark />
           <SectionHead title="Booking Terms & Policies" />
           <View style={styles.termsGrid}>
             <View style={[styles.card, styles.termCard]}>
@@ -679,41 +654,35 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
             </View>
             <Text style={styles.closingTagline}>DRIVE TO DESTINATION</Text>
           </View>
-        </View>
-        <PageFooter pageLabel="07" />
-      </Page>
 
-      {/* ========================================================== Page 8 · Thank You == */}
-      <Page size="A4" style={styles.page}>
-        {band}
-        <View style={styles.content}>
-          <PageWatermark />
-          <Text style={styles.thanksTitle}>Thank you for choosing{"\n"}Drive to Destination</Text>
-          <View style={{ marginTop: 16, maxWidth: 400 }}>
-            <Text style={styles.thanksMsg}>
-              Every unforgettable journey begins with trust. At {COMPANY_FULL_NAME}, we&apos;re proud to be a part of our customers&apos; most cherished travel memories.
-            </Text>
-            <Text style={styles.thanksMsg}>
-              Your reviews inspire us to go the extra mile, ensuring every itinerary is thoughtfully planned, every experience is seamless, and every moment becomes unforgettable.
-            </Text>
-            <Text style={styles.thanksMsg}>Thank you for choosing us to create memories that last a lifetime.</Text>
-          </View>
-
-          <View style={[styles.contactCard, { maxWidth: 420 }]}>
-            <Text style={styles.contactCardBold}>D2D Holidays — {COMPANY_FULL_NAME}</Text>
-            <Text style={styles.contactCardLine}>Phone: {SUPPORT_PHONES.join(" / ")}</Text>
-            <Text style={styles.contactCardLine}>Email: {SUPPORT_EMAIL}</Text>
-            <Text style={styles.contactCardLine}>Website: {SUPPORT_WEBSITE}</Text>
-            <Text style={styles.contactCardLine}>Address: {SUPPORT_ADDRESS}</Text>
-          </View>
-
-          {data.heroImage && (
-            <View style={{ marginTop: 16, width: 220, height: 260, borderRadius: 12, overflow: "hidden", alignSelf: "center" }}>
-              <Image src={data.heroImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <View style={{ marginTop: 26 }} wrap={false}>
+            <Text style={styles.thanksTitle}>Thank you for choosing{"\n"}Drive to Destination</Text>
+            <View style={{ marginTop: 16, maxWidth: 400 }}>
+              <Text style={styles.thanksMsg}>
+                Every unforgettable journey begins with trust. At {COMPANY_FULL_NAME}, we&apos;re proud to be a part of our customers&apos; most cherished travel memories.
+              </Text>
+              <Text style={styles.thanksMsg}>
+                Your reviews inspire us to go the extra mile, ensuring every itinerary is thoughtfully planned, every experience is seamless, and every moment becomes unforgettable.
+              </Text>
+              <Text style={styles.thanksMsg}>Thank you for choosing us to create memories that last a lifetime.</Text>
             </View>
-          )}
+
+            <View style={[styles.contactCard, { maxWidth: 420 }]}>
+              <Text style={styles.contactCardBold}>D2D Holidays — {COMPANY_FULL_NAME}</Text>
+              <Text style={styles.contactCardLine}>Phone: {SUPPORT_PHONES.join(" / ")}</Text>
+              <Text style={styles.contactCardLine}>Email: {SUPPORT_EMAIL}</Text>
+              <Text style={styles.contactCardLine}>Website: {SUPPORT_WEBSITE}</Text>
+              <Text style={styles.contactCardLine}>Address: {SUPPORT_ADDRESS}</Text>
+            </View>
+
+            {data.heroImage && (
+              <View style={{ marginTop: 16, width: 220, height: 260, borderRadius: 12, overflow: "hidden", alignSelf: "center" }}>
+                <Image src={data.heroImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </View>
+            )}
+          </View>
         </View>
-        <PageFooter pageLabel="08" />
+        <PageFooter />
       </Page>
     </Document>
   );

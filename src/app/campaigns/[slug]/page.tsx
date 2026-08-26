@@ -24,7 +24,9 @@ import type { ActivityDetail, HotelStayDetail, ItineraryDayDetail, TransferStopD
 
 interface PageProps { params: Promise<{ slug: string }>; }
 
-export const dynamic = "force-dynamic";
+/** ISR: serve a cached page and regenerate at most every 10 minutes — admin edits show up
+ * within that window, and visitor/bot traffic stops hitting the database on every view. */
+export const revalidate = 600;
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;

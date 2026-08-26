@@ -23,15 +23,14 @@ const toIso = (d: Date) => {
   return `${y}-${m}-${day}`;
 };
 
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
 const formatLong = (iso: string) => {
   const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  return date.toLocaleDateString("en-IN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return `${String(d).padStart(2, "0")}/${MONTHS_SHORT[m - 1]}/${y}`;
 };
 
 /**

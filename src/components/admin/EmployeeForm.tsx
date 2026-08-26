@@ -9,6 +9,7 @@ import {
   Camera, Phone, BadgeCheck, KeyRound, UserRound, Link2, Unlink,
 } from "lucide-react";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import StatusToggle, { StatusBadge } from "@/components/admin/ui/StatusToggle";
 import { useToast } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -362,7 +363,7 @@ export default function EmployeeForm({ id }: Props) {
                 <input className={inputCls} value={form.fullName ?? ""} onChange={(e) => onChange({ fullName: e.target.value })} disabled={isSelf} />
               </Field>
               <Field label="Date of Birth">
-                <input type="date" className={inputCls} value={form.dateOfBirth ?? ""} onChange={(e) => onChange({ dateOfBirth: e.target.value || null })} disabled={isSelf} />
+                <DateInput value={form.dateOfBirth} onChange={(iso) => onChange({ dateOfBirth: iso || null })} disabled={isSelf} />
               </Field>
               <Field label="Gender">
                 <select className={selectCls} value={form.gender ?? ""} onChange={(e) => onChange({ gender: e.target.value })} disabled={isSelf}>
@@ -428,10 +429,10 @@ export default function EmployeeForm({ id }: Props) {
                   </select>
                 </Field>
                 <Field label="Joining Date">
-                  <input type="date" className={inputCls} value={form.joiningDate ?? ""} onChange={(e) => onChange({ joiningDate: e.target.value || null })} disabled={isSelf} />
+                  <DateInput value={form.joiningDate} onChange={(iso) => onChange({ joiningDate: iso || null })} disabled={isSelf} />
                 </Field>
                 <Field label="Confirmation Date">
-                  <input type="date" className={inputCls} value={form.confirmationDate ?? ""} onChange={(e) => onChange({ confirmationDate: e.target.value || null })} disabled={isSelf} />
+                  <DateInput value={form.confirmationDate} onChange={(iso) => onChange({ confirmationDate: iso || null })} disabled={isSelf} />
                 </Field>
               </div>
 

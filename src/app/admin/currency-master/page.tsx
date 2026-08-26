@@ -10,6 +10,7 @@ import Pagination from "@/components/admin/ui/Pagination";
 import Drawer from "@/components/admin/ui/Drawer";
 import StatusToggle, { StatusBadge } from "@/components/admin/ui/StatusToggle";
 import { Field, inputCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import RateHistoryModal from "@/components/admin/currency/RateHistoryModal";
 import { currenciesApi } from "@/lib/adminApi";
@@ -206,11 +207,9 @@ export default function CurrencyMasterPage() {
             />
           </Field>
           <Field label="Effective From" required>
-            <input
-              type="date"
-              className={inputCls}
-              value={drawer.form.effectiveFrom ?? ""}
-              onChange={(e) => setForm({ effectiveFrom: e.target.value })}
+            <DateInput
+              value={drawer.form.effectiveFrom}
+              onChange={(iso) => setForm({ effectiveFrom: iso })}
             />
           </Field>
           <Field label="Status">

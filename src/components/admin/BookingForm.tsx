@@ -6,6 +6,7 @@ import Link from "next/link";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
+import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import { bookingsApi, leadsApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
@@ -234,7 +235,7 @@ export default function BookingForm({ id }: BookingFormProps) {
             <input className={inputCls} value={selectedLead?.destination?.name ?? ""} disabled />
           </Field>
           <Field label="Travel Date">
-            <input type="date" className={inputCls} value={travelDate} onChange={(e) => setTravelDate(e.target.value)} />
+            <DateInput value={travelDate} onChange={(iso) => setTravelDate(iso)} />
           </Field>
           <Field label="Booking Status">
             <select className={selectCls} value={status} onChange={(e) => setStatus(e.target.value as BookingStatus)}>

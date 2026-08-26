@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Plus, Trash2, Copy, Ticket } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { isWithinRange, dateRangeMessage } from "@/utils/dateRange";
 import { useToast } from "@/components/admin/ui/Toast";
 import { activitiesApi } from "@/lib/adminApi";
@@ -159,7 +160,7 @@ export default function QuotationActivitiesEditor({ activities, onChange, destin
                 </select>
               </Field>
               <Field label="Activity Date">
-                <input type="date" className={inputCls} value={a.activityDate} min={minDate} max={maxDate} onChange={(e) => updateDate(i, e.target.value)} />
+                <DateInput value={a.activityDate} min={minDate} max={maxDate} onChange={(iso) => updateDate(i, iso)} />
               </Field>
             </div>
 

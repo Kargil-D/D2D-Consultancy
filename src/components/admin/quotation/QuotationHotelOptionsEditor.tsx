@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { Plus, Trash2, Search, BedDouble, MapPin, Globe } from "lucide-react";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
+import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import { hotelMasterApi } from "@/lib/adminApi";
 import { isWithinRange, dateRangeMessage } from "@/utils/dateRange";
@@ -209,10 +210,10 @@ export default function QuotationHotelOptionsEditor({ options, onChange, destina
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Field label="Check-in">
-              <input type="date" className={inputCls} value={h.checkIn} min={minDate} max={maxDate} onChange={(e) => updateHotelDate(h.id, "checkIn", e.target.value)} />
+              <DateInput value={h.checkIn} min={minDate} max={maxDate} onChange={(iso) => updateHotelDate(h.id, "checkIn", iso)} />
             </Field>
             <Field label="Check-out">
-              <input type="date" className={inputCls} value={h.checkOut} min={minDate} max={maxDate} onChange={(e) => updateHotelDate(h.id, "checkOut", e.target.value)} />
+              <DateInput value={h.checkOut} min={minDate} max={maxDate} onChange={(iso) => updateHotelDate(h.id, "checkOut", iso)} />
             </Field>
             <Field label="Rooms">
               <input type="number" min={1} className={inputCls} value={h.rooms} onChange={(e) => updateHotel(h.id, { rooms: Number(e.target.value) || 1 })} />
