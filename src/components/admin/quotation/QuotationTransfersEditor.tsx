@@ -1,15 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Plus, Trash2, Copy, ArrowRightLeft, X } from "lucide-react";
-import ImageUpload from "@/components/admin/ui/ImageUpload";
+import { Plus, Trash2, Copy, ArrowRightLeft } from "lucide-react";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
 import { useToast } from "@/components/admin/ui/Toast";
 import { isWithinRange, dateRangeMessage } from "@/utils/dateRange";
-import type { QuotationTransferItem } from "@/types/admin";
+import { transferTypesApi } from "@/lib/adminApi";
+import type { AdminTransferType, QuotationTransferItem } from "@/types/admin";
 
 export const newTransferItem = (): QuotationTransferItem => ({
   id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  transferTypeId: null,
   name: "",
   description: "",
   images: [],
@@ -33,12 +35,56 @@ interface QuotationTransfersEditorProps {
   maxDate?: string;
 }
 
+type CatalogState = "loading" | "loaded" | "error";
+
 export default function QuotationTransfersEditor({ transfers, onChange, minDate, maxDate }: QuotationTransfersEditorProps) {
   const { notify } = useToast();
+  const [catalog, setCatalog] = useState<AdminTransferType[]>([]);
+  const [catalogState, setCatalogState] = useState<CatalogState>("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogState("loading");
+
+    transferTypesApi
+      .list({ pageSize: 1000 })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.success) {
+          setCatalogState("error");
+          return;
+        }
+        setCatalog(res.data.items.filter((t) => t.status === "Active"));
+        setCatalogState("loaded");
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const update = (idx: number, patch: Partial<QuotationTransferItem>) => {
     const next = [...transfers];
     next[idx] = { ...next[idx], ...patch };
     onChange(next);
+  };
+
+  /** Selecting a Transfer Type loads its image from Transfer Type Master. */
+  const selectTransferType = (idx: number, transferTypeId: string) => {
+    if (!transferTypeId) {
+      update(idx, { transferTypeId: null, vehicleType: "", images: [] });
+      return;
+    }
+    const master = catalog.find((t) => t.id === transferTypeId);
+    if (!master) return;
+    update(idx, {
+      transferTypeId: master.id,
+      vehicleType: master.name,
+      images: master.imageUrl ? [master.imageUrl] : [],
+    });
   };
 
   /** Rejects a transfer date outside the trip's travel dates instead of applying it. */
@@ -56,13 +102,15 @@ export default function QuotationTransfersEditor({ transfers, onChange, minDate,
   };
   const remove = (idx: number) => onChange(transfers.filter((_, i) => i !== idx));
 
-  const addImage = (idx: number, url: string) => {
-    if (!url) return;
-    update(idx, { images: [...(transfers[idx].images ?? []), url] });
-  };
-  const removeImage = (idx: number, imgIdx: number) => {
-    update(idx, { images: (transfers[idx].images ?? []).filter((_, j) => j !== imgIdx) });
-  };
+  const dropdownDisabled = catalogState === "loading" || catalogState === "error";
+  const dropdownPlaceholder =
+    catalogState === "loading"
+      ? "Loading transfer types…"
+      : catalogState === "error"
+        ? "Unable to load transfer types"
+        : catalog.length === 0
+          ? "No transfer types available"
+          : "Select a transfer type";
 
   return (
     <div className="space-y-4">
@@ -72,8 +120,10 @@ export default function QuotationTransfersEditor({ transfers, onChange, minDate,
           <Plus className="w-3.5 h-3.5" /> Add Transfer
         </button>
       </div>
-      {transfers.map((t, i) => (
-        <div key={t.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+      {transfers.map((t, i) => {
+        const selectedNotInCatalog = !!t.transferTypeId && !catalog.some((c) => c.id === t.transferTypeId);
+        return (
+          <div key={t.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <ArrowRightLeft className="w-4 h-4 text-slate-400" />
@@ -96,8 +146,21 @@ export default function QuotationTransfersEditor({ transfers, onChange, minDate,
             <Field label="Transfer Name">
               <input className={inputCls} value={t.name} onChange={(e) => update(i, { name: e.target.value })} placeholder="Airport Transfer" />
             </Field>
-            <Field label="Vehicle Type">
-              <input className={inputCls} value={t.vehicleType} onChange={(e) => update(i, { vehicleType: e.target.value })} placeholder="Sedan, SUV, Coach…" />
+            <Field label="Transfer Type">
+              <select
+                className={selectCls}
+                value={t.transferTypeId ?? ""}
+                disabled={dropdownDisabled}
+                onChange={(e) => selectTransferType(i, e.target.value)}
+              >
+                <option value="">{dropdownPlaceholder}</option>
+                {selectedNotInCatalog && (
+                  <option value={t.transferTypeId ?? ""}>{t.vehicleType || "Selected type"} (unavailable)</option>
+                )}
+                {catalog.map((type) => (
+                  <option key={type.id} value={type.id}>{type.name}</option>
+                ))}
+              </select>
             </Field>
             <Field label="Private / SIC">
               <select className={selectCls} value={t.mode} onChange={(e) => update(i, { mode: e.target.value as "Private" | "SIC" })}>
@@ -129,22 +192,21 @@ export default function QuotationTransfersEditor({ transfers, onChange, minDate,
             </Field>
           </div>
           <Field label="Images" className="mt-3">
-            <div className="grid grid-cols-4 gap-2">
-              {(t.images ?? []).map((url, imgIdx) => (
-                <div key={imgIdx} className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
-                  <Image src={url} alt={`${t.name || "transfer"}-${imgIdx}`} fill sizes="120px" className="object-cover" unoptimized />
-                  <button type="button" onClick={() => removeImage(i, imgIdx)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 text-rose-600 flex items-center justify-center shadow" aria-label="Remove image">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-              <div className="aspect-square">
-                <ImageUpload value="" onChange={(url) => addImage(i, url)} label="Add" aspect="square" />
+            {(t.images ?? []).length > 0 ? (
+              <div className="grid grid-cols-4 gap-2">
+                {t.images.map((url, imgIdx) => (
+                  <div key={imgIdx} className="relative aspect-square rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
+                    <Image src={url} alt={`${t.name || "transfer"}-${imgIdx}`} fill sizes="120px" className="object-cover" unoptimized />
+                  </div>
+                ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-xs text-slate-400">No images yet — select a transfer type above to load its image from Transfer Type Master.</p>
+            )}
           </Field>
         </div>
-      ))}
+        );
+      })}
       {transfers.length === 0 && <p className="text-center py-8 text-sm text-slate-500">No transfers yet. Click &quot;Add Transfer&quot; to begin.</p>}
     </div>
   );

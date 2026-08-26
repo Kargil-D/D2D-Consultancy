@@ -642,6 +642,8 @@ export type QuotationLineStatus = "Included" | "Optional" | "Excluded";
 /** Step 4 — one transfer leg. */
 export interface QuotationTransferItem {
   id: string;
+  /** Transfer Type Master this line is linked to. Its image loads into `images` on selection. */
+  transferTypeId?: string | null;
   name: string;
   description: string;
   images: string[];

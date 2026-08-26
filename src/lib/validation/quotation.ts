@@ -64,6 +64,7 @@ const QuotationHotelOptionGroupSchema = z.object({
 /** Step 4 — one transfer leg. */
 const QuotationTransferItemSchema = z.object({
   id: z.string(),
+  transferTypeId: z.string().optional().nullable(),
   name: z.string().optional().default(""),
   description: z.string().optional().default(""),
   images: z.array(z.string()).optional().default([]),
