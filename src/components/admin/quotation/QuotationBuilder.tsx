@@ -1080,6 +1080,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
               <QuotationHotelOptionsEditor
                 options={draft.hotelOptions}
                 onChange={(hotelOptions) => patch({ hotelOptions })}
+                destinationId={draft.destinationId}
                 minDate={draft.travelDate}
                 maxDate={draft.travelEndDate}
               />

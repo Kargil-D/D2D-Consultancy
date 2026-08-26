@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, Image, Svg, Path, Circle, Defs, LinearGradient, Stop, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, Link, Svg, Path, Circle, Defs, LinearGradient, Stop, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import type { QuotationActivityItem, QuotationHotelOptionGroup, QuotationItineraryDay, QuotationTransferItem } from "@/types/admin";
 import { SUPPORT_PHONES, SUPPORT_EMAIL, SUPPORT_WEBSITE, SUPPORT_ADDRESS, COMPANY_FULL_NAME } from "@/data/contact";
 
@@ -498,6 +498,8 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
                         {h.checkIn && <View style={styles.srow}><Text style={styles.srowK}>Check-in</Text><Text style={styles.srowV}>{h.checkIn}</Text></View>}
                         {h.checkOut && <View style={styles.srow}><Text style={styles.srowK}>Check-out</Text><Text style={styles.srowV}>{h.checkOut}</Text></View>}
                         {h.mealPlan && <View style={styles.srow}><Text style={styles.srowK}>Plan</Text><Text style={styles.srowV}>{h.mealPlan}</Text></View>}
+                        {h.googleMapUrl && <View style={styles.srow}><Text style={styles.srowK}>Map</Text><Link src={h.googleMapUrl} style={styles.srowV}>View on Map</Link></View>}
+                        {h.website && <View style={styles.srow}><Text style={styles.srowK}>Website</Text><Link src={h.website} style={styles.srowV}>Visit Website</Link></View>}
                         <Text style={styles.npill}>{h.nights || 1} {h.nights === 1 ? "Night" : "Nights"}</Text>
                       </View>
                       <SplitPic src={h.images?.[0]} />

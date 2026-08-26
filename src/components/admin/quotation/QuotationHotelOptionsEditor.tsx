@@ -31,25 +31,54 @@ const selectionFromMaster = (hotel: AdminHotelMaster): QuotationHotelSelection =
   nights: 1,
 });
 
+type CatalogState = "idle" | "loading" | "loaded" | "error";
+
 interface QuotationHotelOptionsEditorProps {
   options: QuotationHotelOptionGroup[];
   onChange: (options: QuotationHotelOptionGroup[]) => void;
+  /** Quotation's selected destination — the hotel search is scoped to Hotel Master rows for this destination. */
+  destinationId?: string;
   /** Trip's travel start/end dates (YYYY-MM-DD) — check-in/check-out must fall within this range. */
   minDate?: string;
   maxDate?: string;
 }
 
-export default function QuotationHotelOptionsEditor({ options, onChange, minDate, maxDate }: QuotationHotelOptionsEditorProps) {
+export default function QuotationHotelOptionsEditor({ options, onChange, destinationId, minDate, maxDate }: QuotationHotelOptionsEditorProps) {
   const { notify } = useToast();
   const [catalog, setCatalog] = useState<AdminHotelMaster[]>([]);
+  const [catalogState, setCatalogState] = useState<CatalogState>("idle");
   const [activeTab, setActiveTab] = useState<QuotationHotelOptionLabel>("Option A");
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    hotelMasterApi.all().then((res) => {
-      if (res.success) setCatalog(res.data);
-    });
-  }, []);
+    if (!destinationId) {
+      setCatalog([]);
+      setCatalogState("idle");
+      return;
+    }
+
+    let cancelled = false;
+    setCatalogState("loading");
+
+    hotelMasterApi
+      .list({ pageSize: 1000, filter: { destinationId, status: "Active" } })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.success) {
+          setCatalogState("error");
+          return;
+        }
+        setCatalog(res.data.items);
+        setCatalogState("loaded");
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [destinationId]);
 
   const group = options.find((g) => g.label === activeTab);
   const results = useMemo(() => {
@@ -94,6 +123,17 @@ export default function QuotationHotelOptionsEditor({ options, onChange, minDate
     onChange(options.map((g) => (g.label === activeTab ? { ...g, hotels: g.hotels.filter((h) => h.id !== hotelId) } : g)));
   };
 
+  const searchDisabled = !destinationId || catalogState === "loading" || catalogState === "error";
+  const searchPlaceholder = !destinationId
+    ? "Select a destination first"
+    : catalogState === "loading"
+      ? "Loading Hotel Master…"
+      : catalogState === "error"
+        ? "Unable to load Hotel Master"
+        : catalog.length === 0
+          ? "No hotels available for this destination"
+          : "Search Hotel Master by name…";
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-1 border-b border-slate-200">
@@ -118,8 +158,9 @@ export default function QuotationHotelOptionsEditor({ options, onChange, minDate
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input
           className={`${inputCls} pl-9`}
-          placeholder="Search Hotel Master by name…"
+          placeholder={searchPlaceholder}
           value={search}
+          disabled={searchDisabled}
           onChange={(e) => setSearch(e.target.value)}
         />
         {results.length > 0 && (

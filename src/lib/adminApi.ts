@@ -9,6 +9,7 @@
  * the response shape (ApiResponse<T>) is already standardised.
  */
 
+import { upload } from "@vercel/blob/client";
 import type {
   AdminActivity,
   AdminBooking,
@@ -743,8 +744,9 @@ export const hotelMasterApi = {
     if (query.search) params.set("search", String(query.search));
     if (query.page) params.set("page", String(query.page));
     if (query.pageSize) params.set("pageSize", String(query.pageSize));
-    const { status } = query.filter ?? {};
+    const { status, destinationId } = query.filter ?? {};
     if (typeof status === "string") params.set("status", status);
+    if (typeof destinationId === "string") params.set("destinationId", destinationId);
     const res = await adminFetch(`/api/admin/hotel-master?${params.toString()}`);
     return (await res.json()) as ApiResponse<Paginated<AdminHotelMaster>>;
   },
@@ -972,14 +974,17 @@ export const leadAssignmentApi = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*  Image upload (mock — converts file to data URL)                            */
+/*  Image upload — direct browser-to-Vercel-Blob upload                       */
 /* -------------------------------------------------------------------------- */
 
-export function uploadImage(file: File): Promise<ApiResponse<{ url: string }>> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () =>
-      resolve(ok({ url: String(reader.result) }, "Uploaded"));
-    reader.readAsDataURL(file);
-  });
+export async function uploadImage(file: File): Promise<ApiResponse<{ url: string }>> {
+  try {
+    const blob = await upload(file.name, file, {
+      access: "public",
+      handleUploadUrl: "/api/admin/upload",
+    });
+    return ok({ url: blob.url }, "Uploaded");
+  } catch (err) {
+    return { success: false, message: err instanceof Error ? err.message : "Upload failed", data: { url: "" } };
+  }
 }
