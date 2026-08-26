@@ -153,7 +153,6 @@ const styles = StyleSheet.create({
   splitTxt: { flex: 1.15, padding: 12 },
   splitPicWrap: { width: 150, height: 118 },
   splitH3: { fontFamily: "Times-Bold", fontWeight: 700, fontSize: 12.5, color: C.ink, marginBottom: 6 },
-  splitH3Route: { color: C.tealDark },
   srow: { flexDirection: "row", justifyContent: "space-between", fontSize: 9, marginTop: 4, gap: 6 },
   srowK: { color: C.muted },
   srowV: { fontWeight: 700, color: "#26363d", textAlign: "right" },
@@ -231,8 +230,8 @@ function PlaneMark({ size = 20 }: { size?: number }) {
           <Stop offset="1" stopColor={C.tealDark} />
         </LinearGradient>
       </Defs>
-      <Path d="M96 8 L3 42 L50 60 Z" fill="url(#planeGrad)" />
-      <Path d="M96 8 L50 60 L42 95 Z" fill={C.tealDark} opacity={0.75} />
+      <Path d="M97 2 L2 26 L39 48 Z" fill="url(#planeGrad)" />
+      <Path d="M97 2 L51 59 L73 99 Z" fill={C.tealDark} opacity={0.9} />
     </Svg>
   );
 }
@@ -535,13 +534,16 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
               {data.transfers.map((t, i) => (
                 <View key={t.id} style={[styles.split, i % 2 === 0 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
                   <View style={styles.splitTxt}>
-                    <Text style={[styles.splitH3, styles.splitH3Route]}>{t.pickupLocation || "-"} → {t.dropLocation || "-"}</Text>
-                    {(t.vehicleType || t.name) && <View style={styles.srow}><Text style={styles.srowK}>Vehicle</Text><Text style={styles.srowV}>{t.vehicleType || t.name}</Text></View>}
+                    <Text style={styles.splitH3}>{t.name || t.vehicleType || "Transfer"}</Text>
+                    {(t.pickupLocation || t.dropLocation) && (
+                      <View style={styles.srow}><Text style={styles.srowK}>Route</Text><Text style={styles.srowV}>{[t.pickupLocation, t.dropLocation].filter(Boolean).join(" - ")}</Text></View>
+                    )}
+                    {t.vehicleType && <View style={styles.srow}><Text style={styles.srowK}>Vehicle</Text><Text style={styles.srowV}>{t.vehicleType}</Text></View>}
                     {(t.transferDate || t.duration) && (
                       <View style={styles.srow}><Text style={styles.srowK}>Date</Text><Text style={styles.srowV}>{[t.transferDate, t.duration].filter(Boolean).join(" · ")}</Text></View>
                     )}
                     {(t.pickupTime || t.dropTime) && (
-                      <View style={styles.srow}><Text style={styles.srowK}>Pickup</Text><Text style={styles.srowV}>{[t.pickupTime, t.dropTime].filter(Boolean).join(" → ")}</Text></View>
+                      <View style={styles.srow}><Text style={styles.srowK}>Pickup</Text><Text style={styles.srowV}>{[t.pickupTime, t.dropTime].filter(Boolean).join(" - ")}</Text></View>
                     )}
                   </View>
                   <SplitPic src={t.images?.[0]} />

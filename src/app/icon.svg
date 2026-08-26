@@ -1,0 +1,12 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- D2D Holidays paper-plane brand mark, traced from the official logo file.
+       Keep in sync with src/components/common/Logo.tsx -->
+  <defs>
+    <linearGradient id="d2dPlaneGrad" x1="0" y1="0" x2="90" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#06d8cd" />
+      <stop offset="1" stop-color="#17a9a5" />
+    </linearGradient>
+  </defs>
+  <path d="M97 2 L2 26 L39 48 Z" fill="url(#d2dPlaneGrad)" />
+  <path d="M97 2 L51 59 L73 99 Z" fill="url(#d2dPlaneGrad)" />
+</svg>

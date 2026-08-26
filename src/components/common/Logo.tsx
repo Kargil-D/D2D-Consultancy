@@ -40,21 +40,20 @@ export default function Logo({
 
   return (
     <span className={`inline-flex items-center gap-3 ${className}`}>
-      {/* SVG mark */}
+      {/* SVG mark — traced from the official brand file (D2D_Image/Logo.jpeg): wing and tail
+          are separate facets with a widening white fold-gap between them. */}
       <span style={style} className="relative inline-flex items-center justify-center" aria-hidden="true">
         <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="d2dPlaneGrad" x1="0" y1="100" x2="100" y2="0" gradientUnits="userSpaceOnUse">
-              <stop offset="0" stopColor="#0d9488" />
-              <stop offset="1" stopColor="#67e8f9" />
+            <linearGradient id="d2dPlaneGrad" x1="0" y1="0" x2="90" y2="110" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stopColor="#06d8cd" />
+              <stop offset="1" stopColor="#17a9a5" />
             </linearGradient>
           </defs>
-          {/* Main wing (folded paper body) */}
-          <path d="M96 8 L3 42 L50 60 Z" fill="url(#d2dPlaneGrad)" />
-          {/* Folded tail facet — same gradient field, different corner */}
-          <path d="M96 8 L50 60 L42 95 Z" fill="url(#d2dPlaneGrad)" />
-          {/* Fold crease */}
-          <path d="M96 8 L50 60" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.45" />
+          {/* Main wing */}
+          <path d="M97 2 L2 26 L39 48 Z" fill="url(#d2dPlaneGrad)" />
+          {/* Folded tail facet */}
+          <path d="M97 2 L51 59 L73 99 Z" fill="url(#d2dPlaneGrad)" />
         </svg>
       </span>
 
@@ -66,7 +65,7 @@ export default function Logo({
               size === "lg" ? "text-2xl" : "text-xl"
             }`}
           >
-            D2D <span className="text-cyan-400">Holidays</span>
+            D2D <span className="text-[#00c9cb]">Holidays</span>
           </span>
           <span
             className={`mt-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] ${sloganColor}`}
