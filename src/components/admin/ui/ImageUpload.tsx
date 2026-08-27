@@ -41,9 +41,9 @@ const COMPRESS_THRESHOLD_BYTES = 400 * 1024;
  * Downscales/re-encodes the image in the browser before upload (JPEG stays JPEG at q0.82,
  * PNG stays PNG so transparency survives). Falls back to the original file whenever anything
  * fails or the "compressed" result isn't actually smaller — so worst case is exactly the old
- * behaviour.
+ * behaviour. Exported for reuse by the legacy inline-image migration (src/lib/inlineImages.ts).
  */
-async function compressImage(file: File): Promise<File> {
+export async function compressImage(file: File): Promise<File> {
   if (file.size <= COMPRESS_THRESHOLD_BYTES) return file;
   try {
     const bitmap = await createImageBitmap(file);

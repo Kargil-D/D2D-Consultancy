@@ -42,6 +42,7 @@ import QuotationHotelOptionsEditor from "@/components/admin/quotation/QuotationH
 import QuotationTransfersEditor from "@/components/admin/quotation/QuotationTransfersEditor";
 import QuotationActivitiesEditor from "@/components/admin/quotation/QuotationActivitiesEditor";
 import { isFutureDate, todayIso, tomorrowIso } from "@/utils/dateRange";
+import { migrateInlineImages } from "@/lib/inlineImages";
 import type {
   AdminCurrency,
   AdminOption,
@@ -370,11 +371,12 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
         // Partial payload: only the sections this auto-save covers (plus their derived pricing
         // rows). Omitting `customer` also skips the server's Lead find-or-create work, and the
         // itinerary/inclusions text (which can be large) never rides along on every edit.
+        const effective = await withMigratedImages();
         const res = await quotationsApi.update(id, {
-          hotelOptions: draft.hotelOptions,
-          transfers: draft.transfers,
-          activities: draft.activities,
-          items: draft.items.map((r, i) => ({ ...r, sortOrder: i })),
+          hotelOptions: effective.hotelOptions,
+          transfers: effective.transfers,
+          activities: effective.activities,
+          items: effective.items.map((r, i) => ({ ...r, sortOrder: i })),
         });
         if (!res.success) {
           setAutoSaveStatus("error");
@@ -502,34 +504,53 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     });
   };
 
-  const buildPayload = () => ({
-    customer: draft.customer,
-    destinationId: draft.destinationId,
-    campaignId: draft.campaignId || null,
-    travelDate: draft.travelDate || null,
-    travelEndDate: draft.travelEndDate || null,
-    days: draft.days === "" ? null : Number(draft.days),
-    nights: draft.nights === "" ? null : Number(draft.nights),
-    adults: draft.adults,
-    children: draft.children,
-    infants: draft.infants,
-    salesExecutiveId: draft.salesExecutiveId || null,
-    source: draft.source || null,
-    validUntil: draft.validUntil || null,
-    internalNotes: draft.internalNotes || null,
-    marginPercent: draft.marginPercent,
-    gstPercent: draft.gstPercent,
-    items: draft.items.map((r, i) => ({ ...r, sortOrder: i })),
-    itineraryMode: draft.itineraryMode,
-    itineraryDays: draft.itineraryDays,
-    hotelOptions: draft.hotelOptions,
-    transfers: draft.transfers,
-    activities: draft.activities,
-    inclusionsText: draft.inclusionsText,
-    exclusionsText: draft.exclusionsText,
-    includeChildCosting: draft.includeChildCosting,
-    advanceAmount: draft.advanceAmount,
+  const buildPayload = (d: Draft = draft) => ({
+    customer: d.customer,
+    destinationId: d.destinationId,
+    campaignId: d.campaignId || null,
+    travelDate: d.travelDate || null,
+    travelEndDate: d.travelEndDate || null,
+    days: d.days === "" ? null : Number(d.days),
+    nights: d.nights === "" ? null : Number(d.nights),
+    adults: d.adults,
+    children: d.children,
+    infants: d.infants,
+    salesExecutiveId: d.salesExecutiveId || null,
+    source: d.source || null,
+    validUntil: d.validUntil || null,
+    internalNotes: d.internalNotes || null,
+    marginPercent: d.marginPercent,
+    gstPercent: d.gstPercent,
+    items: d.items.map((r, i) => ({ ...r, sortOrder: i })),
+    itineraryMode: d.itineraryMode,
+    itineraryDays: d.itineraryDays,
+    hotelOptions: d.hotelOptions,
+    transfers: d.transfers,
+    activities: d.activities,
+    inclusionsText: d.inclusionsText,
+    exclusionsText: d.exclusionsText,
+    includeChildCosting: d.includeChildCosting,
+    advanceAmount: d.advanceAmount,
   });
+
+  /** Uploads any legacy inline base64 images to Blob storage and swaps in their URLs before a
+   * save — oversized payloads are otherwise rejected by the platform with 413 (request too
+   * large) before the API even runs. Returns the draft to save from; keeps local state in sync
+   * without retriggering the auto-saver. No-ops (one regex scan) when the content is clean. */
+  const withMigratedImages = async (): Promise<Draft> => {
+    const migrated = await migrateInlineImages(draft);
+    if (!migrated.changed) return draft;
+    const next: Draft = {
+      ...draft,
+      itineraryDays: migrated.itineraryDays,
+      hotelOptions: migrated.hotelOptions,
+      transfers: migrated.transfers,
+      activities: migrated.activities,
+    };
+    skipNextAutoSaveRef.current = true;
+    setDraft(next);
+    return next;
+  };
 
   const canSaveStep1 =
     !!draft.customer.customerName.trim() &&
@@ -547,8 +568,9 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     setSaving(true);
     try {
+      const effective = await withMigratedImages();
       if (id) {
-        const res = await quotationsApi.update(id, buildPayload());
+        const res = await quotationsApi.update(id, buildPayload(effective));
         if (!res.success) {
           notify(res.message || "Unable to save quotation", "error");
           return null;
@@ -557,7 +579,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
         setAutoSaveStatus("saved");
         return id;
       }
-      const res = await quotationsApi.create(buildPayload());
+      const res = await quotationsApi.create(buildPayload(effective));
       if (!res.success || !res.data) {
         notify(res.message || "Unable to create quotation", "error");
         return null;
