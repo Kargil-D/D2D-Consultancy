@@ -42,6 +42,43 @@ const QUOTATION_LIST_INCLUDE = {
   items: { orderBy: { sortOrder: "asc" as const } },
 };
 
+/** The builder (`/admin/quotations/[id]/edit`) reads only the quotation's own scalars plus
+ * `lead`, `items` and `bookings` — it never touches the related `campaign`, `destination` or
+ * `salesExecutive` rows (it keeps just their ids). Fetching those relations here dragged the
+ * campaign's own itinerary/gallery JSON into every builder load for nothing. */
+const QUOTATION_BUILDER_INCLUDE = {
+  lead: true,
+  items: { orderBy: { sortOrder: "asc" as const } },
+  bookings: { select: { id: true, status: true }, where: { isDeleted: false } },
+};
+
+/** The all-quotations table renders Quote ID, customer, destination name, selling price and
+ * status — never the itineraryDays/hotelOptions/transfers/activities JSON columns, which can
+ * carry inline base64 images and dominate the row size. This projection drops them (and the
+ * long text fields) so the table payload stays proportional to what it shows. Lead-scoped
+ * listings (BookingDetail's cost-sheet import reads those JSON columns) keep using
+ * `listQuotations`. */
+const QUOTATION_SUMMARY_SELECT = {
+  id: true,
+  seq: true,
+  leadId: true,
+  destinationId: true,
+  campaignId: true,
+  status: true,
+  marginPercent: true,
+  gstPercent: true,
+  travelDate: true,
+  travelEndDate: true,
+  validUntil: true,
+  createdDate: true,
+  updatedDate: true,
+  lead: { select: { id: true, customerName: true, mobile: true } },
+  destination: { select: { id: true, name: true } },
+  items: { orderBy: { sortOrder: "asc" as const }, select: { qty: true, cost: true } },
+} satisfies Prisma.QuotationSelect;
+
+export type QuotationSummary = Prisma.QuotationGetPayload<{ select: typeof QUOTATION_SUMMARY_SELECT }>;
+
 export interface ListQuery {
   search?: string;
   page?: number;
@@ -90,10 +127,54 @@ export async function listQuotations(query: ListQuery = {}) {
   return { items, total, page, pageSize } satisfies Paginated<(typeof items)[number]>;
 }
 
+/** Same filters/paging as listQuotations but with the QUOTATION_SUMMARY_SELECT projection —
+ * used by the all-quotations table where full JSON content columns are never rendered. */
+export async function listQuotationSummaries(query: ListQuery = {}) {
+  const { search = "", page = 1, pageSize = 10, filter = {} } = query;
+  const where: Prisma.QuotationWhereInput = { isDeleted: false, ...filter };
+
+  if (search.trim()) {
+    where.lead = {
+      OR: [
+        { customerName: { contains: search, mode: "insensitive" } },
+        { mobile: { contains: search, mode: "insensitive" } },
+      ],
+    };
+  }
+
+  const [total, items] = await perfTime(
+    "quotationService.listQuotationSummaries",
+    () =>
+      Promise.all([
+        prisma.quotation.count({ where }),
+        prisma.quotation.findMany({
+          where,
+          select: QUOTATION_SUMMARY_SELECT,
+          orderBy: { createdDate: "desc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+      ]),
+    ([total, items]) => ({ total, rows: items.length }),
+  );
+
+  return { items, total, page, pageSize } satisfies Paginated<(typeof items)[number]>;
+}
+
 export async function getQuotation(id: string) {
   return perfTime(
     "quotationService.getQuotation",
     () => prisma.quotation.findUnique({ where: { id }, include: QUOTATION_INCLUDE }),
+    (r) => ({ found: !!r, items: r?.items.length ?? 0 }),
+  );
+}
+
+/** Lean variant for the admin builder — see QUOTATION_BUILDER_INCLUDE. PDF/share/email paths
+ * keep `getQuotation` (they render campaign/destination/salesExecutive details). */
+export async function getQuotationForBuilder(id: string) {
+  return perfTime(
+    "quotationService.getQuotationForBuilder",
+    () => prisma.quotation.findUnique({ where: { id }, include: QUOTATION_BUILDER_INCLUDE }),
     (r) => ({ found: !!r, items: r?.items.length ?? 0 }),
   );
 }
@@ -137,7 +218,11 @@ export async function findOrCreateLeadForQuotation(
   const candidates = normalized
     ? await perfTime(
         "quotationService.findOrCreateLeadForQuotation.mobileScan",
-        () => prisma.lead.findMany({ where: { isDeleted: false, mobile: { endsWith: normalized } } }),
+        () =>
+          prisma.lead.findMany({
+            where: { isDeleted: false, mobile: { endsWith: normalized } },
+            select: { id: true, mobile: true, customerName: true, email: true, companyName: true, status: true },
+          }),
         (r) => ({ scanned: r.length }),
       )
     : [];
@@ -240,14 +325,30 @@ export async function createQuotation(input: QuotationCreate) {
 
 export async function updateQuotation(id: string, input: QuotationUpdate) {
   if (input.customer) {
-    const current = await prisma.quotation.findUniqueOrThrow({ where: { id } });
-    const lead = await findOrCreateLeadForQuotation(
-      input.customer,
-      input.destinationId ?? current.destinationId,
-      input.source,
-    );
-    if (lead.id !== current.leadId) {
-      await prisma.quotation.update({ where: { id }, data: { leadId: lead.id } });
+    const current = await prisma.quotation.findUniqueOrThrow({
+      where: { id },
+      select: { leadId: true, destinationId: true, lead: { select: { mobile: true, customerName: true, email: true, companyName: true, status: true } } },
+    });
+    // Fast path: the customer fields still match the already-linked Lead AND its status is
+    // already past the early pipeline stages — the find-or-create (whose mobile lookup is an
+    // unindexed scan over every Lead) would be a pure no-op, so skip it. Any difference,
+    // including a pipeline status that still needs advancing to QuotationSent, falls through
+    // to the full find-or-create exactly as before.
+    const unchanged =
+      !(LEAD_PIPELINE_ORDER as readonly string[]).includes(current.lead.status) &&
+      normalizeMobile(current.lead.mobile) === normalizeMobile(input.customer.mobile) &&
+      current.lead.customerName === input.customer.customerName &&
+      (current.lead.email ?? null) === (input.customer.email || null) &&
+      (current.lead.companyName ?? null) === (input.customer.companyName || null);
+    if (!unchanged) {
+      const lead = await findOrCreateLeadForQuotation(
+        input.customer,
+        input.destinationId ?? current.destinationId,
+        input.source,
+      );
+      if (lead.id !== current.leadId) {
+        await prisma.quotation.update({ where: { id }, data: { leadId: lead.id } });
+      }
     }
   }
 
@@ -275,9 +376,15 @@ export async function updateQuotation(id: string, input: QuotationUpdate) {
             });
           }
         }
-        return tx.quotation.findUniqueOrThrow({ where: { id }, include: QUOTATION_INCLUDE });
+        // Slim acknowledgement instead of echoing the whole record (whose JSON content the
+        // client just sent us) back through QUOTATION_INCLUDE — the builder only reads
+        // updatedDate from a save response.
+        return tx.quotation.findUniqueOrThrow({
+          where: { id },
+          select: { id: true, updatedDate: true, status: true, shareToken: true },
+        });
       }, QUOTATION_TRANSACTION_OPTIONS),
-    (r) => ({ items: r.items.length, replacedItems: !!input.items }),
+    () => ({ replacedItems: !!input.items }),
   );
 }
 

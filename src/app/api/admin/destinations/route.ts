@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { listDestinations, createDestination } from "@/services/destinationService";
+import { listDestinations, listDestinationOptions, createDestination } from "@/services/destinationService";
 import { DestinationCreateSchema } from "@/lib/validation/destination";
 import { toSlug } from "@/utils/slug";
 import { ApiError } from "@/lib/apiError";
@@ -10,6 +10,13 @@ export async function GET(req: NextRequest) {
     await requireModuleAccess(req, "Destinations", "canView");
 
     const url = new URL(req.url);
+
+    // Lightweight id+name list for dropdowns — skips the cities join and full rows.
+    if (url.searchParams.get("view") === "options") {
+      const options = await listDestinationOptions();
+      return NextResponse.json({ success: true, message: "OK", data: options });
+    }
+
     const search = url.searchParams.get("search") ?? undefined;
     const page = Number(url.searchParams.get("page") ?? "1");
     const pageSize = Number(url.searchParams.get("pageSize") ?? "10");

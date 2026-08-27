@@ -44,8 +44,7 @@ import QuotationActivitiesEditor from "@/components/admin/quotation/QuotationAct
 import { isFutureDate, todayIso, tomorrowIso } from "@/utils/dateRange";
 import type {
   AdminCurrency,
-  AdminDestination,
-  AdminPackage,
+  AdminOption,
   AdminQuotationItem,
   AdminSalesUser,
   LeadSource,
@@ -227,8 +226,8 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   /** Validation failures inside the payment dialog itself — shown as an inline banner in that same popup. */
   const [convertFormError, setConvertFormError] = useState<string | null>(null);
 
-  const [destinations, setDestinations] = useState<AdminDestination[]>([]);
-  const [campaigns, setCampaigns] = useState<AdminPackage[]>([]);
+  const [destinations, setDestinations] = useState<AdminOption[]>([]);
+  const [campaigns, setCampaigns] = useState<AdminOption[]>([]);
   const [currencies, setCurrencies] = useState<AdminCurrency[]>([]);
   const [salesUsers, setSalesUsers] = useState<AdminSalesUser[]>([]);
 
@@ -246,7 +245,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   useEffect(() => {
     (async () => {
       const [destRes, currRes, salesRes] = await Promise.all([
-        destinationsApi.all(),
+        destinationsApi.options(),
         currenciesApi.list({ pageSize: 100, filter: { status: "Active" } }),
         salesUsersApi.list(),
       ]);
@@ -271,8 +270,8 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
       setCampaigns([]);
       return;
     }
-    packagesApi.list({ pageSize: 1000, filter: { destinationId: draft.destinationId } }).then((res) => {
-      if (res.success) setCampaigns(res.data.items);
+    packagesApi.options(draft.destinationId).then((res) => {
+      if (res.success) setCampaigns(res.data);
     });
   }, [draft.destinationId]);
 
@@ -368,7 +367,15 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     autoSaveTimerRef.current = setTimeout(async () => {
       if (saving) return;
       try {
-        const res = await quotationsApi.update(id, buildPayload());
+        // Partial payload: only the sections this auto-save covers (plus their derived pricing
+        // rows). Omitting `customer` also skips the server's Lead find-or-create work, and the
+        // itinerary/inclusions text (which can be large) never rides along on every edit.
+        const res = await quotationsApi.update(id, {
+          hotelOptions: draft.hotelOptions,
+          transfers: draft.transfers,
+          activities: draft.activities,
+          items: draft.items.map((r, i) => ({ ...r, sortOrder: i })),
+        });
         if (!res.success) {
           setAutoSaveStatus("error");
           notify(res.message || "Auto-save failed — use Save Draft", "error");

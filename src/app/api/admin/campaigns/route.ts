@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { listCampaigns, createCampaign } from "@/services/campaignService";
+import { listCampaigns, listCampaignOptions, createCampaign } from "@/services/campaignService";
 import { CampaignCreateSchema } from "@/lib/validation/campaign";
 import { toSlug } from "@/utils/slug";
 import { ApiError } from "@/lib/apiError";
@@ -13,6 +13,13 @@ export async function GET(req: NextRequest) {
     const page = Number(url.searchParams.get("page") ?? "1");
     const pageSize = Number(url.searchParams.get("pageSize") ?? "10");
     const destinationId = url.searchParams.get("destinationId") ?? undefined;
+
+    // Lightweight id+name list for dropdowns — a full campaign row carries its activities
+    // JSON, gallery and pricing fields, which a name-only select never renders.
+    if (url.searchParams.get("view") === "options") {
+      const options = await listCampaignOptions(destinationId);
+      return NextResponse.json({ success: true, message: "OK", data: options });
+    }
 
     const filter: Record<string, unknown> = {};
     if (destinationId) filter.destinationId = destinationId;

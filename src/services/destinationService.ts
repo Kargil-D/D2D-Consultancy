@@ -54,6 +54,16 @@ export async function getDestination(id: string) {
   return rec ? mapDestination(rec) : null;
 }
 
+/** id+name pairs for admin dropdowns (quotation builder, filters) — skips the cities join and
+ * every other column, so a dropdown doesn't pull full destination rows. */
+export async function listDestinationOptions() {
+  return prisma.destination.findMany({
+    where: { isDeleted: false, status: "Active" },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
 /** Small scalar fields only — everything the public navbar mega-menu renders. Excludes the
  * cities join and remaining columns so menu traffic stays light on the database. */
 const DESTINATION_MENU_SELECT = {

@@ -10,7 +10,7 @@ import Pagination from "@/components/admin/ui/Pagination";
 import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { useToast } from "@/components/admin/ui/Toast";
 import { quotationsApi } from "@/lib/adminApi";
-import type { AdminQuotation, QuotationStatus } from "@/types/admin";
+import type { AdminQuotationSummary, QuotationStatus } from "@/types/admin";
 
 const PAGE_SIZE = 10;
 const STATUSES: QuotationStatus[] = ["Draft", "Sent", "Accepted", "Rejected", "Expired"];
@@ -21,7 +21,7 @@ const formatINR = (v: number) =>
 
 export default function QuotationsAdminPage() {
   const { notify } = useToast();
-  const [rows, setRows] = useState<AdminQuotation[]>([]);
+  const [rows, setRows] = useState<AdminQuotationSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -33,7 +33,8 @@ export default function QuotationsAdminPage() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await quotationsApi.list({ search, status, page, pageSize: PAGE_SIZE });
+      // Summary view: table-sized rows without the quotation content JSON columns.
+      const res = await quotationsApi.listSummaries({ search, status, page, pageSize: PAGE_SIZE });
       if (res.success) {
         setRows(res.data.items);
         setTotal(res.data.total);
@@ -70,7 +71,7 @@ export default function QuotationsAdminPage() {
     }
   };
 
-  const columns: Column<AdminQuotation>[] = [
+  const columns: Column<AdminQuotationSummary>[] = [
     {
       key: "seq",
       label: "Quote ID",
@@ -144,7 +145,7 @@ export default function QuotationsAdminPage() {
         </Link>
       </div>
 
-      <DataTable<AdminQuotation>
+      <DataTable<AdminQuotationSummary>
         columns={columns}
         rows={rows}
         loading={loading}

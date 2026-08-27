@@ -675,6 +675,33 @@ export interface QuotationActivityItem {
   notes: string;
 }
 
+/** id+name pair returned by the `view=options` dropdown endpoints (destinations, campaigns). */
+export interface AdminOption {
+  id: string;
+  name: string;
+}
+
+/** Table-sized quotation row from `view=summary` — everything the all-quotations table renders,
+ * without the heavy itineraryDays/hotelOptions/transfers/activities JSON columns. */
+export interface AdminQuotationSummary {
+  id: string;
+  seq: number;
+  leadId: string;
+  destinationId: string;
+  campaignId?: string | null;
+  status: QuotationStatus;
+  marginPercent: number;
+  gstPercent: number;
+  travelDate?: string | null;
+  travelEndDate?: string | null;
+  validUntil?: string | null;
+  createdDate: string;
+  updatedDate: string;
+  lead?: { id: string; customerName: string; mobile: string };
+  destination?: { id: string; name: string };
+  items: { qty: number; cost: number }[];
+}
+
 export interface AdminQuotation {
   id: string;
   seq: number;

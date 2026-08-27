@@ -9,11 +9,13 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-const prismaClient = new PrismaClient({
-  adapter: new PrismaPg(process.env.DATABASE_URL),
-});
-
-export const prisma = global.prisma ?? prismaClient;
+// Instantiate only when no cached client exists — the old unconditional `new PrismaClient()`
+// opened a fresh connection pool on every dev hot-reload and immediately abandoned it.
+export const prisma =
+  global.prisma ??
+  new PrismaClient({
+    adapter: new PrismaPg(process.env.DATABASE_URL),
+  });
 
 if (process.env.NODE_ENV !== "production") global.prisma = prisma;
 

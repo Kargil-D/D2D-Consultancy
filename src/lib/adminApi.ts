@@ -34,8 +34,10 @@ import type {
   AdminItinerary,
   AdminLead,
   AdminLeadBoard,
+  AdminOption,
   AdminPackage,
   AdminQuotation,
+  AdminQuotationSummary,
   AdminReview,
   AdminRole,
   AdminRolePickerOption,
@@ -237,6 +239,11 @@ export const destinationsApi = {
     const res = await adminFetch(`/api/admin/destinations?${params.toString()}`);
     return (await res.json()) as ApiResponse<Paginated<AdminDestination>>;
   },
+  /** id+name pairs only — for dropdowns. Use `all()` only when full destination rows are needed. */
+  options: async (): Promise<ApiResponse<AdminOption[]>> => {
+    const res = await adminFetch(`/api/admin/destinations?view=options`);
+    return (await res.json()) as ApiResponse<AdminOption[]>;
+  },
   all: async (): Promise<ApiResponse<AdminDestination[]>> => {
     const res = await adminFetch(`/api/admin/destinations?page=1&pageSize=1000`);
     const json = await res.json();
@@ -379,6 +386,20 @@ export const quotationsApi = {
     const res = await adminFetch(`/api/admin/quotations?${params.toString()}`);
     return (await res.json()) as ApiResponse<Paginated<AdminQuotation>>;
   },
+  /** Table-sized rows without the heavy content JSON — for the all-quotations table. Use
+   * `list()` where the itineraryDays/hotelOptions/transfers/activities columns are needed
+   * (e.g. BookingDetail's cost-sheet import). */
+  listSummaries: async (
+    query: { search?: string; status?: string; page?: number; pageSize?: number } = {},
+  ): Promise<ApiResponse<Paginated<AdminQuotationSummary>>> => {
+    const params = new URLSearchParams({ view: "summary" });
+    if (query.search) params.set("search", query.search);
+    if (query.status) params.set("status", query.status);
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    const res = await adminFetch(`/api/admin/quotations?${params.toString()}`);
+    return (await res.json()) as ApiResponse<Paginated<AdminQuotationSummary>>;
+  },
   get: async (id: string): Promise<ApiResponse<AdminQuotation | null>> => {
     const res = await adminFetch(`/api/admin/quotations/${id}`);
     return (await res.json()) as ApiResponse<AdminQuotation | null>;
@@ -392,7 +413,9 @@ export const quotationsApi = {
   update: async (
     id: string,
     payload: Partial<AdminQuotation> & { customer?: QuotationCustomerInput },
-  ): Promise<ApiResponse<AdminQuotation | null>> => {
+    // The PUT returns a slim save acknowledgement, not the whole record — the record's content
+    // is exactly what the caller just sent, so echoing it back doubled every save's payload.
+  ): Promise<ApiResponse<Pick<AdminQuotation, "id" | "updatedDate" | "status" | "shareToken"> | null>> => {
     const res = await adminFetch(`/api/admin/quotations/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminQuotation | null>;
   },
@@ -541,6 +564,13 @@ export const packagesApi = {
     if (typeof destinationId === "string") params.set("destinationId", destinationId);
     const res = await adminFetch(`/api/admin/campaigns?${params.toString()}`);
     return (await res.json()) as ApiResponse<Paginated<AdminPackage>>;
+  },
+  /** id+name pairs only — for dropdowns like the quotation builder's Itinerary Template select. */
+  options: async (destinationId?: string): Promise<ApiResponse<AdminOption[]>> => {
+    const params = new URLSearchParams({ view: "options" });
+    if (destinationId) params.set("destinationId", destinationId);
+    const res = await adminFetch(`/api/admin/campaigns?${params.toString()}`);
+    return (await res.json()) as ApiResponse<AdminOption[]>;
   },
   all: async (): Promise<ApiResponse<AdminPackage[]>> => {
     const res = await adminFetch(`/api/admin/campaigns?page=1&pageSize=1000`);

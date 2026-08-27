@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { listQuotations, createQuotation } from "@/services/quotationService";
+import { listQuotations, listQuotationSummaries, createQuotation } from "@/services/quotationService";
 import { QuotationCreateSchema } from "@/lib/validation/quotation";
 import { ApiError } from "@/lib/apiError";
 import { requireModuleAccess } from "@/lib/permissions";
@@ -19,9 +19,12 @@ export async function GET(req: NextRequest) {
     if (leadId) filter.leadId = leadId;
     if (status) filter.status = status;
 
+    // view=summary: table-sized rows without the itineraryDays/hotelOptions/transfers/
+    // activities JSON columns. Lead-scoped consumers that need those columns keep the default.
+    const wantSummary = url.searchParams.get("view") === "summary";
     const data = await perfTime(
       "GET /api/admin/quotations",
-      () => listQuotations({ search, page, pageSize, filter }),
+      () => (wantSummary ? listQuotationSummaries({ search, page, pageSize, filter }) : listQuotations({ search, page, pageSize, filter })),
       (d) => ({ rows: d.items.length, total: d.total, bytes: JSON.stringify(d).length }),
     );
     return NextResponse.json({ success: true, message: "OK", data });

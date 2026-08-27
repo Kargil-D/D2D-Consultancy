@@ -31,6 +31,42 @@ const sizeMap = {
 const ALLOWED_TYPES = ["image/png", "image/jpeg"];
 const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
+/** Longest edge after client-side downscaling — admin images render at card/banner sizes, so
+ * anything beyond this is upload time and bandwidth for pixels nobody sees. */
+const MAX_DIMENSION = 1600;
+/** Files at or below this skip compression entirely — not worth the canvas round trip. */
+const COMPRESS_THRESHOLD_BYTES = 400 * 1024;
+
+/**
+ * Downscales/re-encodes the image in the browser before upload (JPEG stays JPEG at q0.82,
+ * PNG stays PNG so transparency survives). Falls back to the original file whenever anything
+ * fails or the "compressed" result isn't actually smaller — so worst case is exactly the old
+ * behaviour.
+ */
+async function compressImage(file: File): Promise<File> {
+  if (file.size <= COMPRESS_THRESHOLD_BYTES) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, file.type, file.type === "image/jpeg" ? 0.82 : undefined),
+    );
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name, { type: file.type });
+  } catch {
+    return file;
+  }
+}
+
 export default function ImageUpload({
   value,
   onChange,
@@ -54,7 +90,8 @@ export default function ImageUpload({
     }
     setError("");
     setUploading(true);
-    const res = await uploadImage(file);
+    const compressed = await compressImage(file);
+    const res = await uploadImage(compressed);
     setUploading(false);
     if (res.success) onChange(res.data.url);
   };

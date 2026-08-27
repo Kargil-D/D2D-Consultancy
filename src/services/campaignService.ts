@@ -69,6 +69,17 @@ export async function listCampaignSummaries(query: ListQuery = {}): Promise<Camp
   });
 }
 
+/** id+name pairs for admin dropdowns (e.g. the quotation builder's Itinerary Template select)
+ * — a full listCampaigns row drags the campaign's activities JSON/gallery along for nothing. */
+export async function listCampaignOptions(destinationId?: string) {
+  return prisma.campaign.findMany({
+    where: { isDeleted: false, ...(destinationId ? { destinationId } : {}) },
+    select: { id: true, name: true },
+    orderBy: { createdDate: "desc" },
+    take: 1000,
+  });
+}
+
 export async function getCampaign(id: string) {
   return prisma.campaign.findUnique({ where: { id } });
 }

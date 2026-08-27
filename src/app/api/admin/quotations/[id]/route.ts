@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getQuotation, updateQuotation, removeQuotation } from "@/services/quotationService";
+import { getQuotationForBuilder, updateQuotation, removeQuotation } from "@/services/quotationService";
 import { QuotationUpdateSchema } from "@/lib/validation/quotation";
 import { ApiError } from "@/lib/apiError";
 import { requireModuleAccess } from "@/lib/permissions";
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const { id } = await ctx.params;
     const rec = await perfTime(
       "GET /api/admin/quotations/[id]",
-      () => getQuotation(id),
+      () => getQuotationForBuilder(id),
       (r) => ({ found: !!r, bytes: JSON.stringify(r).length }),
     );
     return NextResponse.json({ success: true, message: "OK", data: rec });
