@@ -309,7 +309,7 @@ export default function PrivacyPolicyPage() {
                   </p>
                   <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                     <a
-                      href="mailto:d2dholidays.admin@gmail.com"
+                      href="mailto:info@drivetodestinationholidays.com"
                       className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-slate-900 text-sm font-semibold hover:bg-slate-100 transition-colors"
                     >
                       <Mail className="w-4 h-4" />

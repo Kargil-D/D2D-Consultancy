@@ -9,7 +9,7 @@ const ADDRESS =
 const MAP_QUERY = `Drive To Destination Holidays, ${ADDRESS}`;
 const PHONE_PRIMARY = "+91 95001 21263";
 const PHONE_SECONDARY = "+91 95001 21261";
-const EMAIL = "d2dholidays.admin@gmail.com";
+const EMAIL = "info@drivetodestinationholidays.com";
 
 const CONTACT_CARDS = [
   {
