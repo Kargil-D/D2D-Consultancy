@@ -4,6 +4,7 @@ import { z } from "zod";
 export const ADMIN_MODULES = [
   "Dashboard",
   "Destinations",
+  "Activities",
   "Campaigns",
   "TransferTypes",
   "HotelMaster",
