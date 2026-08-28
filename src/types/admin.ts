@@ -307,6 +307,43 @@ export interface AdminEmployeeAuditLog {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Payroll — manual monthly entry, no statutory auto-calculation              */
+/* -------------------------------------------------------------------------- */
+export type PayslipStatus = "Draft" | "Finalized";
+
+export interface AdminPayslip {
+  id: string;
+  employeeId: string;
+  year: number;
+  month: number;
+
+  basicSalary: number;
+  hra: number;
+  otherAllowances: number;
+  bonus: number;
+  pfDeduction: number;
+  esiDeduction: number;
+  professionalTax: number;
+  tds: number;
+  otherDeductions: number;
+
+  pfNumber: string;
+  esiNumber: string;
+  notes: string;
+  status: PayslipStatus;
+
+  /** Derived, not stored — grossPay = earnings, totalDeductions = sum of deductions, netPay = the difference. */
+  grossPay: number;
+  totalDeductions: number;
+  netPay: number;
+
+  generatedBy: string;
+  finalizedAt?: string | null;
+  createdDate: string;
+  updatedDate: string;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Roster (attendance) — Present/Absent per employee per day, no shift types  */
 /* -------------------------------------------------------------------------- */
 export type RosterStatus = "Present" | "Absent";
@@ -362,7 +399,8 @@ export type AdminModule =
   | "EnquiryConfig"
   | "Leads"
   | "Quotations"
-  | "Bookings";
+  | "Bookings"
+  | "Payroll";
 
 export interface AdminRolePermission {
   module: AdminModule;

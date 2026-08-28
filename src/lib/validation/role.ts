@@ -17,6 +17,7 @@ export const ADMIN_MODULES = [
   "Leads",
   "Quotations",
   "Bookings",
+  "Payroll",
 ] as const;
 
 export const RolePermissionSchema = z.object({

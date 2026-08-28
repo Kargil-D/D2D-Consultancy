@@ -15,6 +15,7 @@ import { useToast } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
 import MaskedSensitiveField from "@/components/admin/employee/MaskedSensitiveField";
 import ComingSoonPanel from "@/components/admin/employee/ComingSoonPanel";
+import PayrollPanel from "@/components/admin/employee/PayrollPanel";
 import { employeesApi, rolesApi, uploadImage } from "@/lib/adminApi";
 import type { AdminEmployee, AdminEmployeeAuditLog, AdminEmployeeManagerOption, AdminRolePickerOption, EmploymentType, PaymentMode } from "@/types/admin";
 
@@ -240,8 +241,10 @@ export default function EmployeeForm({ id }: Props) {
 
   // Viewing/editing your own linked record: Personal, Employment & Login (incl. Role/Link
   // Account), Permissions, and Activity Log are locked so you can't self-modify your own
-  // employment data or role — Address/Government IDs/Bank Details/Documents/Payroll stay
-  // editable as self-service HR data. Editing someone else's record is unaffected.
+  // employment data or role — Address/Government IDs/Bank Details/Documents stay editable
+  // as self-service HR data. Payroll is the one exception: even an Admin can never edit or
+  // finalize their own salary figures (PayrollPanel enforces this itself, same rule a real
+  // payroll desk follows). Editing someone else's record is unaffected.
   const isSelf = !!form.userId && !!currentUser?.id && form.userId === currentUser.id;
 
   return (
@@ -641,7 +644,11 @@ export default function EmployeeForm({ id }: Props) {
             />
           )}
           {tab === "payroll" && (
-            <ComingSoonPanel icon={Wallet} title="Payroll" description="Basic salary, allowances, PF/ESI numbers, professional tax, TDS. Coming in a follow-up pass." />
+            !id ? (
+              <p className="text-sm text-slate-500 text-center py-10">Save the employee first to start recording payroll.</p>
+            ) : (
+              <PayrollPanel employeeId={id} isSelf={isSelf} />
+            )
           )}
           {tab === "permissions" && (
             <ComingSoonPanel

@@ -155,7 +155,7 @@ export default function QuotationsAdminPage() {
           setPage(1);
           setSearch(v);
         }}
-        searchPlaceholder="Search by customer name, mobile…"
+        searchPlaceholder="Search by customer name, mobile, Quote ID, Lead ID, Booking ID…"
         toolbar={
           <select
             value={status}

@@ -36,6 +36,7 @@ import type {
   AdminLeadBoard,
   AdminOption,
   AdminPackage,
+  AdminPayslip,
   AdminQuotation,
   AdminQuotationSummary,
   AdminReview,
@@ -887,6 +888,43 @@ export const employeesApi = {
     });
     return (await res.json()) as ApiResponse<AdminEmployee | null>;
   },
+};
+
+export const payrollApi = {
+  list: async (employeeId: string): Promise<ApiResponse<AdminPayslip[]>> => {
+    const res = await adminFetch(`/api/admin/employees/${employeeId}/payroll`);
+    return (await res.json()) as ApiResponse<AdminPayslip[]>;
+  },
+  get: async (employeeId: string, year: number, month: number): Promise<ApiResponse<AdminPayslip | null>> => {
+    const res = await adminFetch(`/api/admin/employees/${employeeId}/payroll/${year}/${month}`);
+    return (await res.json()) as ApiResponse<AdminPayslip | null>;
+  },
+  save: async (employeeId: string, year: number, month: number, payload: Partial<AdminPayslip>): Promise<ApiResponse<AdminPayslip>> => {
+    const res = await adminFetch(`/api/admin/employees/${employeeId}/payroll`, {
+      method: "POST",
+      body: JSON.stringify({ year, month, ...payload }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return (await res.json()) as ApiResponse<AdminPayslip>;
+  },
+  finalize: async (employeeId: string, year: number, month: number): Promise<ApiResponse<AdminPayslip>> => {
+    const res = await adminFetch(`/api/admin/employees/${employeeId}/payroll/${year}/${month}/finalize`, { method: "POST" });
+    return (await res.json()) as ApiResponse<AdminPayslip>;
+  },
+  remove: async (employeeId: string, year: number, month: number): Promise<ApiResponse<boolean>> => {
+    const res = await adminFetch(`/api/admin/employees/${employeeId}/payroll/${year}/${month}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
+  /** Same-origin, cookie-authed PDF route — open directly, no fetch+blob needed (mirrors quotation PDF download). */
+  pdfUrl: (employeeId: string, year: number, month: number, download = false) =>
+    `/api/admin/employees/${employeeId}/payroll/${year}/${month}/pdf${download ? "?download=1" : ""}`,
+  /** Self-view — always your own, Finalized-only payslips, never a picker. */
+  mine: async (): Promise<ApiResponse<AdminPayslip[]>> => {
+    const res = await adminFetch(`/api/payroll/me`);
+    return (await res.json()) as ApiResponse<AdminPayslip[]>;
+  },
+  minePdfUrl: (year: number, month: number, download = false) =>
+    `/api/payroll/me/${year}/${month}/pdf${download ? "?download=1" : ""}`,
 };
 
 export const rolesApi = {

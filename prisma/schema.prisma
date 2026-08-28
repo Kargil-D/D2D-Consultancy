@@ -44,6 +44,7 @@ enum AdminModule {
   Leads
   Quotations
   Bookings
+  Payroll
 }
 
 model Role {
@@ -483,6 +484,7 @@ model Employee {
   auditLogs    EmployeeAuditLog[]
   rosterEntries RosterEntry[]
   invites       EmployeeInvite[]
+  payslips      Payslip[]
 
   createdBy   String?
   createdDate DateTime @default(now())
@@ -551,6 +553,48 @@ model EmployeeAuditLog {
 
   @@index([employeeId])
   @@map("employee_audit_logs")
+}
+
+enum PayslipStatus {
+  Draft
+  Finalized
+}
+
+/// One row per employee per calendar month — manually entered by Admin, no statutory
+/// auto-calculation (PF/ESI/TDS rules change yearly; Admin owns the numbers). Bank details
+/// for payment are read from the linked Employee record, not duplicated here. Only
+/// Finalized payslips are downloadable — Draft is Admin's private working state.
+model Payslip {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  year       Int
+  month      Int // 1-12
+
+  basicSalary     Int @default(0)
+  hra             Int @default(0)
+  otherAllowances Int @default(0)
+  bonus           Int @default(0)
+  pfDeduction     Int @default(0)
+  esiDeduction    Int @default(0)
+  professionalTax Int @default(0)
+  tds             Int @default(0)
+  otherDeductions Int @default(0)
+
+  pfNumber  String @default("") // PF/UAN number, informational — printed on the slip
+  esiNumber String @default("")
+
+  notes  String        @default("")
+  status PayslipStatus @default(Draft)
+
+  generatedBy String
+  finalizedAt DateTime?
+  createdDate DateTime  @default(now())
+  updatedDate DateTime  @updatedAt
+
+  @@unique([employeeId, year, month])
+  @@index([employeeId])
+  @@map("payslips")
 }
 
 enum LeadSource {

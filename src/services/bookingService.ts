@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { QUOTE_PREFIX, LEAD_PREFIX, BOOKING_PREFIX, parseSeqCode } from "@/lib/idCodes";
 import type { Paginated } from "@/types/admin";
 import type { Prisma, BookingStatus, BookingDocumentType, BookingServiceType } from "@/generated/prisma/client";
 import type {
@@ -44,17 +45,28 @@ export interface ListQuery {
   filter?: Prisma.BookingWhereInput;
 }
 
+/** Matches by customer name/mobile as before, plus typed "BK-0005"/"LD-0007"/"QT-0013" codes
+ * against this booking's own seq, its Lead's seq, or its linked Quotation's seq. */
+function bookingSearchOr(search: string): Prisma.BookingWhereInput[] {
+  const or: Prisma.BookingWhereInput[] = [
+    { lead: { customerName: { contains: search, mode: "insensitive" } } },
+    { lead: { mobile: { contains: search, mode: "insensitive" } } },
+  ];
+  const bookingSeq = parseSeqCode(search, BOOKING_PREFIX);
+  if (bookingSeq !== null) or.push({ seq: bookingSeq });
+  const leadSeq = parseSeqCode(search, LEAD_PREFIX);
+  if (leadSeq !== null) or.push({ lead: { seq: leadSeq } });
+  const quoteSeq = parseSeqCode(search, QUOTE_PREFIX);
+  if (quoteSeq !== null) or.push({ quotation: { seq: quoteSeq } });
+  return or;
+}
+
 export async function listBookings(query: ListQuery = {}) {
   const { search = "", page = 1, pageSize = 10, filter = {} } = query;
   const where: Prisma.BookingWhereInput = { isDeleted: false, ...filter };
 
   if (search.trim()) {
-    where.lead = {
-      OR: [
-        { customerName: { contains: search, mode: "insensitive" } },
-        { mobile: { contains: search, mode: "insensitive" } },
-      ],
-    };
+    where.OR = bookingSearchOr(search.trim());
   }
 
   const total = await prisma.booking.count({ where });

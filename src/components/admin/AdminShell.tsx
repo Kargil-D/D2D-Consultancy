@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, LogOut, UserCog, AlertCircle, CalendarDays } from "lucide-react";
+import { ExternalLink, LogOut, UserCog, AlertCircle, CalendarDays, Wallet } from "lucide-react";
 import Logo from "@/components/common/Logo";
 import { ToastProvider } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -104,6 +104,16 @@ export default function AdminShell({ children, title }: AdminShellProps) {
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                       >
                         <CalendarDays className="w-4 h-4" /> My Roster
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          router.push("/admin/my-payslips");
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                      >
+                        <Wallet className="w-4 h-4" /> My Payslips
                       </button>
                       {profileError && (
                         <div className="flex items-start gap-1.5 px-4 py-2 text-xs text-rose-600 bg-rose-50 border-t border-rose-100">
