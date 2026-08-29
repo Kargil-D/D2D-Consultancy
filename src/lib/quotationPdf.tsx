@@ -157,6 +157,7 @@ const styles = StyleSheet.create({
   srowK: { color: C.muted },
   srowV: { fontWeight: 700, color: "#26363d", textAlign: "right" },
   npill: { marginTop: 8, alignSelf: "flex-start", backgroundColor: "#cfe6f0", borderRadius: 14, paddingVertical: 3, paddingHorizontal: 9, fontFamily: "Times-Bold", fontWeight: 700, fontSize: 8.5, color: C.ink },
+  optionPill: { alignSelf: "flex-start", backgroundColor: C.navy, color: "#ffffff", borderRadius: 14, paddingVertical: 4, paddingHorizontal: 12, fontFamily: "Times-Bold", fontWeight: 700, fontSize: 9.5, letterSpacing: 0.5, marginTop: 10, marginBottom: 6 },
 
   // ------------------------------------------------------- Inclusions / Price --
   ieCard: { padding: 12 },
@@ -376,8 +377,10 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
   const totalRooms = primaryHotelGroup?.hotels.reduce((sum, h) => sum + (h.rooms || 0), 0) || 1;
   const firstHotel = primaryHotelGroup?.hotels[0];
 
+  const hotelGroupsWithHotels = data.hotelOptions.filter((g) => g.hotels.length > 0);
+
   const hasItinerary = data.itineraryDays.length > 0;
-  const hasHotels = data.hotelOptions.some((g) => g.hotels.length > 0);
+  const hasHotels = hotelGroupsWithHotels.length > 0;
   const hasActivities = data.activities.length > 0;
   const hasStayPage = hasHotels || hasActivities;
   const hasTransfers = data.transfers.length > 0;
@@ -484,23 +487,26 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
               {hasHotels && (
                 <>
                   <SectionHead title="Your Stay" />
-                  {data.hotelOptions.map((group) =>
-                    group.hotels.map((h, i) => (
-                      <View key={h.id} style={[styles.split, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
-                        <View style={styles.splitTxt}>
-                          <Text style={styles.splitH3}>{h.hotelName}</Text>
-                          {h.roomType && <View style={styles.srow}><Text style={styles.srowK}>Room</Text><Text style={styles.srowV}>{h.roomType}</Text></View>}
-                          {h.checkIn && <View style={styles.srow}><Text style={styles.srowK}>Check-in</Text><Text style={styles.srowV}>{h.checkIn}</Text></View>}
-                          {h.checkOut && <View style={styles.srow}><Text style={styles.srowK}>Check-out</Text><Text style={styles.srowV}>{h.checkOut}</Text></View>}
-                          {h.mealPlan && <View style={styles.srow}><Text style={styles.srowK}>Plan</Text><Text style={styles.srowV}>{h.mealPlan}</Text></View>}
-                          {h.googleMapUrl && <View style={styles.srow}><Text style={styles.srowK}>Map</Text><Link src={h.googleMapUrl} style={styles.srowV}>View on Map</Link></View>}
-                          {h.website && <View style={styles.srow}><Text style={styles.srowK}>Website</Text><Link src={h.website} style={styles.srowV}>Visit Website</Link></View>}
-                          <Text style={styles.npill}>{h.nights || 1} {h.nights === 1 ? "Night" : "Nights"}</Text>
+                  {hotelGroupsWithHotels.map((group) => (
+                    <View key={group.id}>
+                      {hotelGroupsWithHotels.length > 1 && <Text style={styles.optionPill}>{group.label}</Text>}
+                      {group.hotels.map((h, i) => (
+                        <View key={h.id} style={[styles.split, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
+                          <View style={styles.splitTxt}>
+                            <Text style={styles.splitH3}>{h.hotelName}</Text>
+                            {h.roomType && <View style={styles.srow}><Text style={styles.srowK}>Room</Text><Text style={styles.srowV}>{h.roomType}</Text></View>}
+                            {h.checkIn && <View style={styles.srow}><Text style={styles.srowK}>Check-in</Text><Text style={styles.srowV}>{h.checkIn}</Text></View>}
+                            {h.checkOut && <View style={styles.srow}><Text style={styles.srowK}>Check-out</Text><Text style={styles.srowV}>{h.checkOut}</Text></View>}
+                            {h.mealPlan && <View style={styles.srow}><Text style={styles.srowK}>Plan</Text><Text style={styles.srowV}>{h.mealPlan}</Text></View>}
+                            {h.googleMapUrl && <View style={styles.srow}><Text style={styles.srowK}>Map</Text><Link src={h.googleMapUrl} style={styles.srowV}>View on Map</Link></View>}
+                            {h.website && <View style={styles.srow}><Text style={styles.srowK}>Website</Text><Link src={h.website} style={styles.srowV}>Visit Website</Link></View>}
+                            <Text style={styles.npill}>{h.nights || 1} {h.nights === 1 ? "Night" : "Nights"}</Text>
+                          </View>
+                          <SplitPic src={h.images?.[0]} />
                         </View>
-                        <SplitPic src={h.images?.[0]} />
-                      </View>
-                    )),
-                  )}
+                      ))}
+                    </View>
+                  ))}
                 </>
               )}
 
