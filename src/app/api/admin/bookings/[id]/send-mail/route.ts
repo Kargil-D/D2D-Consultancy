@@ -1,13 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { sendBookingEmail } from "@/services/bookingEmailService";
+import { requireBookingAccess } from "@/services/bookingService";
 import { BookingSendEmailSchema } from "@/lib/validation/bookingEmail";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess } from "@/lib/permissions";
+import { requireModuleAccess, toViewer } from "@/lib/permissions";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireModuleAccess(req, "Bookings", "canEdit");
+    const user = await requireModuleAccess(req, "Bookings", "canEdit");
     const { id } = await ctx.params;
+    await requireBookingAccess(id, toViewer(user));
     const payload = await req.json();
     const parsed = BookingSendEmailSchema.parse(payload);
     await sendBookingEmail(id, parsed);

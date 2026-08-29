@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Svg, Path, Defs, LinearGradient, Stop, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import { SUPPORT_EMAIL, SUPPORT_WEBSITE, SUPPORT_ADDRESS, COMPANY_FULL_NAME } from "@/data/contact";
 
 /** Payslip PDF — plain, no-frills A4 layout. Admin owns every figure (no statutory auto-calculation), this just lays out what was entered. */
@@ -47,6 +47,7 @@ const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "Ju
 const styles = StyleSheet.create({
   page: { padding: 32, fontSize: 10, fontFamily: "Helvetica", color: C.body, backgroundColor: C.paper },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2 solid " + C.teal, paddingBottom: 12, marginBottom: 16 },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   brandD2D: { fontSize: 16, fontWeight: 700, color: C.ink },
   brandHolidays: { fontSize: 16, fontWeight: 700, color: C.teal },
   brandAddr: { fontSize: 7.5, color: C.muted, marginTop: 4, maxWidth: 220, lineHeight: 1.4 },
@@ -83,6 +84,22 @@ function formatINR(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(value);
 }
 
+/** Brand mark: two-triangle paper-plane, teal/cyan — same silhouette as the web header logo (src/components/common/Logo.tsx) and the quotation PDF's BrandLogo (src/lib/quotationPdf.tsx). */
+function PlaneMark({ size = 20 }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      <Defs>
+        <LinearGradient id="planeGrad" x1="0" y1="0" x2="100" y2="100">
+          <Stop offset="0" stopColor={C.teal} />
+          <Stop offset="1" stopColor={C.ink} />
+        </LinearGradient>
+      </Defs>
+      <Path d="M97 2 L2 26 L39 48 Z" fill="url(#planeGrad)" />
+      <Path d="M97 2 L51 59 L73 99 Z" fill={C.ink} opacity={0.9} />
+    </Svg>
+  );
+}
+
 function Row({ label, value }: { label: string; value: number }) {
   return (
     <View style={styles.tRow}>
@@ -98,10 +115,13 @@ function PayslipDocument({ data: d }: { data: PayslipPdfData }) {
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View>
-            <Text>
-              <Text style={styles.brandD2D}>D2D </Text>
-              <Text style={styles.brandHolidays}>Holidays</Text>
-            </Text>
+            <View style={styles.logoRow}>
+              <PlaneMark size={18} />
+              <Text>
+                <Text style={styles.brandD2D}>D2D </Text>
+                <Text style={styles.brandHolidays}>Holidays</Text>
+              </Text>
+            </View>
             <Text style={styles.brandAddr}>{COMPANY_FULL_NAME}{"\n"}{SUPPORT_ADDRESS}{"\n"}{SUPPORT_EMAIL} · {SUPPORT_WEBSITE}</Text>
           </View>
           <View style={styles.titleBlock}>

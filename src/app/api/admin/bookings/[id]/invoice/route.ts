@@ -1,12 +1,16 @@
-import { NextResponse } from "next/server";
-import { getBooking, bookingCode } from "@/services/bookingService";
+import { NextResponse, type NextRequest } from "next/server";
+import { getBooking, bookingCode, requireBookingAccess } from "@/services/bookingService";
 import { renderInvoicePdf } from "@/lib/bookingInvoicePdf";
+import { ApiError } from "@/lib/apiError";
+import { requireModuleAccess, toViewer } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
-export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const user = await requireModuleAccess(req, "Bookings", "canView");
     const { id } = await ctx.params;
+    await requireBookingAccess(id, toViewer(user));
     const url = new URL(req.url);
     const kind = url.searchParams.get("kind") === "supplier" ? "supplier" : "customer";
 
@@ -40,6 +44,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       },
     });
   } catch (err) {
+    if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });
     console.error("[/api/admin/bookings/[id]/invoice] GET", err);
     return NextResponse.json({ success: false, message: "Internal error", data: null }, { status: 500 });
   }

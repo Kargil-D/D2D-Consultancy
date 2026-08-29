@@ -31,3 +31,13 @@ export async function requireModuleAccess(req: NextRequest, module: AdminModule,
   }
   return user;
 }
+
+/** Row-level visibility identity — separate from module-action permission. Admin sees every record regardless of assignment; everyone else is scoped to records assigned to them (see leadVisibilityScope/quotationVisibilityScope/bookingVisibilityScope). */
+export interface Viewer {
+  id: string;
+  isAdmin: boolean;
+}
+
+export function toViewer(user: { id: string; role: { name: string } }): Viewer {
+  return { id: user.id, isAdmin: user.role.name === "Admin" };
+}

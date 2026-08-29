@@ -2,29 +2,33 @@ import { NextResponse, type NextRequest } from "next/server";
 import { listQuotations, listQuotationSummaries, createQuotation } from "@/services/quotationService";
 import { QuotationCreateSchema } from "@/lib/validation/quotation";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess } from "@/lib/permissions";
+import { requireModuleAccess, toViewer } from "@/lib/permissions";
 import { perfTime } from "@/lib/perf";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireModuleAccess(req, "Quotations", "canView");
+    const user = await requireModuleAccess(req, "Quotations", "canView");
+    const viewer = toViewer(user);
     const url = new URL(req.url);
     const search = url.searchParams.get("search") ?? undefined;
     const page = Number(url.searchParams.get("page") ?? "1");
     const pageSize = Number(url.searchParams.get("pageSize") ?? "10");
     const leadId = url.searchParams.get("leadId") ?? undefined;
     const status = url.searchParams.get("status") ?? undefined;
+    const salesExecutiveId = url.searchParams.get("salesExecutiveId") ?? undefined;
 
     const filter: Record<string, unknown> = {};
     if (leadId) filter.leadId = leadId;
     if (status) filter.status = status;
+    // Non-admins are already scoped to their own records by listQuotations/listQuotationSummaries — only Admin's explicit choice of sales executive is honored here.
+    if (viewer.isAdmin && salesExecutiveId) filter.salesExecutiveId = salesExecutiveId;
 
     // view=summary: table-sized rows without the itineraryDays/hotelOptions/transfers/
     // activities JSON columns. Lead-scoped consumers that need those columns keep the default.
     const wantSummary = url.searchParams.get("view") === "summary";
     const data = await perfTime(
       "GET /api/admin/quotations",
-      () => (wantSummary ? listQuotationSummaries({ search, page, pageSize, filter }) : listQuotations({ search, page, pageSize, filter })),
+      () => (wantSummary ? listQuotationSummaries({ search, page, pageSize, filter }, viewer) : listQuotations({ search, page, pageSize, filter }, viewer)),
       (d) => ({ rows: d.items.length, total: d.total, bytes: JSON.stringify(d).length }),
     );
     return NextResponse.json({ success: true, message: "OK", data });
@@ -37,9 +41,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireModuleAccess(req, "Quotations", "canAdd");
+    const user = await requireModuleAccess(req, "Quotations", "canAdd");
+    const viewer = toViewer(user);
     const payload = await req.json();
     const parsed = QuotationCreateSchema.parse(payload);
+    if (!viewer.isAdmin && parsed.salesExecutiveId !== undefined && parsed.salesExecutiveId !== viewer.id) {
+      delete parsed.salesExecutiveId;
+    }
     const created = await createQuotation(parsed);
     return NextResponse.json({ success: true, message: "Created", data: created });
   } catch (err) {

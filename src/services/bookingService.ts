@@ -1,6 +1,8 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { QUOTE_PREFIX, LEAD_PREFIX, BOOKING_PREFIX, parseSeqCode } from "@/lib/idCodes";
+import { ApiError } from "@/lib/apiError";
+import type { Viewer } from "@/lib/permissions";
 import type { Paginated } from "@/types/admin";
 import type { Prisma, BookingStatus, BookingDocumentType, BookingServiceType } from "@/generated/prisma/client";
 import type {
@@ -61,9 +63,21 @@ function bookingSearchOr(search: string): Prisma.BookingWhereInput[] {
   return or;
 }
 
-export async function listBookings(query: ListQuery = {}) {
+/** Admin sees every Booking; everyone else only the ones where they're the bookingExecutive OR the customerSupport. */
+export function bookingVisibilityScope(viewer: Viewer): Prisma.BookingWhereInput {
+  return viewer.isAdmin ? {} : { OR: [{ bookingExecutiveId: viewer.id }, { customerSupportId: viewer.id }] };
+}
+
+/** Existence + ownership probe — throws 404 whether the Booking doesn't exist or isn't visible to this viewer. Used by the main Booking routes and every sub-resource route (flights/hotels/payments/etc.) before they touch booking-scoped data. */
+export async function requireBookingAccess(id: string, viewer: Viewer) {
+  const booking = await prisma.booking.findFirst({ where: { id, isDeleted: false, ...bookingVisibilityScope(viewer) } });
+  if (!booking) throw new ApiError(404, "Booking not found");
+  return booking;
+}
+
+export async function listBookings(query: ListQuery = {}, viewer: Viewer) {
   const { search = "", page = 1, pageSize = 10, filter = {} } = query;
-  const where: Prisma.BookingWhereInput = { isDeleted: false, ...filter };
+  const where: Prisma.BookingWhereInput = { isDeleted: false, ...bookingVisibilityScope(viewer), ...filter };
 
   if (search.trim()) {
     where.OR = bookingSearchOr(search.trim());

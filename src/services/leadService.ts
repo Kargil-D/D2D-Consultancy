@@ -3,6 +3,8 @@ import type { Paginated } from "@/types/admin";
 import type { Prisma, LeadStatus } from "@/generated/prisma/client";
 import { createBookingFromWonLead, bookingCode } from "@/services/bookingService";
 import { autoAssignLead } from "@/services/leadAssignmentService";
+import { ApiError } from "@/lib/apiError";
+import type { Viewer } from "@/lib/permissions";
 
 export interface ListQuery {
   search?: string;
@@ -11,12 +13,24 @@ export interface ListQuery {
   filter?: Prisma.LeadWhereInput;
 }
 
-export async function listLeads(query: ListQuery = {}): Promise<Paginated<Prisma.LeadGetPayload<{
+/** Admin sees every Lead; everyone else only the ones assigned to them (Lead.assignedToId, written by leadAssignmentService.assignLead / auto-assign). */
+export function leadVisibilityScope(viewer: Viewer): Prisma.LeadWhereInput {
+  return viewer.isAdmin ? {} : { assignedToId: viewer.id };
+}
+
+/** Existence + ownership probe — throws 404 (never 403) whether the Lead doesn't exist or simply isn't visible to this viewer, so a normal user can't distinguish "not found" from "not yours." Callers still use the existing getLead/updateLead/etc. for the actual read/write after this passes. */
+export async function requireLeadAccess(id: string, viewer: Viewer) {
+  const lead = await prisma.lead.findFirst({ where: { id, isDeleted: false, ...leadVisibilityScope(viewer) } });
+  if (!lead) throw new ApiError(404, "Lead not found");
+  return lead;
+}
+
+export async function listLeads(query: ListQuery = {}, viewer: Viewer): Promise<Paginated<Prisma.LeadGetPayload<{
   include: { destination: true; assignedTo: true };
 }>>> {
   const { search = "", page = 1, pageSize = 10, filter = {} } = query;
 
-  const where: Prisma.LeadWhereInput = { isDeleted: false, ...filter };
+  const where: Prisma.LeadWhereInput = { isDeleted: false, ...leadVisibilityScope(viewer), ...filter };
 
   if (search.trim()) {
     where.OR = [

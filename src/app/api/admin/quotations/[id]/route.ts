@@ -1,14 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getQuotationForBuilder, updateQuotation, removeQuotation } from "@/services/quotationService";
+import { getQuotationForBuilder, updateQuotation, removeQuotation, requireQuotationAccess } from "@/services/quotationService";
 import { QuotationUpdateSchema } from "@/lib/validation/quotation";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess } from "@/lib/permissions";
+import { requireModuleAccess, toViewer } from "@/lib/permissions";
 import { perfTime } from "@/lib/perf";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireModuleAccess(req, "Quotations", "canView");
+    const user = await requireModuleAccess(req, "Quotations", "canView");
     const { id } = await ctx.params;
+    await requireQuotationAccess(id, toViewer(user));
     const rec = await perfTime(
       "GET /api/admin/quotations/[id]",
       () => getQuotationForBuilder(id),
@@ -24,10 +25,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireModuleAccess(req, "Quotations", "canEdit");
+    const user = await requireModuleAccess(req, "Quotations", "canEdit");
+    const viewer = toViewer(user);
     const { id } = await ctx.params;
+    await requireQuotationAccess(id, viewer);
     const payload = await req.json();
     const parsed = QuotationUpdateSchema.parse(payload);
+    if (!viewer.isAdmin && parsed.salesExecutiveId !== undefined && parsed.salesExecutiveId !== viewer.id) {
+      delete parsed.salesExecutiveId;
+    }
     const updated = await updateQuotation(id, parsed);
     return NextResponse.json({ success: true, message: "Updated", data: updated });
   } catch (err) {
@@ -40,8 +46,9 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireModuleAccess(req, "Quotations", "canDelete");
+    const user = await requireModuleAccess(req, "Quotations", "canDelete");
     const { id } = await ctx.params;
+    await requireQuotationAccess(id, toViewer(user));
     await removeQuotation(id);
     return NextResponse.json({ success: true, message: "Deleted", data: true });
   } catch (err) {

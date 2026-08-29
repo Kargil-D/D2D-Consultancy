@@ -10,6 +10,7 @@ import Pagination from "@/components/admin/ui/Pagination";
 import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { useToast } from "@/components/admin/ui/Toast";
 import { LeadStatusBadge } from "@/components/admin/lead/LeadStatusBadge";
+import { useAuth } from "@/contexts/AuthContext";
 import { leadsApi, salesUsersApi } from "@/lib/adminApi";
 import type { AdminLead, AdminSalesUser, LeadSource, LeadStatus } from "@/types/admin";
 
@@ -22,6 +23,8 @@ const leadCode = (seq: number) => `LD-${seq.toString().padStart(4, "0")}`;
 
 export default function LeadsAdminPage() {
   const { notify } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.roles.includes("admin") ?? false;
   const [rows, setRows] = useState<AdminLead[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -208,21 +211,23 @@ export default function LeadsAdminPage() {
                 </option>
               ))}
             </select>
-            <select
-              value={assignedToId}
-              onChange={(e) => {
-                setPage(1);
-                setAssignedToId(e.target.value);
-              }}
-              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white"
-            >
-              <option value="">All assignees</option>
-              {salesUsers.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.firstName} {u.lastName}
-                </option>
-              ))}
-            </select>
+            {isAdmin && (
+              <select
+                value={assignedToId}
+                onChange={(e) => {
+                  setPage(1);
+                  setAssignedToId(e.target.value);
+                }}
+                className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white"
+              >
+                <option value="">All assignees</option>
+                {salesUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.firstName} {u.lastName}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         }
       />

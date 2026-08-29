@@ -12,8 +12,8 @@ import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { useToast } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { canViewModule, type PermissionMap } from "@/lib/adminModules";
-import { bookingsApi } from "@/lib/adminApi";
-import type { AdminBooking, BookingStatus } from "@/types/admin";
+import { bookingsApi, salesUsersApi } from "@/lib/adminApi";
+import type { AdminBooking, AdminSalesUser, BookingStatus } from "@/types/admin";
 
 const PAGE_SIZE = 10;
 const STATUSES: BookingStatus[] = ["Won", "Booked", "OnTrip", "Completed", "Cancelled"];
@@ -40,6 +40,8 @@ export default function BookingsAdminPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [bookingExecutiveId, setBookingExecutiveId] = useState("");
+  const [salesUsers, setSalesUsers] = useState<AdminSalesUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
   const [deleting, setDeleting] = useState(false);
@@ -48,11 +50,19 @@ export default function BookingsAdminPage() {
     if (!authLoading && user && !canView) router.replace("/admin");
   }, [authLoading, user, canView, router]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    // Matches BookingForm's own "Assign Operations Executive" picker (src/components/admin/BookingForm.tsx) — bookingExecutiveId is filled from the BookingExecutive role, not Sales.
+    salesUsersApi.list("BookingExecutive").then((res) => {
+      if (res.success) setSalesUsers(res.data);
+    });
+  }, [isAdmin]);
+
   const reload = useCallback(async () => {
     if (!canView) return;
     setLoading(true);
     try {
-      const res = await bookingsApi.list({ search, status, page, pageSize: PAGE_SIZE });
+      const res = await bookingsApi.list({ search, status, bookingExecutiveId, page, pageSize: PAGE_SIZE });
       if (res.success) {
         setRows(res.data.items);
         setTotal(res.data.total);
@@ -64,7 +74,7 @@ export default function BookingsAdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, page, notify, canView]);
+  }, [search, status, bookingExecutiveId, page, notify, canView]);
 
   useEffect(() => {
     reload();
@@ -179,19 +189,36 @@ export default function BookingsAdminPage() {
         }}
         searchPlaceholder="Search by customer name, mobile, Booking ID, Lead ID, Quote ID…"
         toolbar={
-          <select
-            value={status}
-            onChange={(e) => {
-              setPage(1);
-              setStatus(e.target.value);
-            }}
-            className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white"
-          >
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={status}
+              onChange={(e) => {
+                setPage(1);
+                setStatus(e.target.value);
+              }}
+              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white"
+            >
+              <option value="">All statuses</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            {isAdmin && (
+              <select
+                value={bookingExecutiveId}
+                onChange={(e) => {
+                  setPage(1);
+                  setBookingExecutiveId(e.target.value);
+                }}
+                className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white"
+              >
+                <option value="">All assignees</option>
+                {salesUsers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                ))}
+              </select>
+            )}
+          </div>
         }
       />
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />

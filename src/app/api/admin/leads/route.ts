@@ -2,11 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { listLeads, createLead } from "@/services/leadService";
 import { LeadCreateSchema } from "@/lib/validation/lead";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess } from "@/lib/permissions";
+import { requireModuleAccess, toViewer } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireModuleAccess(req, "Leads", "canView");
+    const user = await requireModuleAccess(req, "Leads", "canView");
+    const viewer = toViewer(user);
     const url = new URL(req.url);
     const search = url.searchParams.get("search") ?? undefined;
     const page = Number(url.searchParams.get("page") ?? "1");
@@ -18,9 +19,10 @@ export async function GET(req: NextRequest) {
     const filter: Record<string, unknown> = {};
     if (source) filter.source = source;
     if (status) filter.status = status;
-    if (assignedToId) filter.assignedToId = assignedToId;
+    // Non-admins are already scoped to their own records by listLeads — only Admin's explicit choice of assignee is honored here.
+    if (viewer.isAdmin && assignedToId) filter.assignedToId = assignedToId;
 
-    const data = await listLeads({ search, page, pageSize, filter });
+    const data = await listLeads({ search, page, pageSize, filter }, viewer);
     return NextResponse.json({ success: true, message: "OK", data });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });
@@ -31,9 +33,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireModuleAccess(req, "Leads", "canAdd");
+    const user = await requireModuleAccess(req, "Leads", "canAdd");
+    const viewer = toViewer(user);
     const payload = await req.json();
     const parsed = LeadCreateSchema.parse(payload);
+    // A normal user may claim a new Lead for themselves or leave it unassigned, but can't hand it straight to someone else via a raw API call.
+    if (!viewer.isAdmin && parsed.assignedToId !== undefined && parsed.assignedToId !== viewer.id) {
+      delete parsed.assignedToId;
+    }
     const created = await createLead(parsed);
     return NextResponse.json({ success: true, message: "Created", data: created });
   } catch (err) {

@@ -14,6 +14,8 @@ import type {
 } from "@/types/admin";
 import type { Prisma } from "@/generated/prisma/client";
 import type { QuotationCreate, QuotationUpdate } from "@/lib/validation/quotation";
+import { ApiError } from "@/lib/apiError";
+import type { Viewer } from "@/lib/permissions";
 import { createLead, updateLead, updateLeadStatus } from "@/services/leadService";
 import { findItineraryByPackageId } from "@/services/campaignItineraryService";
 import { findHotelByPackageId } from "@/services/campaignHotelService";
@@ -112,9 +114,21 @@ function quotationSearchOr(search: string): Prisma.QuotationWhereInput[] {
   return or;
 }
 
-export async function listQuotations(query: ListQuery = {}) {
+/** Admin sees every Quotation; everyone else only the ones where they're the salesExecutive. */
+export function quotationVisibilityScope(viewer: Viewer): Prisma.QuotationWhereInput {
+  return viewer.isAdmin ? {} : { salesExecutiveId: viewer.id };
+}
+
+/** Existence + ownership probe — throws 404 whether the Quotation doesn't exist or isn't visible to this viewer. */
+export async function requireQuotationAccess(id: string, viewer: Viewer) {
+  const quotation = await prisma.quotation.findFirst({ where: { id, isDeleted: false, ...quotationVisibilityScope(viewer) } });
+  if (!quotation) throw new ApiError(404, "Quotation not found");
+  return quotation;
+}
+
+export async function listQuotations(query: ListQuery = {}, viewer: Viewer) {
   const { search = "", page = 1, pageSize = 10, filter = {} } = query;
-  const where: Prisma.QuotationWhereInput = { isDeleted: false, ...filter };
+  const where: Prisma.QuotationWhereInput = { isDeleted: false, ...quotationVisibilityScope(viewer), ...filter };
 
   if (search.trim()) {
     where.OR = quotationSearchOr(search.trim());
@@ -141,9 +155,9 @@ export async function listQuotations(query: ListQuery = {}) {
 
 /** Same filters/paging as listQuotations but with the QUOTATION_SUMMARY_SELECT projection —
  * used by the all-quotations table where full JSON content columns are never rendered. */
-export async function listQuotationSummaries(query: ListQuery = {}) {
+export async function listQuotationSummaries(query: ListQuery = {}, viewer: Viewer) {
   const { search = "", page = 1, pageSize = 10, filter = {} } = query;
-  const where: Prisma.QuotationWhereInput = { isDeleted: false, ...filter };
+  const where: Prisma.QuotationWhereInput = { isDeleted: false, ...quotationVisibilityScope(viewer), ...filter };
 
   if (search.trim()) {
     where.OR = quotationSearchOr(search.trim());

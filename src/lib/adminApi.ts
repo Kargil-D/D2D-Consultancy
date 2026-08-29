@@ -376,12 +376,14 @@ export const salesUsersApi = {
 
 export const quotationsApi = {
   list: async (
-    query: { search?: string; leadId?: string; status?: string; page?: number; pageSize?: number } = {},
+    query: { search?: string; leadId?: string; status?: string; salesExecutiveId?: string; page?: number; pageSize?: number } = {},
   ): Promise<ApiResponse<Paginated<AdminQuotation>>> => {
     const params = new URLSearchParams();
     if (query.search) params.set("search", query.search);
     if (query.leadId) params.set("leadId", query.leadId);
     if (query.status) params.set("status", query.status);
+    // Admin-only server-side — ignored for non-admins, who are already scoped to their own quotations.
+    if (query.salesExecutiveId) params.set("salesExecutiveId", query.salesExecutiveId);
     if (query.page) params.set("page", String(query.page));
     if (query.pageSize) params.set("pageSize", String(query.pageSize));
     const res = await adminFetch(`/api/admin/quotations?${params.toString()}`);
@@ -391,11 +393,12 @@ export const quotationsApi = {
    * `list()` where the itineraryDays/hotelOptions/transfers/activities columns are needed
    * (e.g. BookingDetail's cost-sheet import). */
   listSummaries: async (
-    query: { search?: string; status?: string; page?: number; pageSize?: number } = {},
+    query: { search?: string; status?: string; salesExecutiveId?: string; page?: number; pageSize?: number } = {},
   ): Promise<ApiResponse<Paginated<AdminQuotationSummary>>> => {
     const params = new URLSearchParams({ view: "summary" });
     if (query.search) params.set("search", query.search);
     if (query.status) params.set("status", query.status);
+    if (query.salesExecutiveId) params.set("salesExecutiveId", query.salesExecutiveId);
     if (query.page) params.set("page", String(query.page));
     if (query.pageSize) params.set("pageSize", String(query.pageSize));
     const res = await adminFetch(`/api/admin/quotations?${params.toString()}`);
@@ -440,12 +443,14 @@ export const quotationsApi = {
 
 export const bookingsApi = {
   list: async (
-    query: { search?: string; leadId?: string; status?: string; page?: number; pageSize?: number } = {},
+    query: { search?: string; leadId?: string; status?: string; bookingExecutiveId?: string; page?: number; pageSize?: number } = {},
   ): Promise<ApiResponse<Paginated<AdminBooking>>> => {
     const params = new URLSearchParams();
     if (query.search) params.set("search", query.search);
     if (query.leadId) params.set("leadId", query.leadId);
     if (query.status) params.set("status", query.status);
+    // Admin-only server-side — ignored for non-admins, who are already scoped to their own bookings.
+    if (query.bookingExecutiveId) params.set("bookingExecutiveId", query.bookingExecutiveId);
     if (query.page) params.set("page", String(query.page));
     if (query.pageSize) params.set("pageSize", String(query.pageSize));
     const res = await adminFetch(`/api/admin/bookings?${params.toString()}`);

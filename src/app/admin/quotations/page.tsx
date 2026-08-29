@@ -9,8 +9,9 @@ import DataTable, { type Column } from "@/components/admin/ui/DataTable";
 import Pagination from "@/components/admin/ui/Pagination";
 import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { useToast } from "@/components/admin/ui/Toast";
-import { quotationsApi } from "@/lib/adminApi";
-import type { AdminQuotationSummary, QuotationStatus } from "@/types/admin";
+import { useAuth } from "@/contexts/AuthContext";
+import { quotationsApi, salesUsersApi } from "@/lib/adminApi";
+import type { AdminQuotationSummary, AdminSalesUser, QuotationStatus } from "@/types/admin";
 
 const PAGE_SIZE = 10;
 const STATUSES: QuotationStatus[] = ["Draft", "Sent", "Accepted", "Rejected", "Expired"];
@@ -21,20 +22,31 @@ const formatINR = (v: number) =>
 
 export default function QuotationsAdminPage() {
   const { notify } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.roles.includes("admin") ?? false;
   const [rows, setRows] = useState<AdminQuotationSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [salesExecutiveId, setSalesExecutiveId] = useState("");
+  const [salesUsers, setSalesUsers] = useState<AdminSalesUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [confirm, setConfirm] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    salesUsersApi.list().then((res) => {
+      if (res.success) setSalesUsers(res.data);
+    });
+  }, [isAdmin]);
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
       // Summary view: table-sized rows without the quotation content JSON columns.
-      const res = await quotationsApi.listSummaries({ search, status, page, pageSize: PAGE_SIZE });
+      const res = await quotationsApi.listSummaries({ search, status, salesExecutiveId, page, pageSize: PAGE_SIZE });
       if (res.success) {
         setRows(res.data.items);
         setTotal(res.data.total);
@@ -46,7 +58,7 @@ export default function QuotationsAdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, status, page, notify]);
+  }, [search, status, salesExecutiveId, page, notify]);
 
   useEffect(() => {
     reload();
@@ -157,21 +169,40 @@ export default function QuotationsAdminPage() {
         }}
         searchPlaceholder="Search by customer name, mobile, Quote ID, Lead ID, Booking ID…"
         toolbar={
-          <select
-            value={status}
-            onChange={(e) => {
-              setPage(1);
-              setStatus(e.target.value);
-            }}
-            className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white"
-          >
-            <option value="">All statuses</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={status}
+              onChange={(e) => {
+                setPage(1);
+                setStatus(e.target.value);
+              }}
+              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white"
+            >
+              <option value="">All statuses</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            {isAdmin && (
+              <select
+                value={salesExecutiveId}
+                onChange={(e) => {
+                  setPage(1);
+                  setSalesExecutiveId(e.target.value);
+                }}
+                className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white"
+              >
+                <option value="">All sales executives</option>
+                {salesUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.firstName} {u.lastName}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         }
       />
       <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />

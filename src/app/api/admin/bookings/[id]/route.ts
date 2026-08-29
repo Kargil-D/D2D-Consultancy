@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getBooking, updateBooking, removeBooking } from "@/services/bookingService";
+import { getBooking, updateBooking, removeBooking, requireBookingAccess } from "@/services/bookingService";
 import { BookingUpdateSchema } from "@/lib/validation/booking";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess } from "@/lib/permissions";
+import { requireModuleAccess, toViewer } from "@/lib/permissions";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireModuleAccess(req, "Bookings", "canView");
+    const user = await requireModuleAccess(req, "Bookings", "canView");
     const { id } = await ctx.params;
+    await requireBookingAccess(id, toViewer(user));
     const rec = await getBooking(id);
     return NextResponse.json({ success: true, message: "OK", data: rec });
   } catch (err) {
@@ -19,10 +20,16 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireModuleAccess(req, "Bookings", "canEdit");
+    const user = await requireModuleAccess(req, "Bookings", "canEdit");
+    const viewer = toViewer(user);
     const { id } = await ctx.params;
+    await requireBookingAccess(id, viewer);
     const payload = await req.json();
     const parsed = BookingUpdateSchema.parse(payload);
+    if (!viewer.isAdmin) {
+      if (parsed.bookingExecutiveId !== undefined && parsed.bookingExecutiveId !== viewer.id) delete parsed.bookingExecutiveId;
+      if (parsed.customerSupportId !== undefined && parsed.customerSupportId !== viewer.id) delete parsed.customerSupportId;
+    }
     const updated = await updateBooking(id, parsed);
     return NextResponse.json({ success: true, message: "Updated", data: updated });
   } catch (err) {
@@ -35,8 +42,9 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireModuleAccess(req, "Bookings", "canDelete");
+    const user = await requireModuleAccess(req, "Bookings", "canDelete");
     const { id } = await ctx.params;
+    await requireBookingAccess(id, toViewer(user));
     await removeBooking(id);
     return NextResponse.json({ success: true, message: "Deleted", data: true });
   } catch (err) {

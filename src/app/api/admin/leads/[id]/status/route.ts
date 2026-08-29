@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateLeadStatus } from "@/services/leadService";
+import { updateLeadStatus, requireLeadAccess } from "@/services/leadService";
 import { LeadStatusUpdateSchema } from "@/lib/validation/lead";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess } from "@/lib/permissions";
+import { requireModuleAccess, toViewer } from "@/lib/permissions";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireModuleAccess(req, "Leads", "canEdit");
+    const user = await requireModuleAccess(req, "Leads", "canEdit");
     const { id } = await ctx.params;
+    await requireLeadAccess(id, toViewer(user));
     const payload = await req.json();
     const { status } = LeadStatusUpdateSchema.parse(payload);
     const updated = await updateLeadStatus(id, status);
