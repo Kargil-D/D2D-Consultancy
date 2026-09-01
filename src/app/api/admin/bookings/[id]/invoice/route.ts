@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const buffer = await renderInvoicePdf({
       kind,
-      bookingCode: bookingCode(booking.seq),
+      bookingCode: bookingCode(booking.lead.seq),
       customerName: booking.lead.customerName,
       destinationName: booking.destination.name,
       invoiceDate: new Date().toLocaleDateString("en-IN"),
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${bookingCode(booking.seq)}-${kind}-invoice.pdf"`,
+        "Content-Disposition": `inline; filename="${bookingCode(booking.lead.seq)}-${kind}-invoice.pdf"`,
       },
     });
   } catch (err) {

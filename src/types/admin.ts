@@ -735,7 +735,7 @@ export interface AdminQuotationSummary {
   validUntil?: string | null;
   createdDate: string;
   updatedDate: string;
-  lead?: { id: string; customerName: string; mobile: string };
+  lead?: { id: string; seq: number; customerName: string; mobile: string };
   destination?: { id: string; name: string };
   items: { qty: number; cost: number }[];
 }
@@ -802,6 +802,8 @@ export type TourType = "Private" | "SIC";
 export type VisaProcessStatus = "Applied" | "Approved" | "Rejected" | "Issued";
 export type PaymentMode = "Cash" | "BankTransfer" | "Card" | "UPI" | "Cheque" | "Other";
 export type SettlementStatus = "Pending" | "Settled" | "Partial";
+export type PassengerType = "Adult" | "Child" | "Infant";
+export type PassengerGender = "Male" | "Female" | "Other";
 
 export interface AdminBookingDocument {
   id: string;
@@ -859,6 +861,17 @@ export interface AdminBookingHotel {
 }
 
 /* FRD §6 — Activity */
+/** One traveller on the booking — Name/Age/Gender/Contact Number. */
+export interface AdminBookingPassenger {
+  id?: string;
+  paxType: PassengerType;
+  name: string;
+  age?: number | null;
+  gender: PassengerGender;
+  contactNumber: string;
+  sortOrder?: number;
+}
+
 export interface AdminBookingActivity {
   id?: string;
   activityName: string;
@@ -992,6 +1005,9 @@ export interface AdminBooking {
   destinationId: string;
   destination?: AdminDestination;
   travelDate?: string | null;
+  adults: number;
+  children: number;
+  infants: number;
   bookingExecutiveId?: string | null;
   bookingExecutive?: AdminSalesUser | null;
   customerSupportId?: string | null;
@@ -1004,6 +1020,7 @@ export interface AdminBooking {
   dmcResponse?: string | null;
   dmcRemarks?: string | null;
   documents: AdminBookingDocument[];
+  passengers: AdminBookingPassenger[];
   flights: AdminBookingFlight[];
   hotels: AdminBookingHotel[];
   activities: AdminBookingActivity[];

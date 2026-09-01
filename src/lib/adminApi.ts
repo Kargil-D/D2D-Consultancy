@@ -18,6 +18,7 @@ import type {
   AdminBookingFlight,
   AdminBookingHotel,
   AdminBookingInsurance,
+  AdminBookingPassenger,
   AdminBookingTransfer,
   AdminBookingVisa,
   AdminCity,
@@ -490,6 +491,10 @@ export const bookingsApi = {
   removeDocument: async (id: string, docId: string): Promise<ApiResponse<boolean>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/documents/${docId}`, { method: "DELETE" });
     return (await res.json()) as ApiResponse<boolean>;
+  },
+  savePassengers: async (id: string, rows: AdminBookingPassenger[]): Promise<ApiResponse<AdminBooking | null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/passengers`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<AdminBooking | null>;
   },
   saveFlights: async (id: string, rows: AdminBookingFlight[]): Promise<ApiResponse<AdminBooking | null>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/flights`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });

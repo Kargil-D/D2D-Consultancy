@@ -5,6 +5,9 @@ export const BookingCreateSchema = z.object({
   quotationId: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional().nullable()),
   destinationId: z.string().min(1),
   travelDate: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional().nullable()),
+  adults: z.coerce.number().int().min(1).default(1),
+  children: z.coerce.number().int().min(0).default(0),
+  infants: z.coerce.number().int().min(0).default(0),
   bookingExecutiveId: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional().nullable()),
   customerSupportId: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional().nullable()),
   totalAmount: z.coerce.number().min(0).default(0),
@@ -75,6 +78,16 @@ export const BookingHotelSchema = z.object({
   bookingDate: nullableDate,
   bookingPnr: z.string().optional().default(""),
   updatedBy: z.string().optional().default(""),
+  sortOrder: z.coerce.number().int().default(0),
+});
+
+export const BookingPassengerSchema = z.object({
+  id: z.string().optional(),
+  paxType: z.enum(["Adult", "Child", "Infant"]).default("Adult"),
+  name: z.string().optional().default(""),
+  age: z.coerce.number().int().min(0).optional().nullable(),
+  gender: z.enum(["Male", "Female", "Other"]).default("Other"),
+  contactNumber: z.string().optional().default(""),
   sortOrder: z.coerce.number().int().default(0),
 });
 
@@ -187,6 +200,7 @@ export type BookingUpdate = z.infer<typeof BookingUpdateSchema>;
 export type BookingFlightInput = z.infer<typeof BookingFlightSchema>;
 export type BookingHotelInput = z.infer<typeof BookingHotelSchema>;
 export type BookingActivityInput = z.infer<typeof BookingActivitySchema>;
+export type BookingPassengerInput = z.infer<typeof BookingPassengerSchema>;
 export type BookingTransferInput = z.infer<typeof BookingTransferSchema>;
 export type BookingVisaInput = z.infer<typeof BookingVisaSchema>;
 export type BookingInsuranceInput = z.infer<typeof BookingInsuranceSchema>;

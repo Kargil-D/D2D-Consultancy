@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string;
     }
 
     const buffer = await renderServiceVoucherPdf({
-      bookingCode: bookingCode(booking.seq),
+      bookingCode: bookingCode(booking.lead.seq),
       customerName: booking.lead.customerName,
       mobile: booking.lead.mobile,
       serviceLabel: "Transfer",
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string;
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="${bookingCode(booking.seq)}-transfer-voucher.pdf"`,
+        "Content-Disposition": `inline; filename="${bookingCode(booking.lead.seq)}-transfer-voucher.pdf"`,
       },
     });
   } catch (err) {

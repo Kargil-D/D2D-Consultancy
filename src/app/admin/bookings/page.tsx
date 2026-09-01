@@ -13,12 +13,11 @@ import { useToast } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { canViewModule, type PermissionMap } from "@/lib/adminModules";
 import { bookingsApi, salesUsersApi } from "@/lib/adminApi";
+import { trackingCode } from "@/lib/idCodes";
 import type { AdminBooking, AdminSalesUser, BookingStatus } from "@/types/admin";
 
 const PAGE_SIZE = 10;
 const STATUSES: BookingStatus[] = ["Won", "Booked", "OnTrip", "Completed", "Cancelled"];
-
-const bookingCode = (seq: number) => `BK-${seq.toString().padStart(4, "0")}`;
 
 const STATUS_STYLES: Record<BookingStatus, string> = {
   Won: "bg-slate-100 text-slate-700 border-slate-200",
@@ -105,7 +104,7 @@ export default function BookingsAdminPage() {
     {
       key: "seq",
       label: "Booking ID",
-      render: (r) => <span className="font-mono text-xs font-semibold text-slate-700">{bookingCode(r.seq)}</span>,
+      render: (r) => <span className="font-mono text-xs font-semibold text-slate-700">{r.lead ? trackingCode(r.lead.seq) : "—"}</span>,
     },
     {
       key: "customer",
@@ -124,9 +123,19 @@ export default function BookingsAdminPage() {
       render: (r) => (r.travelDate ? new Date(r.travelDate).toLocaleDateString("en-IN") : "—"),
     },
     {
+      key: "salesExecutive",
+      label: "Sales Executive",
+      render: (r) => (r.quotation?.salesExecutive ? `${r.quotation.salesExecutive.firstName} ${r.quotation.salesExecutive.lastName}` : "—"),
+    },
+    {
       key: "be",
-      label: "BE",
+      label: "Ops Executive",
       render: (r) => (r.bookingExecutive ? `${r.bookingExecutive.firstName} ${r.bookingExecutive.lastName}` : "—"),
+    },
+    {
+      key: "customerSupport",
+      label: "Customer Support",
+      render: (r) => (r.customerSupport ? `${r.customerSupport.firstName} ${r.customerSupport.lastName}` : "—"),
     },
     {
       key: "status",
@@ -187,7 +196,7 @@ export default function BookingsAdminPage() {
           setPage(1);
           setSearch(v);
         }}
-        searchPlaceholder="Search by customer name, mobile, Booking ID, Lead ID, Quote ID…"
+        searchPlaceholder="Search by customer name, mobile, Tracking ID…"
         toolbar={
           <div className="flex items-center gap-2">
             <select

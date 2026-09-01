@@ -1,23 +1,21 @@
 /**
- * Prefixes for the human-readable ID codes shown in the Quotations/Bookings/Leads admin tables
- * (e.g. "QT-0013"), each formatted elsewhere as `` `${prefix}${seq.toString().padStart(4, "0")}` ``
- * from that model's `seq` auto-increment column. Defined here so search — which needs to parse
- * these same codes back into a `seq` number — stays in sync with the format.
+ * Shared 6-digit tracking code shown across Leads/Quotations/Bookings, always derived from the
+ * Lead's own `seq` auto-increment column — a Lead and every Quotation raised for it and every
+ * Booking made from those quotations all display the identical number, so staff can trace one
+ * customer's journey end-to-end with a single code. Quotation/Booking keep their own `seq`
+ * columns in the database (unrelated internal ordering), but no longer format their own `seq`
+ * into anything user-facing — every display point formats the row's *lead's* `seq` instead.
  */
-export const QUOTE_PREFIX = "QT-";
-export const BOOKING_PREFIX = "BK-";
-export const LEAD_PREFIX = "LD-";
+export const trackingCode = (seq: number) => seq.toString().padStart(6, "0");
 
 /**
- * Reverses the "QT-0013"/"BK-0013"/"LD-0013" formatters: given `prefix`, returns the seq number
- * if `text` (any case, extra whitespace) starts with it and the rest is a positive integer, else
- * null — so callers can just skip adding the condition rather than matching seq 0/NaN.
+ * Reverses trackingCode: an all-digit search string -> the seq number to match against a
+ * Lead directly (`{ seq }`) or via a relation (`{ lead: { seq } }`). Returns null for
+ * non-numeric or non-positive input so callers can skip adding the condition.
  */
-export function parseSeqCode(text: string, prefix: string): number | null {
+export function parseTrackingCode(text: string): number | null {
   const trimmed = text.trim();
-  if (!trimmed.toUpperCase().startsWith(prefix)) return null;
-  const rest = trimmed.slice(prefix.length).trim();
-  if (!/^\d+$/.test(rest)) return null;
-  const n = Number(rest);
+  if (!/^\d+$/.test(trimmed)) return null;
+  const n = Number(trimmed);
   return n > 0 ? n : null;
 }

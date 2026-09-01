@@ -10,6 +10,7 @@ import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
 import { bookingsApi, leadsApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
+import { trackingCode } from "@/lib/idCodes";
 import type { AdminLead, AdminQuotation, AdminSalesUser, BookingStatus } from "@/types/admin";
 
 interface BookingFormProps {
@@ -18,8 +19,6 @@ interface BookingFormProps {
 
 const STATUSES: BookingStatus[] = ["Won", "Booked", "OnTrip", "Completed", "Cancelled"];
 
-const leadCode = (seq: number) => `LD-${seq.toString().padStart(4, "0")}`;
-const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
 
@@ -36,6 +35,9 @@ export default function BookingForm({ id }: BookingFormProps) {
   const [quotationId, setQuotationId] = useState("");
   const [destinationId, setDestinationId] = useState("");
   const [travelDate, setTravelDate] = useState("");
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
+  const [infants, setInfants] = useState(0);
   const [bookingExecutiveId, setBookingExecutiveId] = useState("");
   const [customerSupportId, setCustomerSupportId] = useState("");
   const [totalAmount, setTotalAmount] = useState(0);
@@ -47,6 +49,16 @@ export default function BookingForm({ id }: BookingFormProps) {
 
   const selectedLead = wonLeads.find((l) => l.id === leadId);
   const selectedQuotation = quotations.find((q) => q.id === quotationId);
+
+  const applyQuotation = (nextQuotationId: string) => {
+    setQuotationId(nextQuotationId);
+    const quotation = quotations.find((q) => q.id === nextQuotationId);
+    if (quotation) {
+      setAdults(quotation.adults);
+      setChildren(quotation.children);
+      setInfants(quotation.infants);
+    }
+  };
 
   const quotePricing = selectedQuotation
     ? (() => {
@@ -107,6 +119,9 @@ export default function BookingForm({ id }: BookingFormProps) {
         setQuotationId(b.quotationId ?? "");
         setDestinationId(b.destinationId);
         setTravelDate(b.travelDate ? b.travelDate.slice(0, 10) : "");
+        setAdults(b.adults);
+        setChildren(b.children);
+        setInfants(b.infants);
         setBookingExecutiveId(b.bookingExecutiveId ?? "");
         setCustomerSupportId(b.customerSupportId ?? "");
         setTotalAmount(b.totalAmount);
@@ -139,6 +154,9 @@ export default function BookingForm({ id }: BookingFormProps) {
       quotationId: quotationId || null,
       destinationId,
       travelDate: travelDate || null,
+      adults,
+      children,
+      infants,
       bookingExecutiveId,
       customerSupportId,
       totalAmount,
@@ -213,17 +231,17 @@ export default function BookingForm({ id }: BookingFormProps) {
               <option value="">Select a won lead</option>
               {wonLeads.map((l) => (
                 <option key={l.id} value={l.id}>
-                  {leadCode(l.seq)} — {l.customerName}
+                  {trackingCode(l.seq)} — {l.customerName}
                 </option>
               ))}
             </select>
           </Field>
           <Field label="Quotation" hint="Optional — the winning quote">
-            <select className={selectCls} value={quotationId} onChange={(e) => setQuotationId(e.target.value)} disabled={!leadId}>
+            <select className={selectCls} value={quotationId} onChange={(e) => applyQuotation(e.target.value)} disabled={!leadId}>
               <option value="">No quotation</option>
               {quotations.map((q) => (
                 <option key={q.id} value={q.id}>
-                  {quoteCode(q.seq)}
+                  {selectedLead ? trackingCode(selectedLead.seq) : q.id} · {q.status} · {new Date(q.createdDate).toLocaleDateString("en-IN")}
                 </option>
               ))}
             </select>
@@ -236,6 +254,15 @@ export default function BookingForm({ id }: BookingFormProps) {
           </Field>
           <Field label="Travel Date">
             <DateInput value={travelDate} onChange={(iso) => setTravelDate(iso)} />
+          </Field>
+          <Field label="Adults">
+            <input type="number" min={1} className={inputCls} value={adults} onChange={(e) => setAdults(Math.max(1, Number(e.target.value) || 1))} />
+          </Field>
+          <Field label="Children">
+            <input type="number" min={0} className={inputCls} value={children} onChange={(e) => setChildren(Math.max(0, Number(e.target.value) || 0))} />
+          </Field>
+          <Field label="Infants">
+            <input type="number" min={0} className={inputCls} value={infants} onChange={(e) => setInfants(Math.max(0, Number(e.target.value) || 0))} />
           </Field>
           <Field label="Booking Status">
             <select className={selectCls} value={status} onChange={(e) => setStatus(e.target.value as BookingStatus)}>
@@ -299,7 +326,7 @@ export default function BookingForm({ id }: BookingFormProps) {
           <div className="rounded-xl border border-slate-200 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
               <h3 className="text-sm font-bold text-slate-900">
-                Quotation {quoteCode(selectedQuotation.seq)}
+                Quotation {selectedLead ? trackingCode(selectedLead.seq) : ""}
               </h3>
               <span className="text-xs font-semibold text-slate-500">{selectedQuotation.status}</span>
             </div>

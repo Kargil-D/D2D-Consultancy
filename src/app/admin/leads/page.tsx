@@ -12,14 +12,13 @@ import { useToast } from "@/components/admin/ui/Toast";
 import { LeadStatusBadge } from "@/components/admin/lead/LeadStatusBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { leadsApi, salesUsersApi } from "@/lib/adminApi";
+import { trackingCode } from "@/lib/idCodes";
 import type { AdminLead, AdminSalesUser, LeadSource, LeadStatus } from "@/types/admin";
 
 const PAGE_SIZE = 10;
 
 const SOURCES: LeadSource[] = ["Website", "MetaAds", "GoogleAds", "SEO", "WhatsApp", "Referral", "Manual"];
 const STATUSES: LeadStatus[] = ["New", "Contacted", "FollowUp", "QuotationSent", "PaymentPending", "Won", "Lost"];
-
-const leadCode = (seq: number) => `LD-${seq.toString().padStart(4, "0")}`;
 
 export default function LeadsAdminPage() {
   const { notify } = useToast();
@@ -92,7 +91,7 @@ export default function LeadsAdminPage() {
     {
       key: "seq",
       label: "Lead ID",
-      render: (r) => <span className="font-mono text-xs font-semibold text-slate-700">{leadCode(r.seq)}</span>,
+      render: (r) => <span className="font-mono text-xs font-semibold text-slate-700">{trackingCode(r.seq)}</span>,
     },
     {
       key: "customerName",
@@ -178,7 +177,7 @@ export default function LeadsAdminPage() {
           setPage(1);
           setSearch(v);
         }}
-        searchPlaceholder="Search by name, mobile, email…"
+        searchPlaceholder="Search by name, mobile, email, Tracking ID…"
         toolbar={
           <div className="flex items-center gap-2">
             <select

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   FileDown, Mail, Copy, Link as LinkIcon, ExternalLink, Save, Download,
   Wallet, Plane, BedDouble, Ticket, ArrowRightLeft, Stamp, ShieldCheck,
-  CreditCard, FolderOpen, MessageCircle, History,
+  CreditCard, FolderOpen, MessageCircle, History, Users,
 } from "lucide-react";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import DateInput from "@/components/admin/ui/DateInput";
@@ -16,6 +16,7 @@ import BookingFlightsEditor from "@/components/admin/booking/BookingFlightsEdito
 import BookingHotelsEditor, { type HotelQuotationMeta } from "@/components/admin/booking/BookingHotelsEditor";
 import BookingActivitiesEditor, { type ActivityQuotationMeta } from "@/components/admin/booking/BookingActivitiesEditor";
 import BookingTransfersEditor, { type TransferQuotationMeta } from "@/components/admin/booking/BookingTransfersEditor";
+import BookingPassengersEditor from "@/components/admin/booking/BookingPassengersEditor";
 import BookingVisasEditor from "@/components/admin/booking/BookingVisasEditor";
 import BookingInsurancesEditor from "@/components/admin/booking/BookingInsurancesEditor";
 import BookingCostSheet from "@/components/admin/booking/BookingCostSheet";
@@ -26,9 +27,10 @@ import BookingTimelineTab from "@/components/admin/booking/BookingTimelineTab";
 import SendMailMenu from "@/components/admin/booking/SendMailMenu";
 import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
 import { bookingsApi, quotationsApi, salesUsersApi, currenciesApi } from "@/lib/adminApi";
+import { trackingCode } from "@/lib/idCodes";
 import type {
   AdminBooking, AdminBookingActivity, AdminBookingFlight, AdminBookingHotel, AdminBookingInsurance,
-  AdminBookingTransfer, AdminBookingVisa, AdminQuotation, AdminSalesUser, BookingDocumentType, BookingStatus,
+  AdminBookingPassenger, AdminBookingTransfer, AdminBookingVisa, AdminQuotation, AdminSalesUser, BookingDocumentType, BookingStatus,
   CostSheetStatus, PaymentMode,
 } from "@/types/admin";
 
@@ -36,9 +38,6 @@ interface BookingDetailProps {
   id: string;
 }
 
-const bookingCode = (seq: number) => `BK-${seq.toString().padStart(4, "0")}`;
-const leadCode = (seq: number) => `LD-${seq.toString().padStart(4, "0")}`;
-const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
 
@@ -46,6 +45,7 @@ const STATUSES: BookingStatus[] = ["Won", "Booked", "OnTrip", "Completed", "Canc
 
 const TABS = [
   { key: "costsheet", label: "Cost Sheet", icon: Wallet },
+  { key: "passengers", label: "Co-Passengers", icon: Users },
   { key: "flights", label: "Flights", icon: Plane },
   { key: "hotels", label: "Hotels", icon: BedDouble },
   { key: "activities", label: "Activities", icon: Ticket },
@@ -84,6 +84,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const [detailCustomerSupportId, setDetailCustomerSupportId] = useState("");
   const [detailTotalAmount, setDetailTotalAmount] = useState(0);
   const [detailRemarks, setDetailRemarks] = useState("");
+  const [detailAdults, setDetailAdults] = useState(1);
+  const [detailChildren, setDetailChildren] = useState(0);
+  const [detailInfants, setDetailInfants] = useState(0);
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Local drafts for each service list — the editors below only touch these on every
@@ -92,6 +95,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const [flights, setFlights] = useState<AdminBookingFlight[]>([]);
   const [hotels, setHotels] = useState<AdminBookingHotel[]>([]);
   const hotelsAutoLoadedRef = useRef(false);
+  const [passengers, setPassengers] = useState<AdminBookingPassenger[]>([]);
+  const [savingPassengers, setSavingPassengers] = useState(false);
   const [activities, setActivities] = useState<AdminBookingActivity[]>([]);
   const activitiesAutoLoadedRef = useRef(false);
   const [transfers, setTransfers] = useState<AdminBookingTransfer[]>([]);
@@ -122,6 +127,10 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       setDetailCustomerSupportId(b.customerSupportId ?? "");
       setDetailTotalAmount(b.totalAmount);
       setDetailRemarks(b.remarks ?? "");
+      setDetailAdults(b.adults);
+      setDetailChildren(b.children);
+      setDetailInfants(b.infants);
+      setPassengers(b.passengers);
       setFlights(b.flights);
       setHotels(b.hotels.map((h) => ({ ...h, checkIn: h.checkIn?.slice(0, 10) ?? null, checkOut: h.checkOut?.slice(0, 10) ?? null, bookingDate: h.bookingDate?.slice(0, 10) ?? null })));
       setActivities(b.activities.map((a) => ({ ...a, activityDate: a.activityDate?.slice(0, 10) ?? null, bookingDate: a.bookingDate?.slice(0, 10) ?? null })));
@@ -363,6 +372,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         customerSupportId: detailCustomerSupportId || null,
         totalAmount: detailTotalAmount,
         remarks: detailRemarks,
+        adults: detailAdults,
+        children: detailChildren,
+        infants: detailInfants,
       });
       if (!res.success) {
         notify(res.message || "Unable to update booking", "error");
@@ -427,6 +439,23 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       notify(error instanceof Error ? error.message : "Unexpected error", "error");
     } finally {
       setSavingHotels(false);
+    }
+  };
+  const savePassengers = async () => {
+    if (savingPassengers) return;
+    setSavingPassengers(true);
+    try {
+      const res = await bookingsApi.savePassengers(id, passengers);
+      if (!res.success) {
+        notify(res.message || "Unable to save passengers", "error");
+        return;
+      }
+      notify("Passengers saved", "success");
+      await reload();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
+    } finally {
+      setSavingPassengers(false);
     }
   };
   const saveActivities = async () => {
@@ -630,11 +659,6 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   }
 
   const shareUrl = booking.quotation?.shareToken ? `/quote/${booking.quotation.shareToken}` : null;
-  const paxParts = [
-    booking.quotation?.adults ? `${booking.quotation.adults} Adult${booking.quotation.adults > 1 ? "s" : ""}` : null,
-    booking.quotation?.children ? `${booking.quotation.children} Child${booking.quotation.children > 1 ? "ren" : ""}` : null,
-    booking.quotation?.infants ? `${booking.quotation.infants} Infant${booking.quotation.infants > 1 ? "s" : ""}` : null,
-  ].filter(Boolean);
 
   // Margin/Deal Price mirror the linked Quotation's own pricing step (cost -> +margin -> +GST = grand total);
   // Total Paid is the Payments tab's Customer Payments total (same figure shown there).
@@ -651,7 +675,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const totalPaid = booking.customerPayments.reduce((sum, p) => sum + p.amount, 0);
 
   const anyBusy =
-    updatingStatus || savingDetails || savingDmc || savingFlights || savingHotels ||
+    updatingStatus || savingDetails || savingDmc || savingPassengers || savingFlights || savingHotels ||
     savingActivities || savingTransfers || savingVisas || savingInsurances;
   const busyLabel = updatingStatus
     ? "Updating status…"
@@ -659,6 +683,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     ? "Updating booking details…"
     : savingDmc
     ? "Saving DMC details…"
+    : savingPassengers
+    ? "Saving passengers…"
     : savingFlights
     ? "Saving flights…"
     : savingHotels
@@ -680,7 +706,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <span className="font-mono text-xs font-semibold text-slate-500">{bookingCode(booking.seq)}</span>
+            <span className="font-mono text-xs font-semibold text-slate-500">{booking.lead ? trackingCode(booking.lead.seq) : ""}</span>
             <h1 className="text-2xl font-bold text-slate-900 mt-1">{booking.lead?.customerName ?? "—"}</h1>
             <p className="text-sm text-slate-500 mt-0.5">
               {booking.destination?.name} · {formatINR(booking.totalAmount)} · {new Date(booking.createdDate).toLocaleDateString("en-IN")}
@@ -757,13 +783,15 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         <div className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="Won Lead">
-              <input className={inputCls} value={booking.lead ? `${leadCode(booking.lead.seq)} — ${booking.lead.customerName}` : ""} disabled />
+              <input className={inputCls} value={booking.lead ? `${trackingCode(booking.lead.seq)} — ${booking.lead.customerName}` : ""} disabled />
             </Field>
             <Field label="Quotation" hint="Optional — the winning quote">
               <select className={selectCls} value={detailQuotationId} onChange={(e) => setDetailQuotationId(e.target.value)}>
                 <option value="">No quotation</option>
                 {quotations.map((q) => (
-                  <option key={q.id} value={q.id}>{quoteCode(q.seq)}</option>
+                  <option key={q.id} value={q.id}>
+                    {booking.lead ? trackingCode(booking.lead.seq) : q.id} · {q.status} · {new Date(q.createdDate).toLocaleDateString("en-IN")}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -789,8 +817,14 @@ export default function BookingDetail({ id }: BookingDetailProps) {
                 ))}
               </select>
             </Field>
-            <Field label="Pax">
-              <input className={inputCls} value={paxParts.length > 0 ? paxParts.join(", ") : ""} disabled />
+            <Field label="Adults">
+              <input type="number" min={1} className={inputCls} value={detailAdults} onChange={(e) => setDetailAdults(Math.max(1, Number(e.target.value) || 1))} />
+            </Field>
+            <Field label="Children">
+              <input type="number" min={0} className={inputCls} value={detailChildren} onChange={(e) => setDetailChildren(Math.max(0, Number(e.target.value) || 0))} />
+            </Field>
+            <Field label="Infants">
+              <input type="number" min={0} className={inputCls} value={detailInfants} onChange={(e) => setDetailInfants(Math.max(0, Number(e.target.value) || 0))} />
             </Field>
             <Field label="Sales Executive">
               <input className={inputCls} value={booking.quotation?.salesExecutive ? `${booking.quotation.salesExecutive.firstName} ${booking.quotation.salesExecutive.lastName}` : ""} disabled />
@@ -876,6 +910,17 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             />
           )}
 
+          {tab === "passengers" && (
+            <TabSaveWrapper onSave={savePassengers} saving={savingPassengers} label="Save Passengers">
+              <BookingPassengersEditor
+                passengers={passengers}
+                onChange={setPassengers}
+                adults={detailAdults}
+                childrenCount={detailChildren}
+                infants={detailInfants}
+              />
+            </TabSaveWrapper>
+          )}
           {tab === "flights" && (
             <TabSaveWrapper onSave={saveFlights} saving={savingFlights} label="Save Flights">
               <BookingFlightsEditor flights={flights} onChange={setFlights} />

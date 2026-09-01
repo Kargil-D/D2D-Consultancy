@@ -11,12 +11,11 @@ import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { useToast } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { quotationsApi, salesUsersApi } from "@/lib/adminApi";
+import { trackingCode } from "@/lib/idCodes";
 import type { AdminQuotationSummary, AdminSalesUser, QuotationStatus } from "@/types/admin";
 
 const PAGE_SIZE = 10;
 const STATUSES: QuotationStatus[] = ["Draft", "Sent", "Accepted", "Rejected", "Expired"];
-
-const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
 
@@ -87,7 +86,7 @@ export default function QuotationsAdminPage() {
     {
       key: "seq",
       label: "Quote ID",
-      render: (r) => <span className="font-mono text-xs font-semibold text-slate-700">{quoteCode(r.seq)}</span>,
+      render: (r) => <span className="font-mono text-xs font-semibold text-slate-700">{r.lead ? trackingCode(r.lead.seq) : "—"}</span>,
     },
     {
       key: "customer",
@@ -167,7 +166,7 @@ export default function QuotationsAdminPage() {
           setPage(1);
           setSearch(v);
         }}
-        searchPlaceholder="Search by customer name, mobile, Quote ID, Lead ID, Booking ID…"
+        searchPlaceholder="Search by customer name, mobile, Tracking ID…"
         toolbar={
           <div className="flex items-center gap-2">
             <select

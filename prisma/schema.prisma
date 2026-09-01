@@ -835,6 +835,18 @@ enum BookingStatus {
   Cancelled
 }
 
+enum PassengerType {
+  Adult
+  Child
+  Infant
+}
+
+enum PassengerGender {
+  Male
+  Female
+  Other
+}
+
 /**
  * Discriminator linking a BookingCostSheetEntry back to whichever structured service table (via sourceId) it was generated from.
  */
@@ -908,6 +920,9 @@ model Booking {
   destinationId      String
   destination        Destination   @relation(fields: [destinationId], references: [id])
   travelDate         DateTime?
+  adults             Int           @default(1)
+  children           Int           @default(0)
+  infants            Int           @default(0)
   bookingExecutiveId String?
   bookingExecutive   User?         @relation("BookingExecutive", fields: [bookingExecutiveId], references: [id])
   customerSupportId  String?
@@ -925,6 +940,7 @@ model Booking {
   isDeleted   Boolean  @default(false)
 
   documents        BookingDocument[]
+  passengers       BookingPassenger[]
   flights          BookingFlight[]
   hotels           BookingHotel[]
   activities       BookingActivity[]
@@ -971,6 +987,22 @@ model BookingDocument {
 
   @@index([bookingId])
   @@map("booking_documents")
+}
+
+/// One row per traveller on the booking (adults/children/infants) — Name/Age/Gender/Contact.
+model BookingPassenger {
+  id            String          @id @default(uuid())
+  bookingId     String
+  booking       Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  paxType       PassengerType   @default(Adult)
+  name          String          @default("")
+  age           Int?
+  gender        PassengerGender @default(Other)
+  contactNumber String          @default("")
+  sortOrder     Int             @default(0)
+
+  @@index([bookingId])
+  @@map("booking_passengers")
 }
 
 /// FRD §4 — Flight

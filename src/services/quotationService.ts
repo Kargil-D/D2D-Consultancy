@@ -20,7 +20,7 @@ import { createLead, updateLead, updateLeadStatus } from "@/services/leadService
 import { findItineraryByPackageId } from "@/services/campaignItineraryService";
 import { findHotelByPackageId } from "@/services/campaignHotelService";
 import { findTransferByPackageId } from "@/services/campaignTransferService";
-import { QUOTE_PREFIX, LEAD_PREFIX, BOOKING_PREFIX, parseSeqCode } from "@/lib/idCodes";
+import { trackingCode, parseTrackingCode } from "@/lib/idCodes";
 import { listTransferTypes } from "@/services/transferTypeService";
 
 const QUOTATION_INCLUDE = {
@@ -75,7 +75,7 @@ const QUOTATION_SUMMARY_SELECT = {
   validUntil: true,
   createdDate: true,
   updatedDate: true,
-  lead: { select: { id: true, customerName: true, mobile: true } },
+  lead: { select: { id: true, seq: true, customerName: true, mobile: true } },
   destination: { select: { id: true, name: true } },
   items: { orderBy: { sortOrder: "asc" as const }, select: { qty: true, cost: true } },
 } satisfies Prisma.QuotationSelect;
@@ -98,19 +98,16 @@ export function computeTotals(items: { qty: number; cost: number }[], marginPerc
   return { totalCost, marginValue, subtotal, gstValue, sellingPrice };
 }
 
-/** Matches by customer name/mobile as before, plus typed "QT-0013"/"LD-0007"/"BK-0021" codes
- * against this quotation's own seq, its Lead's seq, or any of its Bookings' seq. */
+/** Matches by customer name/mobile as before, plus the shared 6-digit tracking code (the
+ * quotation's Lead's own seq) — since every Quotation/Booking tied to that Lead shares the
+ * same code, this alone finds every quotation belonging to that customer's journey. */
 function quotationSearchOr(search: string): Prisma.QuotationWhereInput[] {
   const or: Prisma.QuotationWhereInput[] = [
     { lead: { customerName: { contains: search, mode: "insensitive" } } },
     { lead: { mobile: { contains: search, mode: "insensitive" } } },
   ];
-  const quoteSeq = parseSeqCode(search, QUOTE_PREFIX);
-  if (quoteSeq !== null) or.push({ seq: quoteSeq });
-  const leadSeq = parseSeqCode(search, LEAD_PREFIX);
+  const leadSeq = parseTrackingCode(search);
   if (leadSeq !== null) or.push({ lead: { seq: leadSeq } });
-  const bookingSeq = parseSeqCode(search, BOOKING_PREFIX);
-  if (bookingSeq !== null) or.push({ bookings: { some: { seq: bookingSeq, isDeleted: false } } });
   return or;
 }
 
@@ -489,8 +486,6 @@ export async function markPdfGenerated(id: string) {
   return quotation.pdfGeneratedAt as Date;
 }
 
-export const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
-
 function textToLines(text: string): string[] {
   return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 }
@@ -637,7 +632,7 @@ export async function buildPublicQuoteData(quotation: NonNullable<Awaited<Return
       : null);
 
   return {
-    quoteCode: quoteCode(quotation.seq),
+    quoteCode: trackingCode(quotation.lead.seq),
     customerName: quotation.lead.customerName,
     destinationName: quotation.destination.name,
     packageName: campaign?.name ?? null,

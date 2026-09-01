@@ -7,14 +7,13 @@ import { useToast } from "@/components/admin/ui/Toast";
 import LeadStatusStepper from "@/components/admin/lead/LeadStatusStepper";
 import { LeadStatusBadge } from "@/components/admin/lead/LeadStatusBadge";
 import { leadsApi, quotationsApi } from "@/lib/adminApi";
+import { trackingCode } from "@/lib/idCodes";
 import type { AdminLead, AdminQuotation, LeadStatus } from "@/types/admin";
 
 interface LeadDetailProps {
   id: string;
 }
 
-const leadCode = (seq: number) => `LD-${seq.toString().padStart(4, "0")}`;
-const quoteCode = (seq: number) => `QT-${seq.toString().padStart(4, "0")}`;
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
 
@@ -75,7 +74,7 @@ export default function LeadDetail({ id }: LeadDetailProps) {
         <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-semibold text-slate-500">{leadCode(lead.seq)}</span>
+              <span className="font-mono text-xs font-semibold text-slate-500">{trackingCode(lead.seq)}</span>
               <LeadStatusBadge status={lead.status} />
             </div>
             <h1 className="text-2xl font-bold text-slate-900 mt-1">{lead.customerName}</h1>
@@ -179,7 +178,7 @@ export default function LeadDetail({ id }: LeadDetailProps) {
                 const sellingPrice = totalCost + Math.round(totalCost * (q.marginPercent / 100));
                 return (
                   <tr key={q.id} className="border-b border-slate-50">
-                    <td className="px-6 py-3 font-mono text-xs font-semibold text-slate-700">{quoteCode(q.seq)}</td>
+                    <td className="px-6 py-3 font-mono text-xs font-semibold text-slate-700">{trackingCode(lead.seq)}</td>
                     <td className="px-6 py-3">{q.destination?.name ?? "—"}</td>
                     <td className="px-6 py-3 font-semibold text-slate-900">{formatINR(sellingPrice)}</td>
                     <td className="px-6 py-3">

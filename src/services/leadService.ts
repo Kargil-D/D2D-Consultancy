@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import type { Paginated } from "@/types/admin";
 import type { Prisma, LeadStatus } from "@/generated/prisma/client";
-import { createBookingFromWonLead, bookingCode } from "@/services/bookingService";
+import { createBookingFromWonLead } from "@/services/bookingService";
+import { trackingCode, parseTrackingCode } from "@/lib/idCodes";
 import { autoAssignLead } from "@/services/leadAssignmentService";
 import { ApiError } from "@/lib/apiError";
 import type { Viewer } from "@/lib/permissions";
@@ -33,11 +34,16 @@ export async function listLeads(query: ListQuery = {}, viewer: Viewer): Promise<
   const where: Prisma.LeadWhereInput = { isDeleted: false, ...leadVisibilityScope(viewer), ...filter };
 
   if (search.trim()) {
-    where.OR = [
+    const or: Prisma.LeadWhereInput[] = [
       { customerName: { contains: search, mode: "insensitive" } },
       { mobile: { contains: search, mode: "insensitive" } },
       { email: { contains: search, mode: "insensitive" } },
     ];
+    // The shared 6-digit tracking code is this Lead's own seq — every Quotation/Booking tied
+    // to it displays the same number, so this one match also surfaces the whole journey.
+    const seq = parseTrackingCode(search);
+    if (seq !== null) or.push({ seq });
+    where.OR = or;
   }
 
   const total = await prisma.lead.count({ where });
@@ -98,7 +104,7 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
 
     // Most bookings arrive automatically via this trigger — manual Add Booking is for exceptions.
     if (status === "Won" && current.status !== "Won") {
-      const booking = await createBookingFromWonLead(tx, {
+      await createBookingFromWonLead(tx, {
         id: updated.id,
         destinationId: updated.destinationId,
         travelDate: updated.travelDate,
@@ -106,7 +112,7 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
       await tx.leadActivity.create({
         data: {
           leadId: id,
-          message: `Booking ${bookingCode(booking.seq)} created automatically`,
+          message: `Booking ${trackingCode(updated.seq)} created automatically`,
         },
       });
     }

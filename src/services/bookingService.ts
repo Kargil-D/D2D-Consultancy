@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { QUOTE_PREFIX, LEAD_PREFIX, BOOKING_PREFIX, parseSeqCode } from "@/lib/idCodes";
+import { trackingCode, parseTrackingCode } from "@/lib/idCodes";
 import { ApiError } from "@/lib/apiError";
 import type { Viewer } from "@/lib/permissions";
 import type { Paginated } from "@/types/admin";
@@ -12,6 +12,7 @@ import type {
   BookingTransferInput,
   BookingVisaInput,
   BookingInsuranceInput,
+  BookingPassengerInput,
   CustomerPaymentInput,
   SupplierPaymentInput,
 } from "@/lib/validation/booking";
@@ -21,10 +22,15 @@ type Tx = Prisma.TransactionClient;
 const BOOKING_INCLUDE = {
   lead: true,
   destination: true,
-  quotation: true,
+  // Plain `quotation: true` only pulls the Quotation's own scalar columns — `items` and
+  // `salesExecutive` are relations on Quotation itself, so BookingDetail's pricing calc
+  // (selectedQuotation.items.reduce(...)) and Sales Executive display need them nested
+  // explicitly, or they come back undefined despite AdminQuotation typing them as required.
+  quotation: { include: { items: { orderBy: { sortOrder: "asc" as const } }, salesExecutive: true } },
   bookingExecutive: true,
   customerSupport: true,
   documents: { orderBy: { uploadedDate: "desc" as const } },
+  passengers: { orderBy: { sortOrder: "asc" as const } },
   flights: { orderBy: { sortOrder: "asc" as const } },
   hotels: { orderBy: { sortOrder: "asc" as const } },
   activities: { orderBy: { sortOrder: "asc" as const } },
@@ -38,7 +44,9 @@ const BOOKING_INCLUDE = {
   notes: { orderBy: { createdDate: "desc" as const } },
 };
 
-export const bookingCode = (seq: number) => `BK-${seq.toString().padStart(4, "0")}`;
+/** Kept under its old name (imported in several route/service files) — now just the shared
+ * trackingCode formatter. Callers should pass the booking's *lead's* seq, not its own. */
+export const bookingCode = trackingCode;
 
 export interface ListQuery {
   search?: string;
@@ -47,19 +55,16 @@ export interface ListQuery {
   filter?: Prisma.BookingWhereInput;
 }
 
-/** Matches by customer name/mobile as before, plus typed "BK-0005"/"LD-0007"/"QT-0013" codes
- * against this booking's own seq, its Lead's seq, or its linked Quotation's seq. */
+/** Matches by customer name/mobile as before, plus the shared 6-digit tracking code (the
+ * booking's Lead's own seq) — since every Quotation/Booking tied to that Lead shares the same
+ * code, this alone finds every booking belonging to that customer's journey. */
 function bookingSearchOr(search: string): Prisma.BookingWhereInput[] {
   const or: Prisma.BookingWhereInput[] = [
     { lead: { customerName: { contains: search, mode: "insensitive" } } },
     { lead: { mobile: { contains: search, mode: "insensitive" } } },
   ];
-  const bookingSeq = parseSeqCode(search, BOOKING_PREFIX);
-  if (bookingSeq !== null) or.push({ seq: bookingSeq });
-  const leadSeq = parseSeqCode(search, LEAD_PREFIX);
+  const leadSeq = parseTrackingCode(search);
   if (leadSeq !== null) or.push({ lead: { seq: leadSeq } });
-  const quoteSeq = parseSeqCode(search, QUOTE_PREFIX);
-  if (quoteSeq !== null) or.push({ quotation: { seq: quoteSeq } });
   return or;
 }
 
@@ -104,6 +109,9 @@ interface BookingInput {
   quotationId?: string | null;
   destinationId: string;
   travelDate?: string | null;
+  adults?: number;
+  children?: number;
+  infants?: number;
   bookingExecutiveId?: string | null;
   customerSupportId?: string | null;
   totalAmount: number;
@@ -118,6 +126,9 @@ export async function createBooking(input: BookingInput) {
         quotationId: input.quotationId || null,
         destinationId: input.destinationId,
         travelDate: input.travelDate ? new Date(input.travelDate) : null,
+        adults: input.adults ?? 1,
+        children: input.children ?? 0,
+        infants: input.infants ?? 0,
         bookingExecutiveId: input.bookingExecutiveId || null,
         customerSupportId: input.customerSupportId || null,
         totalAmount: input.totalAmount,
@@ -136,6 +147,9 @@ export async function updateBooking(id: string, input: Partial<BookingInput>) {
       ...(input.quotationId !== undefined && { quotationId: input.quotationId || null }),
       ...(input.destinationId !== undefined && { destinationId: input.destinationId }),
       ...(input.travelDate !== undefined && { travelDate: input.travelDate ? new Date(input.travelDate) : null }),
+      ...(input.adults !== undefined && { adults: input.adults }),
+      ...(input.children !== undefined && { children: input.children }),
+      ...(input.infants !== undefined && { infants: input.infants }),
       ...(input.bookingExecutiveId !== undefined && { bookingExecutiveId: input.bookingExecutiveId || null }),
       ...(input.customerSupportId !== undefined && { customerSupportId: input.customerSupportId || null }),
       ...(input.totalAmount !== undefined && { totalAmount: input.totalAmount }),
@@ -259,6 +273,25 @@ async function reconcileCostSheet(tx: Tx, bookingId: string) {
 /** Ids to keep — rows the client sent back unchanged/edited get their id preserved so Cost Sheet's sourceId links survive edits. */
 function incomingIds(rows: { id?: string }[]): string[] {
   return rows.filter((r) => r.id).map((r) => r.id as string);
+}
+
+/** Passengers aren't cost-bearing, so unlike replaceFlights/Hotels/Activities/etc. this skips
+ * reconcileCostSheet — it only touches the Cost Sheet's six structured service tables. */
+export async function replacePassengers(bookingId: string, rows: BookingPassengerInput[]) {
+  return prisma.$transaction(async (tx) => {
+    const ids = incomingIds(rows);
+    await tx.bookingPassenger.deleteMany({ where: ids.length > 0 ? { bookingId, id: { notIn: ids } } : { bookingId } });
+    for (const [i, r] of rows.entries()) {
+      const id = r.id ?? crypto.randomUUID();
+      const data = {
+        bookingId, sortOrder: i,
+        paxType: r.paxType, name: r.name, age: r.age ?? null, gender: r.gender, contactNumber: r.contactNumber,
+      };
+      await tx.bookingPassenger.upsert({ where: { id }, update: data, create: { id, ...data } });
+    }
+    await logTimeline(tx, bookingId, `Passengers updated (${rows.length})`);
+    return tx.booking.findUniqueOrThrow({ where: { id: bookingId }, include: BOOKING_INCLUDE });
+  });
 }
 
 export async function replaceFlights(bookingId: string, rows: BookingFlightInput[]) {

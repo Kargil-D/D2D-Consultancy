@@ -65,7 +65,7 @@ export async function sendBookingEmail(bookingId: string, input: BookingSendEmai
 }
 
 function buildCustomerEmailTemplate(booking: Booking): { subject: string; bodyHtml: string } {
-  const code = bookingCode(booking.seq);
+  const code = bookingCode(booking.lead.seq);
   const destinationName = booking.destination.name;
   const shareUrl = booking.quotation?.shareToken ? `/quote/${booking.quotation.shareToken}` : null;
   const hotelNames = booking.hotels.map((h) => h.hotelName).filter(Boolean).join(", ");
@@ -134,7 +134,7 @@ function buildCustomerEmailTemplate(booking: Booking): { subject: string; bodyHt
 }
 
 function buildSupplierEmailTemplate(booking: Booking): { subject: string; bodyHtml: string } {
-  const code = bookingCode(booking.seq);
+  const code = bookingCode(booking.lead.seq);
   const destinationName = booking.destination.name;
   const totalRooms = booking.hotels.reduce((s, h) => s + h.rooms, 0);
   const totalSupplierCost = booking.costSheet.reduce((s, c) => s + c.bookingCost, 0);
