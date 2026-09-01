@@ -18,14 +18,17 @@ export function setAuthCookies(res: NextResponse, accessToken: string, refreshTo
     httpOnly: true,
     secure: isProd,
     sameSite: "lax",
-    path: "/api/auth",
+    // Was "/api/auth" — but middleware.ts (gating /admin/**) needs to see this cookie to know
+    // whether it's worth attempting a refresh instead of forcing a login redirect on every
+    // access-token expiry (~every 15 minutes). Scoping to "/" is what makes that possible.
+    path: "/",
     maxAge: REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60,
   });
 }
 
 export function clearAuthCookies(res: NextResponse) {
   res.cookies.set(ACCESS_TOKEN_COOKIE, "", { httpOnly: true, secure: isProd, sameSite: "lax", path: "/", maxAge: 0 });
-  res.cookies.set(REFRESH_TOKEN_COOKIE, "", { httpOnly: true, secure: isProd, sameSite: "lax", path: "/api/auth", maxAge: 0 });
+  res.cookies.set(REFRESH_TOKEN_COOKIE, "", { httpOnly: true, secure: isProd, sameSite: "lax", path: "/", maxAge: 0 });
 }
 
 export function getAccessTokenCookie(req: NextRequest): string | undefined {

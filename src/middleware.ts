@@ -6,6 +6,7 @@ import { verifyAccessToken } from "@/lib/jwt";
 // src/lib/refreshToken.ts, which uses Node's `crypto` module and isn't available in the
 // Edge runtime middleware executes in. verifyAccessToken (jose + apiError) is safe to import.
 const ACCESS_TOKEN_COOKIE = "d2d_access_token";
+const REFRESH_TOKEN_COOKIE = "d2d_refresh_token";
 
 // Locker (Employees + Roles — sensitive HR/RBAC data) and Roster Management are Admin-only,
 // not just staff-only. /admin/my-roster (self-view) is deliberately excluded — any staff member
@@ -30,8 +31,20 @@ export async function middleware(req: NextRequest) {
         return NextResponse.next();
       }
     } catch {
-      // Missing/expired/invalid token — fall through to the login redirect below.
+      // Missing/expired/invalid token — fall through below.
     }
+  }
+
+  // Access token is gone/expired/invalid. Instead of forcing a re-login outright (which used to
+  // happen on every ~15-minute access-token expiry, even mid-session), hand off to a Node-runtime
+  // route that can do the Prisma-backed refresh-token rotation this Edge-runtime middleware can't
+  // — but only bother if a refresh token cookie is actually present, to avoid a pointless redirect
+  // for genuinely logged-out visitors.
+  if (req.cookies.get(REFRESH_TOKEN_COOKIE)?.value) {
+    const refreshUrl = req.nextUrl.clone();
+    refreshUrl.pathname = "/api/auth/refresh-and-continue";
+    refreshUrl.search = `redirect=${encodeURIComponent(pathname + req.nextUrl.search)}`;
+    return NextResponse.redirect(refreshUrl);
   }
 
   const url = req.nextUrl.clone();
