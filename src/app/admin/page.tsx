@@ -10,6 +10,7 @@ import {
   Ticket,
   FileBarChart,
   Lock,
+  LayoutDashboard,
 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
@@ -43,9 +44,10 @@ export default function AdminHomePage() {
   const rosterTile = isAdmin
     ? { label: "Roster", icon: ClipboardList, href: "/admin/roster" }
     : { label: "My Roster", icon: ClipboardList, href: "/admin/my-roster" };
+  const dashboardTile = { label: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard" };
   const tiles = isAdmin
-    ? [...gatedTiles, ...UNGATED_TILES, rosterTile, { label: "Locker", icon: Lock, href: "/admin/locker" }]
-    : [...gatedTiles, ...UNGATED_TILES, rosterTile];
+    ? [dashboardTile, ...gatedTiles, ...UNGATED_TILES, rosterTile, { label: "Locker", icon: Lock, href: "/admin/locker" }]
+    : [dashboardTile, ...gatedTiles, ...UNGATED_TILES, rosterTile];
 
   return (
     <AdminShell title="Home">

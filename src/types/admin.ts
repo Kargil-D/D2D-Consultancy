@@ -1063,3 +1063,39 @@ export interface Paginated<T> {
   page: number;
   pageSize: number;
 }
+
+/** Admin home dashboard — see src/services/dashboardService.ts for how each figure is computed. */
+export interface AdminDashboardKpi {
+  value: number;
+  /** vs. the equal-length period before this one; null when the prior period was 0 (no % to show). */
+  changePct: number | null;
+}
+
+export interface AdminDashboardTrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface AdminDashboardOverview {
+  kpis: {
+    leads: AdminDashboardKpi;
+    quotations: AdminDashboardKpi;
+    bookings: AdminDashboardKpi;
+    conversionRate: AdminDashboardKpi;
+    revenue: AdminDashboardKpi;
+  };
+  trend: {
+    days: number;
+    leads: AdminDashboardTrendPoint[];
+    quotations: AdminDashboardTrendPoint[];
+    bookings: AdminDashboardTrendPoint[];
+  };
+  leadsBySource: { source: LeadSource; count: number }[];
+  topDestinations: { destinationId: string; name: string; count: number; pctOfMax: number }[];
+  /** Empty for non-Admin viewers — see the route's includeEmployeePerformance gate. */
+  employeePerformance: { userId: string; name: string; leads: number; quotations: number; bookings: number; conversionRate: number }[];
+  bookingsByMonth: { month: string; count: number }[];
+  bookingStatus: { status: BookingStatus; count: number }[];
+  followUps: { id: string; customerName: string; destinationName: string; mobile: string; updatedDate: string }[];
+  recentActivity: { id: string; kind: "lead" | "booking"; message: string; context: string; createdDate: string }[];
+}

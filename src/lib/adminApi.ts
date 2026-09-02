@@ -24,6 +24,7 @@ import type {
   AdminCity,
   AdminCurrency,
   AdminCurrencyRateHistory,
+  AdminDashboardOverview,
   AdminDestination,
   AdminEmployee,
   AdminEmployeeAuditLog,
@@ -935,6 +936,13 @@ export const payrollApi = {
   },
   minePdfUrl: (year: number, month: number, download = false) =>
     `/api/payroll/me/${year}/${month}/pdf${download ? "?download=1" : ""}`,
+};
+
+export const dashboardApi = {
+  get: async (): Promise<ApiResponse<AdminDashboardOverview>> => {
+    const res = await adminFetch("/api/admin/dashboard");
+    return (await res.json()) as ApiResponse<AdminDashboardOverview>;
+  },
 };
 
 export const rolesApi = {
