@@ -5,8 +5,8 @@ import { ApiError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
-const ALLOWED_TYPES = ["image/png", "image/jpeg"];
-const MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_TYPES = ["image/png", "image/jpeg", "application/pdf"];
+const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 /**
  * Token-issuing endpoint for Vercel Blob's client-direct-upload flow (@vercel/blob/client's

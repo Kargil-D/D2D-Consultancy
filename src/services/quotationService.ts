@@ -22,6 +22,7 @@ import { findHotelByPackageId } from "@/services/campaignHotelService";
 import { findTransferByPackageId } from "@/services/campaignTransferService";
 import { trackingCode, parseTrackingCode } from "@/lib/idCodes";
 import { listTransferTypes } from "@/services/transferTypeService";
+import { normalizeMobile } from "@/lib/phone";
 
 const QUOTATION_INCLUDE = {
   lead: true,
@@ -211,12 +212,6 @@ export async function getQuotationByShareToken(token: string) {
 
 const LEAD_PIPELINE_ORDER = ["New", "Contacted", "FollowUp"] as const;
 
-/** Strips formatting so "+91 77083 02280", "917708302280" and "7708302280" all match as the same number. */
-function normalizeMobile(mobile: string): string {
-  const digits = mobile.replace(/\D/g, "");
-  return digits.length > 10 ? digits.slice(-10) : digits;
-}
-
 /**
  * Step 1 has no "pick a lead" dropdown — it's a plain customer-detail form. This finds an
  * existing Lead by mobile match (formatting-insensitive — see normalizeMobile) and refreshes
@@ -230,21 +225,21 @@ export async function findOrCreateLeadForQuotation(
   source?: string | null,
 ) {
   const normalized = normalizeMobile(customer.mobile);
-  // No index accelerates `endsWith` on a plain btree (Lead.mobile isn't indexed at all today),
-  // so this is a full scan over every non-deleted Lead on every quotation save that touches
-  // Step 1 — timed here since it's the least obviously-expensive step in the save path.
+  // Exact match against the indexed Lead.mobileNormalized column (kept in sync by
+  // leadService.createLead/updateLead) — replaces a full-table `endsWith` scan over every
+  // non-deleted Lead that used to run here on every quotation save touching Step 1.
   const candidates = normalized
     ? await perfTime(
-        "quotationService.findOrCreateLeadForQuotation.mobileScan",
+        "quotationService.findOrCreateLeadForQuotation.mobileLookup",
         () =>
           prisma.lead.findMany({
-            where: { isDeleted: false, mobile: { endsWith: normalized } },
+            where: { isDeleted: false, mobileNormalized: normalized },
             select: { id: true, mobile: true, customerName: true, email: true, companyName: true, status: true },
           }),
-        (r) => ({ scanned: r.length }),
+        (r) => ({ matched: r.length }),
       )
     : [];
-  const existing = candidates.find((l) => normalizeMobile(l.mobile) === normalized) ?? null;
+  const existing = candidates[0] ?? null;
 
   if (existing) {
     const changed =
@@ -396,10 +391,12 @@ export async function updateQuotation(id: string, input: QuotationUpdate) {
         }
         // Slim acknowledgement instead of echoing the whole record (whose JSON content the
         // client just sent us) back through QUOTATION_INCLUDE — the builder only reads
-        // updatedDate from a save response.
+        // updatedDate from a save response. `leadId` is included too (still a single
+        // scalar-only row read, no extra query) so the convert-to-booking flow can read the
+        // server-resolved Lead without a separate GET round trip.
         return tx.quotation.findUniqueOrThrow({
           where: { id },
-          select: { id: true, updatedDate: true, status: true, shareToken: true },
+          select: { id: true, updatedDate: true, status: true, shareToken: true, leadId: true },
         });
       }, QUOTATION_TRANSACTION_OPTIONS),
     () => ({ replacedItems: !!input.items }),

@@ -25,7 +25,7 @@ export const GET = withApiHandler("[/api/customer/activities] GET", async (req) 
       status: { in: ["Booked", "OnTrip", "Completed"] },
       lead: { email: { equals: user.email, mode: "insensitive" } },
     },
-    include: { destination: true, lead: true },
+    include: { destination: true, lead: true, customerPayments: { select: { amount: true } } },
     orderBy: { createdDate: "desc" },
   });
 

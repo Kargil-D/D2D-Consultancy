@@ -6,6 +6,7 @@ import { trackingCode, parseTrackingCode } from "@/lib/idCodes";
 import { autoAssignLead } from "@/services/leadAssignmentService";
 import { ApiError } from "@/lib/apiError";
 import type { Viewer } from "@/lib/permissions";
+import { normalizeMobile } from "@/lib/phone";
 
 export interface ListQuery {
   search?: string;
@@ -71,7 +72,9 @@ export async function getLead(id: string) {
 
 /** Creates a Lead. If no assignee was given (the common case — the public enquiry form and a blank "Assign to" on the admin form both omit it), auto-assigns it via round robin against today's Roster so it never sits unclaimed. */
 export async function createLead(payload: Prisma.LeadUncheckedCreateInput) {
-  const created = await prisma.lead.create({ data: payload });
+  const created = await prisma.lead.create({
+    data: { ...payload, mobileNormalized: normalizeMobile(payload.mobile) },
+  });
   if (!created.assignedToId) {
     try {
       const assigned = await autoAssignLead(created.id);
@@ -84,7 +87,8 @@ export async function createLead(payload: Prisma.LeadUncheckedCreateInput) {
 }
 
 export async function updateLead(id: string, payload: Prisma.LeadUncheckedUpdateInput) {
-  return prisma.lead.update({ where: { id }, data: payload });
+  const data = typeof payload.mobile === "string" ? { ...payload, mobileNormalized: normalizeMobile(payload.mobile) } : payload;
+  return prisma.lead.update({ where: { id }, data });
 }
 
 export async function removeLead(id: string) {

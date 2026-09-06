@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 interface DateInputProps {
@@ -27,6 +28,11 @@ const MONTHS_SHORT = [
 ];
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
+const POPOVER_WIDTH = 256;
+/** Rough calendar height (header + weekday row + up to 6 day rows) — used only to decide
+ * whether to flip the popover above the trigger before its real height is known. */
+const POPOVER_HEIGHT_ESTIMATE = 340;
+
 function parseIso(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d);
@@ -44,6 +50,13 @@ export function formatDdMmmYyyy(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return "";
   return `${String(d).padStart(2, "0")}/${MONTHS_SHORT[m - 1]}/${y}`;
+}
+
+interface Coords {
+  left: number;
+  width: number;
+  top?: number;
+  bottom?: number;
 }
 
 /**
@@ -74,6 +87,9 @@ export default function DateInput({
     return new Date(base.getFullYear(), base.getMonth(), 1);
   });
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<Coords | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -84,11 +100,48 @@ export default function DateInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  /** Anchors the popover to the trigger in viewport coordinates (so it isn't clipped by any
+   * ancestor's overflow) and flips it above the trigger when there isn't room below — the
+   * portal render means it always floats cleanly above surrounding content instead of being
+   * confined to a cramped grid cell. */
+  const reposition = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = Math.max(rect.width, POPOVER_WIDTH);
+    const left = Math.min(Math.max(rect.left, 8), window.innerWidth - width - 8);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUp = spaceBelow < POPOVER_HEIGHT_ESTIMATE && rect.top > spaceBelow;
+    setCoords(
+      openUp
+        ? { left, width, bottom: window.innerHeight - rect.top + 4 }
+        : { left, width, top: rect.bottom + 4 },
+    );
+  };
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setCoords(null);
+      return;
+    }
+    reposition();
+  }, [open, view]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [open]);
+
   useEffect(() => {
     const onMouse = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onMouse);
     return () => document.removeEventListener("mousedown", onMouse);
@@ -120,6 +173,7 @@ export default function DateInput({
   return (
     <div ref={containerRef} className="relative">
       <div
+        ref={triggerRef}
         role="button"
         tabIndex={disabled ? -1 : 0}
         aria-disabled={disabled}
@@ -162,72 +216,78 @@ export default function DateInput({
         </span>
       </div>
 
-      {open && !disabled && (
-        <div className="absolute z-30 left-0 mt-1 p-3 w-64 rounded-xl bg-white border border-slate-200 shadow-xl">
-          <div className="flex items-center justify-between mb-2">
-            <button
-              type="button"
-              onClick={goPrev}
-              disabled={!canGoPrev}
-              className="p-1 rounded-full hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div className="text-sm font-bold text-slate-900">
-              {MONTHS[view.getMonth()]} {view.getFullYear()}
-            </div>
-            <button
-              type="button"
-              onClick={goNext}
-              disabled={!canGoNext}
-              className="p-1 rounded-full hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
-              aria-label="Next month"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1 mb-1">
-            {DAYS.map((d, i) => (
-              <div key={i} className="text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400 py-1">
-                {d}
+      {open && !disabled && coords && typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            style={{ position: "fixed", left: coords.left, width: coords.width, top: coords.top, bottom: coords.bottom }}
+            className="z-[1000] p-3 rounded-xl bg-white border border-slate-200 shadow-xl"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={goPrev}
+                disabled={!canGoPrev}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Previous month"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="text-sm font-bold text-slate-900">
+                {MONTHS[view.getMonth()]} {view.getFullYear()}
               </div>
-            ))}
-          </div>
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={!canGoNext}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Next month"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
 
-          <div className="grid grid-cols-7 gap-1">
-            {cells.map((cell, idx) => {
-              if (!cell) return <div key={`e-${idx}`} className="h-8" />;
-              const iso = toIso(cell);
-              const isDisabled = !!((minDate && cell < minDate) || (maxDate && cell > maxDate));
-              const selected = value === iso;
-              const isToday = toIso(today) === iso;
+            <div className="grid grid-cols-7 gap-1 mb-1">
+              {DAYS.map((d, i) => (
+                <div key={i} className="text-center text-[10px] font-semibold uppercase tracking-widest text-slate-400 py-1">
+                  {d}
+                </div>
+              ))}
+            </div>
 
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  disabled={isDisabled}
-                  onClick={() => {
-                    onChange(iso);
-                    setOpen(false);
-                  }}
-                  className={`h-8 rounded-lg text-xs font-medium transition-colors ${
-                    selected
-                      ? "bg-blue-600 text-white"
-                      : isDisabled
-                      ? "text-slate-300 cursor-not-allowed"
-                      : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
-                  } ${isToday && !selected ? "ring-1 ring-blue-400 text-blue-600" : ""}`}
-                >
-                  {cell.getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+            <div className="grid grid-cols-7 gap-1">
+              {cells.map((cell, idx) => {
+                if (!cell) return <div key={`e-${idx}`} className="h-8" />;
+                const iso = toIso(cell);
+                const isDisabled = !!((minDate && cell < minDate) || (maxDate && cell > maxDate));
+                const selected = value === iso;
+                const isToday = toIso(today) === iso;
+
+                return (
+                  <button
+                    key={iso}
+                    type="button"
+                    disabled={isDisabled}
+                    onClick={() => {
+                      onChange(iso);
+                      setOpen(false);
+                    }}
+                    className={`h-8 rounded-lg text-xs font-medium transition-colors ${
+                      selected
+                        ? "bg-blue-600 text-white"
+                        : isDisabled
+                        ? "text-slate-300 cursor-not-allowed"
+                        : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                    } ${isToday && !selected ? "ring-1 ring-blue-400 text-blue-600" : ""}`}
+                  >
+                    {cell.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

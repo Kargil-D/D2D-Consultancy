@@ -12,6 +12,9 @@ export const BookingCreateSchema = z.object({
   customerSupportId: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional().nullable()),
   totalAmount: z.coerce.number().min(0).default(0),
   remarks: z.string().optional().nullable(),
+  supplierTrackId: z.string().optional().nullable(),
+  supplierInvoiceAmount: z.coerce.number().min(0).optional().nullable(),
+  supplierInvoiceUrl: z.string().optional().nullable(),
 });
 
 export const BookingUpdateSchema = BookingCreateSchema.partial();

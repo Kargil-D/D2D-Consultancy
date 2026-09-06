@@ -235,6 +235,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   const [loading, setLoading] = useState(!!initialId);
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
 
   type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
@@ -335,7 +336,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           inclusionsText: q.inclusionsText,
           exclusionsText: q.exclusionsText,
           includeChildCosting: q.includeChildCosting,
-          marginPercent: q.marginPercent,
+          marginPercent: Math.round(q.marginPercent * 100) / 100,
           gstPercent: q.gstPercent,
           advanceAmount: q.advanceAmount,
           items: q.items,
@@ -403,105 +404,110 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     const hasManualRows = draft.items.some((it) => !it.sourceId);
     if (hasManualRows) return;
 
-    const res = await packagesApi.get(nextCampaignId);
-    if (!res.success || !res.data) return;
-    const campaign = res.data;
-    // Package cost isn't presettable here anymore — it now flows through the per-hotel rows added in the Hotels step.
-    if (campaign.insurancePrice > 0) {
-      patch({ items: [...draft.items, { component: "Insurance", detail: "Travel insurance", qty: 1, cost: campaign.insurancePrice, sortOrder: draft.items.length }] });
-    }
+    setApplyingTemplate(true);
+    try {
+      const res = await packagesApi.get(nextCampaignId);
+      if (!res.success || !res.data) return;
+      const campaign = res.data;
+      // Package cost isn't presettable here anymore — it now flows through the per-hotel rows added in the Hotels step.
+      if (campaign.insurancePrice > 0) {
+        patch({ items: [...draft.items, { component: "Insurance", detail: "Travel insurance", qty: 1, cost: campaign.insurancePrice, sortOrder: draft.items.length }] });
+      }
 
-    const [itineraryRes, hotelPlanRes, transferPlanRes, hotelMastersRes, transferTypesRes] = await Promise.all([
-      itinerariesApi.list({ filter: { packageId: nextCampaignId }, pageSize: 1 }),
-      hotelsApi.list({ filter: { packageId: nextCampaignId }, pageSize: 1 }),
-      transfersApi.list({ filter: { packageId: nextCampaignId }, pageSize: 1 }),
-      hotelMasterApi.all(),
-      transferTypesApi.list({ pageSize: 1000 }),
-    ]);
+      const [itineraryRes, hotelPlanRes, transferPlanRes, hotelMastersRes, transferTypesRes] = await Promise.all([
+        itinerariesApi.list({ filter: { packageId: nextCampaignId }, pageSize: 1 }),
+        hotelsApi.list({ filter: { packageId: nextCampaignId }, pageSize: 1 }),
+        transfersApi.list({ filter: { packageId: nextCampaignId }, pageSize: 1 }),
+        hotelMasterApi.all(),
+        transferTypesApi.list({ pageSize: 1000 }),
+      ]);
 
-    const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const campaignDays = itineraryRes.success ? itineraryRes.data.items[0]?.days ?? [] : [];
-    const campaignHotels = hotelPlanRes.success ? hotelPlanRes.data.items[0]?.hotels ?? [] : [];
-    const campaignTransfers = transferPlanRes.success ? transferPlanRes.data.items[0]?.transfers ?? [] : [];
-    const hotelMasters = hotelMastersRes.success ? hotelMastersRes.data : [];
-    const transferTypes = transferTypesRes.success ? transferTypesRes.data.items : [];
+      const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const campaignDays = itineraryRes.success ? itineraryRes.data.items[0]?.days ?? [] : [];
+      const campaignHotels = hotelPlanRes.success ? hotelPlanRes.data.items[0]?.hotels ?? [] : [];
+      const campaignTransfers = transferPlanRes.success ? transferPlanRes.data.items[0]?.transfers ?? [] : [];
+      const hotelMasters = hotelMastersRes.success ? hotelMastersRes.data : [];
+      const transferTypes = transferTypesRes.success ? transferTypesRes.data.items : [];
 
-    const itineraryDays: QuotationItineraryDay[] = campaignDays.map((d, i) => ({
-      id: newId(),
-      dayNumber: d.order ?? i + 1,
-      title: d.title || `Day ${i + 1}`,
-      description: d.description ?? "",
-      images: d.dayImage ? [d.dayImage] : [],
-      meals: d.mealsIncluded ?? [],
-      notes: [d.stayDetails, d.transportDetails, d.activities?.length ? `Activities: ${d.activities.join(", ")}` : ""]
-        .filter(Boolean)
-        .join(" · "),
-    }));
-
-    const hotelSelections: QuotationHotelSelection[] = campaignHotels.map((h) => {
-      const master = h.hotelMasterId ? hotelMasters.find((m) => m.id === h.hotelMasterId) : undefined;
-      return {
+      const itineraryDays: QuotationItineraryDay[] = campaignDays.map((d, i) => ({
         id: newId(),
-        hotelMasterId: h.hotelMasterId ?? null,
-        hotelName: h.name || master?.name || "",
-        images: (h.images?.length ? h.images : master?.images) ?? [],
-        description: h.description || master?.description || "",
-        category: master?.category ?? null,
-        roomType: h.roomType || master?.roomTypes[0] || "",
-        mealPlan: master?.mealPlans[0] ?? "",
-        amenities: master?.amenities ?? [],
-        googleMapUrl: master?.googleMapUrl ?? null,
-        website: master?.website ?? null,
-        checkIn: "",
-        checkOut: "",
-        rooms: 1,
-        nights: 1,
-      };
-    });
-    const hotelOptions: QuotationHotelOptionGroup[] =
-      hotelSelections.length > 0 ? [{ id: newId(), label: "Option A", hotels: hotelSelections }] : [];
+        dayNumber: d.order ?? i + 1,
+        title: d.title || `Day ${i + 1}`,
+        description: d.description ?? "",
+        images: d.dayImage ? [d.dayImage] : [],
+        meals: d.mealsIncluded ?? [],
+        notes: [d.stayDetails, d.transportDetails, d.activities?.length ? `Activities: ${d.activities.join(", ")}` : ""]
+          .filter(Boolean)
+          .join(" · "),
+      }));
 
-    const transfers: QuotationTransferItem[] = campaignTransfers.map((t) => {
-      const type = t.transferTypeId ? transferTypes.find((tt) => tt.id === t.transferTypeId) : undefined;
-      return {
+      const hotelSelections: QuotationHotelSelection[] = campaignHotels.map((h) => {
+        const master = h.hotelMasterId ? hotelMasters.find((m) => m.id === h.hotelMasterId) : undefined;
+        return {
+          id: newId(),
+          hotelMasterId: h.hotelMasterId ?? null,
+          hotelName: h.name || master?.name || "",
+          images: (h.images?.length ? h.images : master?.images) ?? [],
+          description: h.description || master?.description || "",
+          category: master?.category ?? null,
+          roomType: h.roomType || master?.roomTypes[0] || "",
+          mealPlan: master?.mealPlans[0] ?? "",
+          amenities: master?.amenities ?? [],
+          googleMapUrl: master?.googleMapUrl ?? null,
+          website: master?.website ?? null,
+          checkIn: "",
+          checkOut: "",
+          rooms: 1,
+          nights: 1,
+        };
+      });
+      const hotelOptions: QuotationHotelOptionGroup[] =
+        hotelSelections.length > 0 ? [{ id: newId(), label: "Option A", hotels: hotelSelections }] : [];
+
+      const transfers: QuotationTransferItem[] = campaignTransfers.map((t) => {
+        const type = t.transferTypeId ? transferTypes.find((tt) => tt.id === t.transferTypeId) : undefined;
+        return {
+          id: newId(),
+          name: type?.name ?? "Transfer",
+          description: "",
+          images: type?.imageUrl ? [type.imageUrl] : [],
+          pickupLocation: t.from,
+          dropLocation: t.to,
+          vehicleType: type?.name ?? "",
+          mode: "Private",
+          transferDate: "",
+          duration: "",
+          pickupTime: "",
+          dropTime: "",
+          status: "Included",
+          notes: "",
+        };
+      });
+
+      const activities: QuotationActivityItem[] = campaign.activities.map((a) => ({
         id: newId(),
-        name: type?.name ?? "Transfer",
+        name: a.title,
         description: "",
-        images: type?.imageUrl ? [type.imageUrl] : [],
-        pickupLocation: t.from,
-        dropLocation: t.to,
-        vehicleType: type?.name ?? "",
-        mode: "Private",
-        transferDate: "",
+        images: [],
+        activityDate: "",
         duration: "",
-        pickupTime: "",
-        dropTime: "",
-        status: "Included",
+        reportingTime: "",
+        activityTime: "",
+        pax: 1,
         notes: "",
-      };
-    });
+      }));
 
-    const activities: QuotationActivityItem[] = campaign.activities.map((a) => ({
-      id: newId(),
-      name: a.title,
-      description: "",
-      images: [],
-      activityDate: "",
-      duration: "",
-      reportingTime: "",
-      activityTime: "",
-      pax: 1,
-      notes: "",
-    }));
-
-    patch({
-      itineraryDays: itineraryDays.length > 0 ? itineraryDays : draft.itineraryDays,
-      hotelOptions: hotelOptions.length > 0 ? hotelOptions : draft.hotelOptions,
-      transfers: transfers.length > 0 ? transfers : draft.transfers,
-      activities: activities.length > 0 ? activities : draft.activities,
-      inclusionsText: campaign.inclusionsText || draft.inclusionsText,
-      exclusionsText: campaign.exclusionsText || draft.exclusionsText,
-    });
+      patch({
+        itineraryDays: itineraryDays.length > 0 ? itineraryDays : draft.itineraryDays,
+        hotelOptions: hotelOptions.length > 0 ? hotelOptions : draft.hotelOptions,
+        transfers: transfers.length > 0 ? transfers : draft.transfers,
+        activities: activities.length > 0 ? activities : draft.activities,
+        inclusionsText: campaign.inclusionsText || draft.inclusionsText,
+        exclusionsText: campaign.exclusionsText || draft.exclusionsText,
+      });
+    } finally {
+      setApplyingTemplate(false);
+    }
   };
 
   const buildPayload = (d: Draft = draft) => ({
@@ -559,8 +565,11 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     !!draft.travelDate &&
     !!draft.travelEndDate;
 
-  /** Persists the whole draft — create on first save, update afterwards. Used by "Save & Next" and the top-level Save Draft button. */
-  const persist = async (): Promise<string | null> => {
+  /** Persists the whole draft — create on first save, update afterwards. Used by "Save & Next", the
+   * top-level Save Draft button, and the booking-conversion flow. Returns the saved id plus the
+   * server-resolved leadId (the one thing about the save that the client can't already know
+   * locally) so callers like confirmConvertToBooking don't need a follow-up GET just to learn it. */
+  const persist = async (): Promise<{ id: string; leadId: string } | null> => {
     if (!canSaveStep1) {
       notify("Customer name, mobile, destination, travel date and travel end date are required", "error");
       return null;
@@ -571,13 +580,13 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
       const effective = await withMigratedImages();
       if (id) {
         const res = await quotationsApi.update(id, buildPayload(effective));
-        if (!res.success) {
+        if (!res.success || !res.data) {
           notify(res.message || "Unable to save quotation", "error");
           return null;
         }
-        if (res.data?.updatedDate) setLastUpdated(res.data.updatedDate);
+        setLastUpdated(res.data.updatedDate);
         setAutoSaveStatus("saved");
-        return id;
+        return { id, leadId: res.data.leadId };
       }
       const res = await quotationsApi.create(buildPayload(effective));
       if (!res.success || !res.data) {
@@ -587,15 +596,15 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
       setId(res.data.id);
       setLastUpdated(res.data.updatedDate);
       router.replace(`/admin/quotations/${res.data.id}/edit`);
-      return res.data.id;
+      return { id: res.data.id, leadId: res.data.leadId };
     } finally {
       setSaving(false);
     }
   };
 
   const goNext = async () => {
-    const savedId = await persist();
-    if (!savedId) return;
+    const saved = await persist();
+    if (!saved) return;
     if (step === 0) notify("Quotation saved as Draft", "success");
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
@@ -613,24 +622,24 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
 
   const generatePdf = () =>
     withBusy("pdf", async () => {
-      const savedId = await persist();
-      if (!savedId) return;
-      window.open(`/api/admin/quotations/${savedId}/pdf`, "_blank");
+      const saved = await persist();
+      if (!saved) return;
+      window.open(`/api/admin/quotations/${saved.id}/pdf`, "_blank");
       setPdfGeneratedAt(new Date());
     });
 
   const downloadPdf = () =>
     withBusy("pdf-download", async () => {
-      const savedId = await persist();
-      if (!savedId) return;
-      window.open(`/api/admin/quotations/${savedId}/pdf?download=1`, "_blank");
+      const saved = await persist();
+      if (!saved) return;
+      window.open(`/api/admin/quotations/${saved.id}/pdf?download=1`, "_blank");
     });
 
   const generateLink = () =>
     withBusy("link", async () => {
-      const savedId = await persist();
-      if (!savedId) return;
-      const res = await quotationsApi.generateShareLink(savedId);
+      const saved = await persist();
+      if (!saved) return;
+      const res = await quotationsApi.generateShareLink(saved.id);
       if (!res.success || !res.data) return notify(res.message || "Unable to generate link", "error");
       setShareToken(res.data.token);
       setStatus("Sent");
@@ -685,15 +694,16 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     }
     setConvertFormError(null);
     return withBusy("convert", async () => {
-      const savedId = await persist();
-      if (!savedId) return;
-      const res = await quotationsApi.get(savedId);
-      if (!res.success || !res.data) return notify(res.message || "Unable to load quotation", "error");
+      // destinationId/travelDate are exactly what this save just sent the server, so they're
+      // read straight from the draft — only leadId is server-resolved and needs persist()'s
+      // response; this skips what used to be a separate GET just to read three fields back.
+      const saved = await persist();
+      if (!saved) return;
       const bookingRes = await bookingsApi.create({
-        leadId: res.data.leadId,
-        quotationId: savedId,
-        destinationId: res.data.destinationId,
-        travelDate: res.data.travelDate ? res.data.travelDate.slice(0, 10) : null,
+        leadId: saved.leadId,
+        quotationId: saved.id,
+        destinationId: draft.destinationId,
+        travelDate: draft.travelDate || null,
         totalAmount: sellingPrice,
       });
       if (!bookingRes.success || !bookingRes.data) return notify(bookingRes.message || "Unable to create booking", "error");
@@ -1078,21 +1088,27 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
 
                 {draft.itineraryMode === "template" && (
                   <Field label="Itinerary Template" hint="Copies the campaign's day-wise plan in — you can still edit it below">
-                    <select
-                      className={selectCls}
-                      value={draft.campaignId}
-                      onChange={(e) => {
-                        const campaignId = e.target.value;
-                        applyTemplate(campaignId);
-                        if (campaignId && draft.itineraryDays.length === 0) patch({ itineraryDays: [newQuotationDay(1)] });
-                      }}
-                      disabled={!draft.destinationId}
-                    >
-                      <option value="">Select template</option>
-                      {campaigns.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        className={selectCls}
+                        value={draft.campaignId}
+                        onChange={async (e) => {
+                          const campaignId = e.target.value;
+                          if (campaignId && draft.itineraryDays.length === 0) patch({ itineraryDays: [newQuotationDay(1)] });
+                          await applyTemplate(campaignId);
+                        }}
+                        disabled={!draft.destinationId || applyingTemplate}
+                      >
+                        <option value="">Select template</option>
+                        {campaigns.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                      {applyingTemplate && (
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      )}
+                    </div>
+                    {applyingTemplate && <p className="mt-1 text-xs text-blue-600">Loading itinerary from template…</p>}
                   </Field>
                 )}
 
@@ -1415,12 +1431,28 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           <span className="font-semibold text-slate-900">{formatINR(totalCost)}</span>
         </div>
         <Field label="Margin %">
-          <input type="number" min={0} step={0.5} className={inputCls} value={draft.marginPercent} onChange={(e) => patch({ marginPercent: Number(e.target.value) || 0 })} />
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            className={inputCls}
+            value={draft.marginPercent}
+            onChange={(e) => patch({ marginPercent: Number(e.target.value) || 0 })}
+            onBlur={() => patch({ marginPercent: Math.round(draft.marginPercent * 100) / 100 })}
+          />
         </Field>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500">Margin Value</span>
-          <span className="font-semibold text-slate-900">{formatINR(marginValue)}</span>
-        </div>
+        <Field label="Margin Value (INR)">
+          <input
+            type="number"
+            min={0}
+            className={inputCls}
+            value={marginValue}
+            onChange={(e) => {
+              const value = Number(e.target.value) || 0;
+              patch({ marginPercent: totalCost > 0 ? Math.round((value / totalCost) * 10000) / 100 : 0 });
+            }}
+          />
+        </Field>
         <Field label="GST %">
           <input type="number" min={0} step={0.5} className={inputCls} value={draft.gstPercent} onChange={(e) => patch({ gstPercent: Number(e.target.value) || 0 })} />
         </Field>

@@ -622,6 +622,11 @@ model Lead {
   seq           Int         @unique @default(autoincrement())
   customerName  String
   mobile        String
+  // Last-10-digits form of `mobile` (see normalizeMobile in src/lib/phone.ts), kept in sync by
+  // leadService.createLead/updateLead. Lets the quotation save path look up "is there already a
+  // Lead with this phone number" with an indexed equality match instead of an unindexed
+  // `endsWith` scan over every Lead.
+  mobileNormalized String @default("")
   email         String?
   companyName   String?
   destinationId String
@@ -647,6 +652,7 @@ model Lead {
 
   @@index([destinationId])
   @@index([assignedToId])
+  @@index([mobileNormalized])
   @@map("leads")
 }
 
@@ -930,6 +936,9 @@ model Booking {
   totalAmount        Int           @default(0)
   status             BookingStatus @default(Won)
   remarks            String?
+  supplierTrackId       String?
+  supplierInvoiceAmount Int?
+  supplierInvoiceUrl    String?
   dmcName            String?
   dmcEmailSentDate   DateTime?
   dmcResponse        String?

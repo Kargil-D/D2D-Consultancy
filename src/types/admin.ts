@@ -1015,6 +1015,9 @@ export interface AdminBooking {
   totalAmount: number;
   status: BookingStatus;
   remarks?: string | null;
+  supplierTrackId?: string | null;
+  supplierInvoiceAmount?: number | null;
+  supplierInvoiceUrl?: string | null;
   dmcName?: string | null;
   dmcEmailSentDate?: string | null;
   dmcResponse?: string | null;

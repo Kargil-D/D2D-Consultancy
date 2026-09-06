@@ -22,6 +22,7 @@ import BookingInsurancesEditor from "@/components/admin/booking/BookingInsurance
 import BookingCostSheet from "@/components/admin/booking/BookingCostSheet";
 import BookingPayments from "@/components/admin/booking/BookingPayments";
 import BookingDocumentsTab from "@/components/admin/booking/BookingDocumentsTab";
+import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import BookingChatTab from "@/components/admin/booking/BookingChatTab";
 import BookingTimelineTab from "@/components/admin/booking/BookingTimelineTab";
 import SendMailMenu from "@/components/admin/booking/SendMailMenu";
@@ -84,6 +85,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const [detailCustomerSupportId, setDetailCustomerSupportId] = useState("");
   const [detailTotalAmount, setDetailTotalAmount] = useState(0);
   const [detailRemarks, setDetailRemarks] = useState("");
+  const [detailSupplierTrackId, setDetailSupplierTrackId] = useState("");
+  const [detailSupplierInvoiceAmount, setDetailSupplierInvoiceAmount] = useState<number | "">("");
+  const [detailSupplierInvoiceUrl, setDetailSupplierInvoiceUrl] = useState("");
   const [detailAdults, setDetailAdults] = useState(1);
   const [detailChildren, setDetailChildren] = useState(0);
   const [detailInfants, setDetailInfants] = useState(0);
@@ -127,6 +131,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       setDetailCustomerSupportId(b.customerSupportId ?? "");
       setDetailTotalAmount(b.totalAmount);
       setDetailRemarks(b.remarks ?? "");
+      setDetailSupplierTrackId(b.supplierTrackId ?? "");
+      setDetailSupplierInvoiceAmount(b.supplierInvoiceAmount ?? "");
+      setDetailSupplierInvoiceUrl(b.supplierInvoiceUrl ?? "");
       setDetailAdults(b.adults);
       setDetailChildren(b.children);
       setDetailInfants(b.infants);
@@ -372,6 +379,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         customerSupportId: detailCustomerSupportId || null,
         totalAmount: detailTotalAmount,
         remarks: detailRemarks,
+        supplierTrackId: detailSupplierTrackId || null,
+        supplierInvoiceAmount: detailSupplierInvoiceAmount === "" ? null : detailSupplierInvoiceAmount,
+        supplierInvoiceUrl: detailSupplierInvoiceUrl || null,
         adults: detailAdults,
         children: detailChildren,
         infants: detailInfants,
@@ -851,11 +861,25 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             <Field label="Paid Amount" hint="Sum of Customer Payments — add or edit payments in the Payments tab">
               <input className={inputCls} value={formatINR(totalPaid)} disabled />
             </Field>
+            <Field label="Supplier Track ID">
+              <input className={inputCls} value={detailSupplierTrackId} onChange={(e) => setDetailSupplierTrackId(e.target.value)} />
+            </Field>
+            <Field label="Supplier Invoice Amount">
+              <input
+                type="number"
+                min={0}
+                className={inputCls}
+                value={detailSupplierInvoiceAmount}
+                onChange={(e) => setDetailSupplierInvoiceAmount(e.target.value === "" ? "" : Number(e.target.value))}
+              />
+            </Field>
           </div>
 
           <Field label="Remarks">
             <textarea className={textareaCls} value={detailRemarks} onChange={(e) => setDetailRemarks(e.target.value)} rows={4} />
           </Field>
+
+          <DocumentUpload label="Supplier Invoice" value={detailSupplierInvoiceUrl} onChange={setDetailSupplierInvoiceUrl} />
         </div>
       </div>
 

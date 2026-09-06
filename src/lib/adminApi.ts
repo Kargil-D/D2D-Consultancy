@@ -421,7 +421,9 @@ export const quotationsApi = {
     payload: Partial<AdminQuotation> & { customer?: QuotationCustomerInput },
     // The PUT returns a slim save acknowledgement, not the whole record — the record's content
     // is exactly what the caller just sent, so echoing it back doubled every save's payload.
-  ): Promise<ApiResponse<Pick<AdminQuotation, "id" | "updatedDate" | "status" | "shareToken"> | null>> => {
+    // `leadId` rides along too (still scalar-only, no extra query) so callers that need the
+    // server-resolved Lead (e.g. converting a quotation to a Booking) don't need a follow-up GET.
+  ): Promise<ApiResponse<Pick<AdminQuotation, "id" | "updatedDate" | "status" | "shareToken" | "leadId"> | null>> => {
     const res = await adminFetch(`/api/admin/quotations/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminQuotation | null>;
   },
@@ -462,9 +464,11 @@ export const bookingsApi = {
     const res = await adminFetch(`/api/admin/bookings/${id}`);
     return (await res.json()) as ApiResponse<AdminBooking | null>;
   },
-  create: async (payload: Partial<AdminBooking>): Promise<ApiResponse<AdminBooking>> => {
+  // Returns the plain created row, not the full record with relations — callers only need the
+  // new booking's id (they navigate to its detail page, which fetches the full record itself).
+  create: async (payload: Partial<AdminBooking>): Promise<ApiResponse<Pick<AdminBooking, "id">>> => {
     const res = await adminFetch(`/api/admin/bookings`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
-    return (await res.json()) as ApiResponse<AdminBooking>;
+    return (await res.json()) as ApiResponse<Pick<AdminBooking, "id">>;
   },
   update: async (id: string, payload: Partial<AdminBooking>): Promise<ApiResponse<AdminBooking | null>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}`, { method: "PUT", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });

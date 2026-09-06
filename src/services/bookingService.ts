@@ -116,6 +116,9 @@ interface BookingInput {
   customerSupportId?: string | null;
   totalAmount: number;
   remarks?: string | null;
+  supplierTrackId?: string | null;
+  supplierInvoiceAmount?: number | null;
+  supplierInvoiceUrl?: string | null;
 }
 
 export async function createBooking(input: BookingInput) {
@@ -133,10 +136,16 @@ export async function createBooking(input: BookingInput) {
         customerSupportId: input.customerSupportId || null,
         totalAmount: input.totalAmount,
         remarks: input.remarks,
+        supplierTrackId: input.supplierTrackId,
+        supplierInvoiceAmount: input.supplierInvoiceAmount,
+        supplierInvoiceUrl: input.supplierInvoiceUrl,
       },
     });
     await logTimeline(tx, booking.id, "Booking created");
-    return tx.booking.findUniqueOrThrow({ where: { id: booking.id }, include: BOOKING_INCLUDE });
+    // Plain scalar row, not the full 13-relation BOOKING_INCLUDE — both callers (BookingForm,
+    // the quotation-to-booking conversion) only read the new booking's id; the detail page they
+    // navigate to next fetches the full record itself, so re-fetching it here was pure overhead.
+    return booking;
   });
 }
 
@@ -154,6 +163,9 @@ export async function updateBooking(id: string, input: Partial<BookingInput>) {
       ...(input.customerSupportId !== undefined && { customerSupportId: input.customerSupportId || null }),
       ...(input.totalAmount !== undefined && { totalAmount: input.totalAmount }),
       ...(input.remarks !== undefined && { remarks: input.remarks }),
+      ...(input.supplierTrackId !== undefined && { supplierTrackId: input.supplierTrackId }),
+      ...(input.supplierInvoiceAmount !== undefined && { supplierInvoiceAmount: input.supplierInvoiceAmount }),
+      ...(input.supplierInvoiceUrl !== undefined && { supplierInvoiceUrl: input.supplierInvoiceUrl }),
     },
     include: BOOKING_INCLUDE,
   });
