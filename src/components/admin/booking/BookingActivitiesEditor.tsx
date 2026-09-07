@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Plus, Trash2, Copy, Ticket } from "lucide-react";
 import DocumentUpload from "@/components/admin/booking/DocumentUpload";
-import GenerateVoucherLink from "@/components/admin/booking/GenerateVoucherLink";
 import { selectCls } from "@/components/admin/ui/Field";
 import DateInput from "@/components/admin/ui/DateInput";
 import { GridField as Field, PAYMENT_MODES, cellInputCls, formatINR, readonlyBoxCls } from "@/components/admin/booking/BookingGridField";
@@ -220,7 +219,7 @@ export default function BookingActivitiesEditor({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <GenerateVoucherLink label="Activity Voucher" href={costEntry && a.id ? `/api/admin/bookings/${bookingId}/activities/${a.id}/voucher` : undefined} />
+                <DocumentUpload label="Activity Voucher" value={a.voucherUrl ?? ""} onChange={(url) => update(i, { voucherUrl: url || null })} />
                 <DocumentUpload label="Activity Invoice" value={a.invoiceUrl ?? ""} onChange={(url) => update(i, { invoiceUrl: url || null })} />
               </div>
             </div>

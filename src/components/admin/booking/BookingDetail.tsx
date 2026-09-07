@@ -27,6 +27,8 @@ import BookingChatTab from "@/components/admin/booking/BookingChatTab";
 import BookingTimelineTab from "@/components/admin/booking/BookingTimelineTab";
 import SendMailMenu from "@/components/admin/booking/SendMailMenu";
 import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
+import { useAuth } from "@/contexts/AuthContext";
+import { canViewModule, type PermissionMap } from "@/lib/adminModules";
 import { bookingsApi, quotationsApi, salesUsersApi, currenciesApi } from "@/lib/adminApi";
 import { trackingCode } from "@/lib/idCodes";
 import type {
@@ -63,6 +65,10 @@ type TabKey = (typeof TABS)[number]["key"];
 
 export default function BookingDetail({ id }: BookingDetailProps) {
   const { notify } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.roles.includes("admin") ?? false;
+  const canViewMaster = isAdmin || canViewModule(user?.permissions as PermissionMap | undefined, "BookingsMaster");
+  const visibleTabs = TABS.filter((t) => t.key !== "costsheet" || canViewMaster);
   const [booking, setBooking] = useState<AdminBooking | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -162,6 +168,10 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (tab === "costsheet" && !canViewMaster) setTab("passengers");
+  }, [tab, canViewMaster]);
 
   useEffect(() => {
     (async () => {
@@ -502,6 +512,40 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       setSavingTransfers(false);
     }
   };
+  const loadHotelsFromQuotation = () => {
+    if (!booking?.quotation) return;
+    const existingIds = new Set(hotels.map((h) => h.id));
+    const rows: AdminBookingHotel[] = booking.quotation.hotelOptions
+      .flatMap((g) => g.hotels)
+      .filter((h) => !existingIds.has(h.id))
+      .map((h) => ({
+        id: h.id,
+        hotelName: h.hotelName,
+        hotelCategory: h.category ?? "",
+        checkIn: h.checkIn || null,
+        checkOut: h.checkOut || null,
+        nights: h.nights,
+        rooms: h.rooms,
+        roomCategory: "",
+        roomType: h.roomType,
+        mealPlan: h.mealPlan,
+        occupancy: "",
+        amenities: h.amenities,
+        hotelAddress: "",
+        googleMapLink: h.googleMapUrl ?? null,
+        hotelContactNumber: "",
+        supplier: "",
+        voucherUrl: null,
+        bookedCurrency: "INR",
+        paymentMode: "Cash",
+        bookingDate: null,
+        bookingPnr: "",
+        updatedBy: "",
+      }));
+    setHotels((prev) => [...prev, ...rows]);
+    notify(rows.length > 0 ? `${rows.length} hotel(s) loaded from quotation` : "All hotels from the quotation are already loaded", rows.length > 0 ? "success" : "info");
+  };
+
   const loadActivitiesFromQuotation = () => {
     if (!booking?.quotation) return;
     const existingIds = new Set(activities.map((a) => a.id));
@@ -527,7 +571,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         updatedBy: "",
       }));
     setActivities((prev) => [...prev, ...rows]);
-    notify(`${rows.length} activity(ies) loaded from quotation`, "success");
+    notify(rows.length > 0 ? `${rows.length} activity(ies) loaded from quotation` : "All activities from the quotation are already loaded", rows.length > 0 ? "success" : "info");
   };
 
   const loadTransfersFromQuotation = () => {
@@ -556,7 +600,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         updatedBy: "",
       }));
     setTransfers((prev) => [...prev, ...rows]);
-    notify(`${rows.length} transfer(s) loaded from quotation`, "success");
+    notify(rows.length > 0 ? `${rows.length} transfer(s) loaded from quotation` : "All transfers from the quotation are already loaded", rows.length > 0 ? "success" : "info");
   };
 
   // Booked Cost lives on the Cost Sheet (one entry per service row, auto-reconciled by
@@ -861,6 +905,21 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             <Field label="Paid Amount" hint="Sum of Customer Payments — add or edit payments in the Payments tab">
               <input className={inputCls} value={formatINR(totalPaid)} disabled />
             </Field>
+          </div>
+
+          <Field label="Remarks">
+            <textarea className={textareaCls} value={detailRemarks} onChange={(e) => setDetailRemarks(e.target.value)} rows={4} />
+          </Field>
+        </div>
+      </div>
+
+      {/* 2. Overview — Supplier Invoice and DMC Communication carry internal cost/ops data, so this whole card is Bookings Master-only. */}
+      {canViewMaster && (
+      <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-6">
+        <h2 className="text-lg font-bold text-slate-900">Overview</h2>
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 mb-4">Supplier Invoice</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <Field label="Supplier Track ID">
               <input className={inputCls} value={detailSupplierTrackId} onChange={(e) => setDetailSupplierTrackId(e.target.value)} />
             </Field>
@@ -874,18 +933,17 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               />
             </Field>
           </div>
-
-          <Field label="Remarks">
-            <textarea className={textareaCls} value={detailRemarks} onChange={(e) => setDetailRemarks(e.target.value)} rows={4} />
-          </Field>
-
           <DocumentUpload label="Supplier Invoice" value={detailSupplierInvoiceUrl} onChange={setDetailSupplierInvoiceUrl} />
+          <button
+            type="button"
+            onClick={saveDetails}
+            disabled={savingDetails}
+            className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+          >
+            {savingDetails && <span className="inline-block w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />}
+            {savingDetails ? "Saving…" : "Save Supplier Invoice"}
+          </button>
         </div>
-      </div>
-
-      {/* 2. Overview */}
-      <div className="rounded-2xl bg-white border border-slate-200 p-6 space-y-6">
-        <h2 className="text-lg font-bold text-slate-900">Overview</h2>
         <div>
           <h3 className="text-sm font-bold text-slate-900 mb-4">DMC Communication</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -900,11 +958,12 @@ export default function BookingDetail({ id }: BookingDetailProps) {
           </button>
         </div>
       </div>
+      )}
 
       {/* Remaining service tabs */}
       <div className="rounded-2xl bg-white border border-slate-200 overflow-hidden">
         <div className="flex items-center overflow-x-auto px-4 py-3 gap-1 bg-slate-50/60 border-b border-slate-200">
-          {TABS.map((t) => {
+          {visibleTabs.map((t) => {
             const Icon = t.icon;
             const active = tab === t.key;
             return (
@@ -923,7 +982,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         </div>
 
         <div className="p-6">
-          {tab === "costsheet" && (
+          {tab === "costsheet" && canViewMaster && (
             <BookingCostSheet
               entries={booking.costSheet.map((c) => {
                 const sellingPrice = d2dCostBySourceId.get(c.sourceId) ?? c.sellingPrice;
@@ -951,7 +1010,14 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             </TabSaveWrapper>
           )}
           {tab === "hotels" && (
-            <TabSaveWrapper onSave={saveHotels} saving={savingHotels} label="Save Hotels">
+            <TabSaveWrapper
+              onSave={saveHotels}
+              saving={savingHotels}
+              label="Save Hotels"
+              extra={booking.quotation && booking.quotation.hotelOptions.some((g) => g.hotels.length > 0) ? (
+                <LoadFromQuotationButton onClick={loadHotelsFromQuotation} />
+              ) : null}
+            >
               <BookingHotelsEditor
                 hotels={hotels}
                 onChange={setHotels}

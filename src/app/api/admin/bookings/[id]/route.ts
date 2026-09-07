@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getBooking, updateBooking, removeBooking, requireBookingAccess } from "@/services/bookingService";
+import { getBooking, updateBooking, removeBooking, requireBookingAccess, redactMasterFields } from "@/services/bookingService";
 import { BookingUpdateSchema } from "@/lib/validation/booking";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess, toViewer } from "@/lib/permissions";
+import { requireModuleAccess, hasModulePermission, toViewer } from "@/lib/permissions";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -10,7 +10,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const { id } = await ctx.params;
     await requireBookingAccess(id, toViewer(user));
     const rec = await getBooking(id);
-    return NextResponse.json({ success: true, message: "OK", data: rec });
+    const data = rec && !hasModulePermission(user, "BookingsMaster", "canView") ? redactMasterFields(rec) : rec;
+    return NextResponse.json({ success: true, message: "OK", data });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });
     console.error("[/api/admin/bookings/[id]] GET", err);
@@ -29,6 +30,11 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!viewer.isAdmin) {
       if (parsed.bookingExecutiveId !== undefined && parsed.bookingExecutiveId !== viewer.id) delete parsed.bookingExecutiveId;
       if (parsed.customerSupportId !== undefined && parsed.customerSupportId !== viewer.id) delete parsed.customerSupportId;
+    }
+    if (!hasModulePermission(user, "BookingsMaster", "canEdit")) {
+      delete parsed.supplierTrackId;
+      delete parsed.supplierInvoiceAmount;
+      delete parsed.supplierInvoiceUrl;
     }
     const updated = await updateBooking(id, parsed);
     return NextResponse.json({ success: true, message: "Updated", data: updated });

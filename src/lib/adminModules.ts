@@ -45,6 +45,7 @@ export const DEPARTMENTS: Department[] = [
     ],
   },
   { label: "Bookings", modules: [{ module: "Bookings", actions: FULL_CRUD }] },
+  { label: "Bookings Master", modules: [{ module: "BookingsMaster", actions: FULL_CRUD }] },
   { label: "Finance", modules: [{ module: "CurrencyMaster", actions: FULL_CRUD }] },
 ];
 

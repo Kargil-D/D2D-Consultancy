@@ -400,6 +400,7 @@ export type AdminModule =
   | "Leads"
   | "Quotations"
   | "Bookings"
+  | "BookingsMaster"
   | "Payroll";
 
 export interface AdminRolePermission {

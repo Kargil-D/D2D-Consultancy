@@ -17,7 +17,7 @@ const BodySchema = z.object({ rows: z.array(RowSchema) });
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireModuleAccess(req, "Bookings", "canEdit");
+    const user = await requireModuleAccess(req, "BookingsMaster", "canEdit");
     const { id } = await ctx.params;
     await requireBookingAccess(id, toViewer(user));
     const { rows } = BodySchema.parse(await req.json());

@@ -104,6 +104,23 @@ export async function getBooking(id: string) {
   return prisma.booking.findUnique({ where: { id }, include: BOOKING_INCLUDE });
 }
 
+/** Strips the margin/internal-ops fields (DMC Communication, Supplier Invoice, Cost Sheet) from a
+ * Booking payload before it reaches a viewer without BookingsMaster — the "Bookings" module alone
+ * only grants the operational booking workspace, not cost/margin visibility. */
+export function redactMasterFields<T extends Record<string, unknown>>(booking: T): T {
+  return {
+    ...booking,
+    dmcName: null,
+    dmcEmailSentDate: null,
+    dmcResponse: null,
+    dmcRemarks: null,
+    supplierTrackId: null,
+    supplierInvoiceAmount: null,
+    supplierInvoiceUrl: null,
+    costSheet: [],
+  };
+}
+
 interface BookingInput {
   leadId: string;
   quotationId?: string | null;

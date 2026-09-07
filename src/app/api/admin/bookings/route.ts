@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { listBookings, createBooking } from "@/services/bookingService";
+import { listBookings, createBooking, redactMasterFields } from "@/services/bookingService";
 import { BookingCreateSchema } from "@/lib/validation/booking";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess, toViewer } from "@/lib/permissions";
+import { requireModuleAccess, hasModulePermission, toViewer } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,6 +23,9 @@ export async function GET(req: NextRequest) {
     if (viewer.isAdmin && bookingExecutiveId) filter.bookingExecutiveId = bookingExecutiveId;
 
     const data = await listBookings({ search, page, pageSize, filter }, viewer);
+    if (!hasModulePermission(user, "BookingsMaster", "canView")) {
+      data.items = data.items.map(redactMasterFields);
+    }
     return NextResponse.json({ success: true, message: "OK", data });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });
