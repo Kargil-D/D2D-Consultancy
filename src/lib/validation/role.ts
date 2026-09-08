@@ -17,6 +17,7 @@ export const ADMIN_MODULES = [
   "Leads",
   "Quotations",
   "Bookings",
+  "BookingsMaster",
   "Payroll",
 ] as const;
 
