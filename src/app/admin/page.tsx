@@ -39,7 +39,8 @@ export default function AdminHomePage() {
   const isAdmin = user?.roles.includes("admin") ?? false;
   const permissions = user?.permissions as PermissionMap | undefined;
 
-  const gatedTiles = DEPARTMENTS.filter((d) => isAdmin || canViewDepartment(permissions, d)).map((d) => HOME_TILES[d.label]);
+  const gatedTiles = DEPARTMENTS.filter((d) => (isAdmin || canViewDepartment(permissions, d)) && HOME_TILES[d.label])
+    .map((d) => HOME_TILES[d.label]);
 
   const rosterTile = isAdmin
     ? { label: "Roster", icon: ClipboardList, href: "/admin/roster" }
