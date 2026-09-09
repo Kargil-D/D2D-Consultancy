@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
-  FileDown, Mail, Copy, Link as LinkIcon, ExternalLink, Save, Download,
+  FileDown, Mail, Link as LinkIcon, ExternalLink, Save, Download,
   Wallet, Plane, BedDouble, Ticket, ArrowRightLeft, Stamp, ShieldCheck,
   CreditCard, FolderOpen, MessageCircle, History, Users,
 } from "lucide-react";
@@ -688,13 +688,6 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     reload();
   };
 
-  const copyWebLink = async () => {
-    if (!booking?.quotation?.shareToken) return notify("No shareable quotation link yet", "error");
-    const url = `${window.location.origin}/quote/${booking.quotation.shareToken}`;
-    await navigator.clipboard.writeText(url).catch(() => {});
-    notify("Web quotation link copied", "success");
-  };
-
   if (loading) {
     return (
       <div className="rounded-2xl bg-white border border-slate-200 p-10 text-center text-sm text-slate-500">
@@ -792,7 +785,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
 
         <div className="flex flex-wrap gap-2 mt-5 pt-5 border-t border-slate-100">
           {booking.quotationId && (
-            <Link href={`/admin/quotations/${booking.quotationId}/edit`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            <Link href={`/admin/quotations/${booking.quotationId}/edit`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               <ExternalLink className="w-3.5 h-3.5" /> View Quotation
             </Link>
           )}
@@ -801,16 +794,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               <LinkIcon className="w-3.5 h-3.5" /> Open Web Quotation
             </a>
           )}
-          <button type="button" onClick={copyWebLink} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            <Copy className="w-3.5 h-3.5" /> Copy Web Link
-          </button>
-          {booking.quotationId && (
-            <a href={`/api/admin/quotations/${booking.quotationId}/pdf`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              <FileDown className="w-3.5 h-3.5" /> Download Quotation PDF
-            </a>
-          )}
-          <a href={`/api/admin/bookings/${id}/voucher`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">
-            <FileDown className="w-3.5 h-3.5" /> Generate Voucher
+          <a href={`/api/admin/bookings/${id}/travel-voucher`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700">
+            <FileDown className="w-3.5 h-3.5" /> Generate Travel Voucher
           </a>
           <a href={`/api/admin/bookings/${id}/invoice?kind=customer`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700">
             <Mail className="w-3.5 h-3.5" /> Generate Invoice
