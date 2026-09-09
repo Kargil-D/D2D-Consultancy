@@ -999,9 +999,23 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               onSave={saveHotels}
               saving={savingHotels}
               label="Save Hotels"
-              extra={booking.quotation && booking.quotation.hotelOptions.some((g) => g.hotels.length > 0) ? (
-                <LoadFromQuotationButton onClick={loadHotelsFromQuotation} />
-              ) : null}
+              extra={
+                <div className="flex items-center gap-2">
+                  {booking.hotels.length > 0 && (
+                    <a
+                      href={`/api/admin/bookings/${id}/hotels/voucher`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700"
+                    >
+                      <FileDown className="w-3.5 h-3.5" /> Generate Hotel Voucher
+                    </a>
+                  )}
+                  {booking.quotation && booking.quotation.hotelOptions.some((g) => g.hotels.length > 0) && (
+                    <LoadFromQuotationButton onClick={loadHotelsFromQuotation} />
+                  )}
+                </div>
+              }
             >
               <BookingHotelsEditor
                 hotels={hotels}

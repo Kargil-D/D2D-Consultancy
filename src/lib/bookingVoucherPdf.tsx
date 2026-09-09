@@ -397,3 +397,203 @@ function TripReceiptDocument({ data }: { data: TripReceiptPdfData }) {
 export async function renderTripReceiptPdf(data: TripReceiptPdfData): Promise<Buffer> {
   return renderToBuffer(<TripReceiptDocument data={data} />);
 }
+
+/**
+ * Per-hotel-stay "Hotel Voucher" — one page per BookingHotel row, laid out to match the
+ * standalone D2D_Voucher_Generator.html reference tool pixel-for-pixel (header rule, two-column
+ * details, ref bar, stay box, rooms/nights table, footer rule).
+ */
+export interface HotelTravelVoucherRow {
+  night: string;
+  mealPlan: string;
+  room: string;
+}
+
+export interface HotelTravelVoucherEntry {
+  hotelName: string;
+  hotelAddress: string;
+  guestName: string;
+  occupancy: string;
+  d2dBookingId: string;
+  bookingCnf: string;
+  tripId: string;
+  checkInDate: string | null;
+  checkOutDate: string | null;
+  nights: number;
+  rows: HotelTravelVoucherRow[];
+}
+
+export interface HotelTravelVoucherPdfData {
+  entries: HotelTravelVoucherEntry[];
+  generatedOn: string;
+}
+
+const HV = {
+  navy: "#26334d",
+  teal: "#1eb3b8",
+  tealDark: "#189aa0",
+  grey: "#5a6169",
+  line: "#d3d9de",
+  light: "#f2f7f9",
+};
+
+const hvStyles = StyleSheet.create({
+  page: { paddingTop: 34, paddingHorizontal: 40, paddingBottom: 30, fontSize: 10, fontFamily: "Helvetica", color: HV.navy },
+  head: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: 12, borderBottom: `2 solid ${HV.teal}` },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  logoWordD2D: { fontSize: 12, fontWeight: 700, color: HV.navy },
+  logoWordHolidays: { fontSize: 12, fontWeight: 700, color: HV.teal },
+  logoTagline: { fontSize: 5.5, letterSpacing: 1.2, color: HV.grey, marginTop: 1 },
+  hvTitle: { fontSize: 18, fontWeight: 700, color: HV.navy },
+  cols: { flexDirection: "row", marginTop: 18, gap: 20 },
+  col: { flex: 1 },
+  secLabel: { fontSize: 8, fontWeight: 700, color: HV.teal, letterSpacing: 0.5, marginBottom: 5 },
+  secMain: { fontSize: 13, fontWeight: 700, color: HV.navy },
+  secSub: { fontSize: 10, color: HV.grey, marginTop: 1 },
+  refbar: {
+    flexDirection: "row",
+    backgroundColor: HV.light,
+    borderRadius: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 14,
+  },
+  refItem: { flex: 1, fontSize: 9.5, fontWeight: 700, color: HV.navy },
+  stay: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: HV.line,
+    borderStyle: "solid",
+    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  stayLbl: { fontSize: 7.5, color: HV.grey, letterSpacing: 0.5 },
+  stayDate: { fontSize: 11.5, fontWeight: 700, color: HV.navy, marginTop: 2 },
+  stayTime: { fontSize: 8, color: HV.grey, marginTop: 1 },
+  stayNights: { fontSize: 12, fontWeight: 700, color: HV.teal },
+  table: { marginTop: 18 },
+  tHeadRow: { flexDirection: "row", backgroundColor: HV.navy, paddingVertical: 7, paddingHorizontal: 10 },
+  tHeadCell: { color: "#ffffff", fontSize: 9, fontWeight: 700 },
+  tRow: { flexDirection: "row", paddingVertical: 7, paddingHorizontal: 10 },
+  tRowOdd: { backgroundColor: HV.light },
+  tCell: { fontSize: 9.5, color: HV.navy },
+  colNum: { width: "8%" },
+  colNight: { width: "14%" },
+  colMeal: { width: "34%" },
+  colRoom: { width: "44%" },
+  foot: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 26,
+    paddingTop: 10,
+    borderTop: `1.5 solid ${HV.teal}`,
+    fontSize: 8,
+    color: HV.grey,
+  },
+  footBrand: { color: HV.teal, fontWeight: 700 },
+});
+
+function HotelVoucherLogo() {
+  return (
+    <View style={hvStyles.logoRow}>
+      <Svg width={20} height={20} viewBox="0 0 100 100">
+        <Defs>
+          <LinearGradient id="hvPlaneGrad" x1="0" y1="0" x2="100" y2="100">
+            <Stop offset="0" stopColor={HV.teal} />
+            <Stop offset="1" stopColor={HV.tealDark} />
+          </LinearGradient>
+        </Defs>
+        <Path d="M97 2 L2 26 L39 48 Z" fill="url(#hvPlaneGrad)" />
+        <Path d="M97 2 L51 59 L73 99 Z" fill={HV.tealDark} opacity={0.9} />
+      </Svg>
+      <View>
+        <Text><Text style={hvStyles.logoWordD2D}>D2D </Text><Text style={hvStyles.logoWordHolidays}>Holidays</Text></Text>
+        <Text style={hvStyles.logoTagline}>DRIVE TO DESTINATION</Text>
+      </View>
+    </View>
+  );
+}
+
+function HotelVoucherPage({ entry, generatedOn }: { entry: HotelTravelVoucherEntry; generatedOn: string }) {
+  return (
+    <Page size="A4" style={hvStyles.page}>
+      <View style={hvStyles.head}>
+        <HotelVoucherLogo />
+        <Text style={hvStyles.hvTitle}>Hotel Voucher</Text>
+      </View>
+
+      <View style={hvStyles.cols}>
+        <View style={hvStyles.col}>
+          <Text style={hvStyles.secLabel}>HOTEL DETAILS</Text>
+          <Text style={hvStyles.secMain}>{entry.hotelName || "—"}</Text>
+          {entry.hotelAddress ? <Text style={hvStyles.secSub}>{entry.hotelAddress}</Text> : null}
+        </View>
+        <View style={hvStyles.col}>
+          <Text style={hvStyles.secLabel}>GUEST DETAILS</Text>
+          <Text style={hvStyles.secMain}>{entry.guestName || "—"}</Text>
+          <Text style={hvStyles.secSub}>{entry.occupancy}</Text>
+        </View>
+      </View>
+
+      <View style={hvStyles.refbar}>
+        <Text style={hvStyles.refItem}>D2D Booking ID: {entry.d2dBookingId}</Text>
+        <Text style={hvStyles.refItem}>Booking CNF: {entry.bookingCnf}</Text>
+        <Text style={hvStyles.refItem}>Trip ID: {entry.tripId}</Text>
+      </View>
+
+      <View style={hvStyles.stay}>
+        <View>
+          <Text style={hvStyles.stayLbl}>CHECK-IN</Text>
+          <Text style={hvStyles.stayDate}>{entry.checkInDate || "—"}</Text>
+          <Text style={hvStyles.stayTime}>at 12:00 hrs</Text>
+        </View>
+        <Text style={hvStyles.stayNights}>{entry.nights} {entry.nights === 1 ? "Night" : "Nights"}</Text>
+        <View>
+          <Text style={hvStyles.stayLbl}>CHECK-OUT</Text>
+          <Text style={hvStyles.stayDate}>{entry.checkOutDate || "—"}</Text>
+          <Text style={hvStyles.stayTime}>at 11:00 hrs</Text>
+        </View>
+      </View>
+
+      <View style={hvStyles.table}>
+        <View style={hvStyles.tHeadRow}>
+          <Text style={[hvStyles.tHeadCell, hvStyles.colNum]}>#</Text>
+          <Text style={[hvStyles.tHeadCell, hvStyles.colNight]}>Night</Text>
+          <Text style={[hvStyles.tHeadCell, hvStyles.colMeal]}>Meal Plan</Text>
+          <Text style={[hvStyles.tHeadCell, hvStyles.colRoom]}>Rooms</Text>
+        </View>
+        {entry.rows.map((r, i) => (
+          <View style={[hvStyles.tRow, ...(i % 2 === 0 ? [hvStyles.tRowOdd] : [])]} key={i}>
+            <Text style={[hvStyles.tCell, hvStyles.colNum]}>{i + 1}</Text>
+            <Text style={[hvStyles.tCell, hvStyles.colNight]}>{r.night}</Text>
+            <Text style={[hvStyles.tCell, hvStyles.colMeal]}>{r.mealPlan || "—"}</Text>
+            <Text style={[hvStyles.tCell, hvStyles.colRoom]}>{r.room || "—"}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={hvStyles.foot}>
+        <Text>Generated On : {generatedOn}</Text>
+        <Text><Text style={hvStyles.footBrand}>D2D Holidays</Text>  |  <Text style={hvStyles.footBrand}>Drive to Destination</Text></Text>
+      </View>
+    </Page>
+  );
+}
+
+function HotelTravelVoucherDocument({ data }: { data: HotelTravelVoucherPdfData }) {
+  return (
+    <Document>
+      {data.entries.map((entry, i) => (
+        <HotelVoucherPage entry={entry} generatedOn={data.generatedOn} key={i} />
+      ))}
+    </Document>
+  );
+}
+
+export async function renderHotelTravelVoucherPdf(data: HotelTravelVoucherPdfData): Promise<Buffer> {
+  return renderToBuffer(<HotelTravelVoucherDocument data={data} />);
+}

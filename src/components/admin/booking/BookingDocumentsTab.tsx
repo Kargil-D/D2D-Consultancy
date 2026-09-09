@@ -89,7 +89,8 @@ export default function BookingDocumentsTab({ bookingId, documents, onUpload, on
         <div className="space-y-2">
           <BookingDocLink icon={<LinkIcon className="w-4 h-4" />} label="Quotation Web Link" href={shareUrl} disabledHint="No shareable link generated yet" />
           <BookingDocLink icon={<FileDown className="w-4 h-4" />} label="Quotation PDF" href={quotationId ? `/api/admin/quotations/${quotationId}/pdf` : null} disabledHint="No quotation linked" />
-          <BookingDocLink icon={<FileDown className="w-4 h-4" />} label="Travel Voucher" href={`/api/admin/bookings/${bookingId}/voucher`} />
+          <BookingDocLink icon={<FileDown className="w-4 h-4" />} label="Travel Voucher" href={`/api/admin/bookings/${bookingId}/travel-voucher`} />
+          <BookingDocLink icon={<FileDown className="w-4 h-4" />} label="Hotel Voucher" href={`/api/admin/bookings/${bookingId}/hotels/voucher`} />
           <BookingDocLink icon={<FileDown className="w-4 h-4" />} label="Customer Invoice" href={`/api/admin/bookings/${bookingId}/invoice?kind=customer`} />
           <BookingDocLink icon={<FileDown className="w-4 h-4" />} label="Supplier Invoice" href={`/api/admin/bookings/${bookingId}/invoice?kind=supplier`} />
         </div>
