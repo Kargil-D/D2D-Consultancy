@@ -60,6 +60,17 @@ const emptyForm = (): Partial<AdminEmployee> => ({
   emergencyMobile: "",
 });
 
+/** API dates come back as full ISO timestamps (Prisma `DateTime` → JSON) — DateInput expects
+ * plain yyyy-mm-dd, same normalization every other date-bound admin form applies on load. */
+function normalizeDates(emp: AdminEmployee): AdminEmployee {
+  return {
+    ...emp,
+    dateOfBirth: emp.dateOfBirth ? emp.dateOfBirth.slice(0, 10) : emp.dateOfBirth,
+    joiningDate: emp.joiningDate ? emp.joiningDate.slice(0, 10) : emp.joiningDate,
+    confirmationDate: emp.confirmationDate ? emp.confirmationDate.slice(0, 10) : emp.confirmationDate,
+  };
+}
+
 const TABS = [
   { key: "personal", label: "Personal", icon: User },
   { key: "employment", label: "Employment & Login", icon: Briefcase },
@@ -116,7 +127,7 @@ export default function EmployeeForm({ id }: Props) {
     (async () => {
       const res = await employeesApi.get(id);
       if (res.success && res.data) {
-        setForm(res.data);
+        setForm(normalizeDates(res.data));
       } else {
         notify(res.message || "Unable to load employee", "error");
       }
@@ -151,7 +162,7 @@ export default function EmployeeForm({ id }: Props) {
     try {
       const res = await employeesApi.linkAccount(id, linkEmail.trim());
       if (!res.success) return notify(res.message || "Unable to link account", "error");
-      if (res.data) setForm(res.data);
+      if (res.data) setForm(normalizeDates(res.data));
       setLinkEmail("");
       notify("Login account linked", "success");
     } finally {
@@ -176,7 +187,7 @@ export default function EmployeeForm({ id }: Props) {
     if (!id) return;
     const res = await employeesApi.unlinkAccount(id);
     if (!res.success) return notify(res.message || "Unable to unlink account", "error");
-    if (res.data) setForm(res.data);
+    if (res.data) setForm(normalizeDates(res.data));
     notify("Login account unlinked", "success");
   };
 
@@ -186,7 +197,7 @@ export default function EmployeeForm({ id }: Props) {
     try {
       const res = await employeesApi.assignRole(id, roleId);
       if (!res.success) return notify(res.message || "Unable to assign role", "error");
-      if (res.data) setForm(res.data);
+      if (res.data) setForm(normalizeDates(res.data));
       notify("Role assigned", "success");
     } finally {
       setAssigningRole(false);
@@ -207,7 +218,7 @@ export default function EmployeeForm({ id }: Props) {
         const res = await employeesApi.update(id, payload);
         if (!res.success) return notify(res.message || "Unable to update employee", "error");
         notify("Employee updated", "success");
-        if (res.data) setForm(res.data);
+        if (res.data) setForm(normalizeDates(res.data));
         setPendingAadhaar(undefined);
         setPendingAccount(undefined);
       } else {
@@ -226,7 +237,7 @@ export default function EmployeeForm({ id }: Props) {
   const toggleStatus = async () => {
     if (!id) return onChange({ status: form.status === "Active" ? "Inactive" : "Active" });
     const res = await employeesApi.toggleStatus(id);
-    if (res.success && res.data) setForm(res.data);
+    if (res.success && res.data) setForm(normalizeDates(res.data));
   };
 
   if (loading) {

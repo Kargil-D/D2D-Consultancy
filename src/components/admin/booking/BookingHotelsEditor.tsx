@@ -48,11 +48,12 @@ interface Props {
   costSheet: AdminBookingCostSheetEntry[];
   onBookedCostChange: (sourceId: string, bookingCost: number) => void;
   onSettlementCostChange: (sourceId: string, settlementCost: number) => void;
+  onSellingPriceChange: (sourceId: string, sellingPrice: number) => void;
   quotationMeta: Map<string, HotelQuotationMeta>;
   currencyOptions: string[];
 }
 
-export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBookedCostChange, onSettlementCostChange, quotationMeta, currencyOptions }: Props) {
+export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBookedCostChange, onSettlementCostChange, onSellingPriceChange, quotationMeta, currencyOptions }: Props) {
   const [liveBookingCost, setLiveBookingCost] = useState<Record<string, number>>({});
   const [liveSettlementCost, setLiveSettlementCost] = useState<Record<string, number>>({});
 
@@ -67,7 +68,7 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-xs text-slate-500">Auto-synced from the Quotation&apos;s Pricing step — D2D Cost is read-only here. Balance = Booked Cost − Settlement Cost.</p>
+        <p className="text-xs text-slate-500">D2D Cost auto-syncs from the Quotation&apos;s Pricing step and is read-only for hotels loaded from there — hotels added manually take a direct entry instead. Balance = Booked Cost − Settlement Cost.</p>
         <button type="button" onClick={add} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold">
           <Plus className="w-3.5 h-3.5" /> Add Hotel
         </button>
@@ -85,9 +86,15 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
           return (
             <div key={h.id ?? i} className="rounded-xl border border-slate-100 p-3 space-y-3">
               {/* Row 1 */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3">
                 <Field label="Hotel Name" className="lg:col-span-2">
                   <input className={cellInputCls} value={h.hotelName} onChange={(e) => update(i, { hotelName: e.target.value })} />
+                </Field>
+                <Field label="Check-in Date">
+                  <DateInput value={h.checkIn} onChange={(iso) => update(i, { checkIn: iso || null })} />
+                </Field>
+                <Field label="Check-out Date">
+                  <DateInput value={h.checkOut} onChange={(iso) => update(i, { checkOut: iso || null })} min={h.checkIn ?? undefined} />
                 </Field>
                 <Field label="Nights">
                   <input
@@ -108,9 +115,24 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
                   />
                 </Field>
                 <Field label="D2D Cost">
-                  <div className={`${readonlyBoxCls} justify-end text-right font-semibold text-slate-900`}>
-                    {totalCost !== undefined ? formatINR(totalCost) : "—"}
-                  </div>
+                  {meta ? (
+                    <div className={`${readonlyBoxCls} justify-end text-right font-semibold text-slate-900`}>
+                      {totalCost !== undefined ? formatINR(totalCost) : "—"}
+                    </div>
+                  ) : costEntry ? (
+                    <input
+                      type="number"
+                      min={0}
+                      className={cellInputCls}
+                      defaultValue={costEntry.sellingPrice}
+                      onBlur={(e) => {
+                        const next = Number(e.target.value) || 0;
+                        if (next !== costEntry.sellingPrice) onSellingPriceChange(h.id ?? "", next);
+                      }}
+                    />
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2 py-2 text-xs text-slate-400">Save row first</div>
+                  )}
                 </Field>
                 <Field label="Supplier Name">
                   <input className={cellInputCls} value={h.supplier} onChange={(e) => update(i, { supplier: e.target.value })} />

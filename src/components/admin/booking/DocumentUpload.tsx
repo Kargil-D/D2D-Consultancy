@@ -10,6 +10,8 @@ interface DocumentUploadProps {
   onChange: (url: string) => void;
 }
 
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif|svg)(\?|#|$)/i;
+
 /**
  * Document upload slot for the Booking workspace (Passport/Visa/Flight
  * Ticket/Insurance). Uploads directly to Vercel Blob via the shared
@@ -34,15 +36,38 @@ export default function DocumentUpload({ label, value, onChange }: DocumentUploa
   return (
     <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className={`flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0 ${value ? "bg-emerald-100 text-emerald-600" : "bg-slate-200 text-slate-500"}`}>
-            {value ? <CheckCircle2 className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
-          </span>
-          <div className="min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
-            <div className="text-sm text-slate-700 truncate">{value ? "Uploaded" : "No file uploaded"}</div>
+        {value ? (
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-3 min-w-0"
+            title="Click to view the uploaded file"
+          >
+            <span className="relative flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0 overflow-hidden bg-emerald-100 text-emerald-600 ring-1 ring-transparent group-hover:ring-blue-400 transition-shadow">
+              {IMAGE_EXT.test(value) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={value} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <CheckCircle2 className="w-5 h-5" />
+              )}
+            </span>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+              <div className="text-sm text-blue-700 truncate group-hover:underline underline-offset-2">Uploaded — view</div>
+            </div>
+          </a>
+        ) : (
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0 bg-slate-200 text-slate-500">
+              <FileText className="w-5 h-5" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</div>
+              <div className="text-sm text-slate-700 truncate">No file uploaded</div>
+            </div>
           </div>
-        </div>
+        )}
         <div className="flex items-center gap-2 flex-shrink-0">
           {value && (
             <button

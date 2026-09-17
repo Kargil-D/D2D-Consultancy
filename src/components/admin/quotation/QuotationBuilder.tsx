@@ -234,6 +234,10 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
 
   const [loading, setLoading] = useState(!!initialId);
   const [saving, setSaving] = useState(false);
+  // Raw text the user is currently typing into "Margin Value (INR)" — kept separate from the
+  // computed marginValue below so the field doesn't snap back to a recomputed number (0 whenever
+  // totalCost is 0) on every keystroke. Non-null only while the field is focused.
+  const [marginValueDraft, setMarginValueDraft] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
 
@@ -1446,11 +1450,14 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
             type="number"
             min={0}
             className={inputCls}
-            value={marginValue}
+            value={marginValueDraft ?? marginValue}
+            onFocus={() => setMarginValueDraft(String(marginValue))}
             onChange={(e) => {
+              setMarginValueDraft(e.target.value);
               const value = Number(e.target.value) || 0;
               patch({ marginPercent: totalCost > 0 ? Math.round((value / totalCost) * 10000) / 100 : 0 });
             }}
+            onBlur={() => setMarginValueDraft(null)}
           />
         </Field>
         <Field label="GST %">

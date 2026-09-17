@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Compass } from "lucide-react";
+import Link from "next/link";
+import { Compass, ChevronRight } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import { LeadStatusBadge } from "@/components/admin/lead/LeadStatusBadge";
 import type { AdminLead } from "@/types/admin";
@@ -35,18 +36,29 @@ export default function YourVacationsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {leads.map((lead) => (
-            <div key={lead.id} className="rounded-2xl bg-white border border-slate-200 p-5">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-slate-900">{lead.destination?.name ?? "Destination"}</h3>
-                <LeadStatusBadge status={lead.status} />
+          {leads.map((lead) => {
+            const booking = lead.bookings?.[0];
+            return (
+              <div key={lead.id} className="rounded-2xl bg-white border border-slate-200 p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-slate-900">{lead.destination?.name ?? "Destination"}</h3>
+                  <LeadStatusBadge status={lead.status} />
+                </div>
+                <p className="text-sm text-slate-500">
+                  {lead.travelDate ? new Date(lead.travelDate).toLocaleDateString("en-IN") : "Travel date not set"}
+                </p>
+                {lead.remarks && <p className="text-xs text-slate-400 mt-2">{lead.remarks}</p>}
+                {booking && (
+                  <Link
+                    href={`/account/bookings/${booking.id}`}
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-cyan-700 hover:text-cyan-800"
+                  >
+                    Track your booking <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                )}
               </div>
-              <p className="text-sm text-slate-500">
-                {lead.travelDate ? new Date(lead.travelDate).toLocaleDateString("en-IN") : "Travel date not set"}
-              </p>
-              {lead.remarks && <p className="text-xs text-slate-400 mt-2">{lead.remarks}</p>}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

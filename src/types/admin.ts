@@ -530,6 +530,8 @@ export interface AdminLead {
   remarks?: string | null;
   status: LeadStatus;
   activities?: AdminLeadActivity[];
+  /** Customer-visible Bookings converted from this lead's quotation(s) — see /api/customer/vacations. */
+  bookings?: { id: string; status: BookingStatus }[];
   createdDate: string;
   updatedDate: string;
 }

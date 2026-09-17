@@ -84,14 +84,19 @@ export default function BookingTracking({ id }: { id: string }) {
           <BookingStatusBadge status={booking.status} />
         </div>
 
-        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500 mt-3 mb-5">
-          <span className="inline-flex items-center gap-1.5">
-            <CalendarDays className="w-4 h-4" />
-            {booking.travelDate ? new Date(booking.travelDate).toLocaleDateString("en-IN") : "Travel date not set"}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Users className="w-4 h-4" /> {travellers} traveller{travellers !== 1 ? "s" : ""}
-          </span>
+        <div className="flex flex-wrap gap-3 mt-4 mb-5">
+          <InfoChip
+            icon={<CalendarDays className="w-4 h-4" />}
+            label="Travel Date"
+            value={booking.travelDate ? new Date(booking.travelDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Not set yet"}
+            from="from-cyan-50" to="to-blue-50" border="border-cyan-100" iconBg="bg-cyan-600" labelColor="text-cyan-700/80"
+          />
+          <InfoChip
+            icon={<Users className="w-4 h-4" />}
+            label="Travellers"
+            value={`${travellers} ${travellers !== 1 ? "Travellers" : "Traveller"}`}
+            from="from-violet-50" to="to-fuchsia-50" border="border-violet-100" iconBg="bg-violet-600" labelColor="text-violet-700/80"
+          />
         </div>
 
         <BookingJourneyTracker status={booking.status} />
@@ -166,6 +171,36 @@ export default function BookingTracking({ id }: { id: string }) {
             ))}
           </ol>
         )}
+      </div>
+    </div>
+  );
+}
+
+function InfoChip({
+  icon,
+  label,
+  value,
+  from,
+  to,
+  border,
+  iconBg,
+  labelColor,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  from: string;
+  to: string;
+  border: string;
+  iconBg: string;
+  labelColor: string;
+}) {
+  return (
+    <div className={`inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-br ${from} ${to} border ${border} px-3.5 py-2`}>
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconBg} text-white`}>{icon}</div>
+      <div>
+        <p className={`text-[10px] font-semibold uppercase leading-none tracking-wide ${labelColor}`}>{label}</p>
+        <p className="mt-1 text-sm font-semibold leading-none text-slate-800">{value}</p>
       </div>
     </div>
   );

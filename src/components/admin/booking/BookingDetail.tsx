@@ -622,6 +622,18 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     reload();
   };
 
+  // D2D Cost/Selling Price is only auto-synced (and read-only) for rows that came from the
+  // linked Quotation's Pricing step — a row added manually here has no quotation cost to mirror,
+  // so it keeps a plain, directly-editable Selling Price on the Cost Sheet (same rule
+  // BookingCostSheet.tsx already applies via d2dCostBySourceId).
+  const updateSellingPrice = async (sourceId: string, sellingPrice: number) => {
+    const entry = booking?.costSheet.find((e) => e.sourceId === sourceId);
+    if (!entry) return;
+    const res = await bookingsApi.saveCostSheet(id, [{ id: entry.id, sellingPrice }]);
+    if (!res.success) return notify(res.message || "Unable to save D2D cost", "error");
+    reload();
+  };
+
   const saveVisas = async () => {
     if (savingVisas) return;
     setSavingVisas(true);
@@ -1023,6 +1035,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
                 costSheet={booking.costSheet}
                 onBookedCostChange={updateBookedCost}
                 onSettlementCostChange={updateSettlementCost}
+                onSellingPriceChange={updateSellingPrice}
                 quotationMeta={hotelQuotationMeta}
                 currencyOptions={currencyOptions}
               />

@@ -21,7 +21,16 @@ export const GET = withApiHandler("[/api/customer/vacations] GET", async (req) =
 
   const leads = await prisma.lead.findMany({
     where: { isDeleted: false, email: { equals: user.email, mode: "insensitive" } },
-    include: { destination: true },
+    include: {
+      destination: true,
+      // Only statuses the customer is meant to see — matches the gate in
+      // /api/customer/bookings/[id] and /api/customer/activities. "Won" is the
+      // internal in-progress stage right after conversion and stays hidden.
+      bookings: {
+        where: { isDeleted: false, status: { in: ["Booked", "OnTrip", "Completed", "Cancelled"] } },
+        select: { id: true, status: true },
+      },
+    },
     orderBy: { createdDate: "desc" },
   });
 

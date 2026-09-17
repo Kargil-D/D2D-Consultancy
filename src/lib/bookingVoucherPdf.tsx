@@ -445,7 +445,7 @@ const hvStyles = StyleSheet.create({
   logoWordHolidays: { fontSize: 12, fontWeight: 700, color: HV.teal },
   logoTagline: { fontSize: 5.5, letterSpacing: 1.2, color: HV.grey, marginTop: 1 },
   hvTitle: { fontSize: 18, fontWeight: 700, color: HV.navy },
-  cols: { flexDirection: "row", marginTop: 18, gap: 20 },
+  cols: { flexDirection: "row", marginTop: 16, gap: 20 },
   col: { flex: 1 },
   secLabel: { fontSize: 8, fontWeight: 700, color: HV.teal, letterSpacing: 0.5, marginBottom: 5 },
   secMain: { fontSize: 13, fontWeight: 700, color: HV.navy },
@@ -456,39 +456,54 @@ const hvStyles = StyleSheet.create({
     borderRadius: 4,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    marginTop: 14,
+    marginTop: 12,
   },
   refItem: { flex: 1, fontSize: 9.5, fontWeight: 700, color: HV.navy },
-  stay: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+
+  hotelCard: {
     borderWidth: 1,
     borderColor: HV.line,
     borderStyle: "solid",
     borderRadius: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginTop: 16,
+    marginTop: 14,
+    overflow: "hidden",
+  },
+  hotelCardHead: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 9, paddingHorizontal: 14 },
+  hotelName: { fontSize: 12, fontWeight: 700, color: HV.navy },
+  hotelAddress: { fontSize: 8.5, color: HV.grey, marginTop: 1 },
+  hotelCnf: { fontSize: 8.5, color: HV.grey, textAlign: "right" },
+  hotelCnfVal: { color: HV.navy, fontWeight: 700 },
+
+  stay: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: HV.light,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
   },
   stayLbl: { fontSize: 7.5, color: HV.grey, letterSpacing: 0.5 },
-  stayDate: { fontSize: 11.5, fontWeight: 700, color: HV.navy, marginTop: 2 },
-  stayTime: { fontSize: 8, color: HV.grey, marginTop: 1 },
-  stayNights: { fontSize: 12, fontWeight: 700, color: HV.teal },
-  table: { marginTop: 18 },
-  tHeadRow: { flexDirection: "row", backgroundColor: HV.navy, paddingVertical: 7, paddingHorizontal: 10 },
-  tHeadCell: { color: "#ffffff", fontSize: 9, fontWeight: 700 },
-  tRow: { flexDirection: "row", paddingVertical: 7, paddingHorizontal: 10 },
+  stayDate: { fontSize: 10.5, fontWeight: 700, color: HV.navy, marginTop: 1 },
+  stayTime: { fontSize: 7.5, color: HV.grey, marginTop: 1 },
+  stayNights: { fontSize: 11, fontWeight: 700, color: HV.teal },
+
+  table: {},
+  tHeadRow: { flexDirection: "row", backgroundColor: HV.navy, paddingVertical: 6, paddingHorizontal: 10 },
+  tHeadCell: { color: "#ffffff", fontSize: 8.5, fontWeight: 700 },
+  tRow: { flexDirection: "row", paddingVertical: 6, paddingHorizontal: 10 },
   tRowOdd: { backgroundColor: HV.light },
-  tCell: { fontSize: 9.5, color: HV.navy },
+  tCell: { fontSize: 9, color: HV.navy },
   colNum: { width: "8%" },
   colNight: { width: "14%" },
   colMeal: { width: "34%" },
   colRoom: { width: "44%" },
   foot: {
+    position: "absolute",
+    bottom: 20,
+    left: 40,
+    right: 40,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 26,
     paddingTop: 10,
     borderTop: `1.5 solid ${HV.teal}`,
     fontSize: 8,
@@ -518,31 +533,18 @@ function HotelVoucherLogo() {
   );
 }
 
-function HotelVoucherPage({ entry, generatedOn }: { entry: HotelTravelVoucherEntry; generatedOn: string }) {
+/** One hotel's stay + night-by-night table, as a compact self-contained card — kept together
+ * on one page (wrap=false) but stacked tightly under the next card rather than starting a
+ * fresh page each time. */
+function HotelVoucherCard({ entry }: { entry: HotelTravelVoucherEntry }) {
   return (
-    <Page size="A4" style={hvStyles.page}>
-      <View style={hvStyles.head}>
-        <HotelVoucherLogo />
-        <Text style={hvStyles.hvTitle}>Hotel Voucher</Text>
-      </View>
-
-      <View style={hvStyles.cols}>
-        <View style={hvStyles.col}>
-          <Text style={hvStyles.secLabel}>HOTEL DETAILS</Text>
-          <Text style={hvStyles.secMain}>{entry.hotelName || "—"}</Text>
-          {entry.hotelAddress ? <Text style={hvStyles.secSub}>{entry.hotelAddress}</Text> : null}
+    <View style={hvStyles.hotelCard} wrap={false}>
+      <View style={hvStyles.hotelCardHead}>
+        <View>
+          <Text style={hvStyles.hotelName}>{entry.hotelName || "—"}</Text>
+          {entry.hotelAddress ? <Text style={hvStyles.hotelAddress}>{entry.hotelAddress}</Text> : null}
         </View>
-        <View style={hvStyles.col}>
-          <Text style={hvStyles.secLabel}>GUEST DETAILS</Text>
-          <Text style={hvStyles.secMain}>{entry.guestName || "—"}</Text>
-          <Text style={hvStyles.secSub}>{entry.occupancy}</Text>
-        </View>
-      </View>
-
-      <View style={hvStyles.refbar}>
-        <Text style={hvStyles.refItem}>D2D Booking ID: {entry.d2dBookingId}</Text>
-        <Text style={hvStyles.refItem}>Booking CNF: {entry.bookingCnf}</Text>
-        <Text style={hvStyles.refItem}>Trip ID: {entry.tripId}</Text>
+        <Text style={hvStyles.hotelCnf}>Booking CNF{"\n"}<Text style={hvStyles.hotelCnfVal}>{entry.bookingCnf}</Text></Text>
       </View>
 
       <View style={hvStyles.stay}>
@@ -575,21 +577,55 @@ function HotelVoucherPage({ entry, generatedOn }: { entry: HotelTravelVoucherEnt
           </View>
         ))}
       </View>
-
-      <View style={hvStyles.foot}>
-        <Text>Generated On : {generatedOn}</Text>
-        <Text><Text style={hvStyles.footBrand}>D2D Holidays</Text>  |  <Text style={hvStyles.footBrand}>Drive to Destination</Text></Text>
-      </View>
-    </Page>
+    </View>
   );
 }
 
+/** All hotel stays on one continuously-flowing document — a single <Page> auto-paginates
+ * across as many physical pages as the content needs, instead of forcing one page per hotel.
+ * Guest/booking reference info (identical for every stay on the same trip) is shown once up
+ * top rather than repeated per hotel. */
 function HotelTravelVoucherDocument({ data }: { data: HotelTravelVoucherPdfData }) {
+  const [first] = data.entries;
   return (
     <Document>
-      {data.entries.map((entry, i) => (
-        <HotelVoucherPage entry={entry} generatedOn={data.generatedOn} key={i} />
-      ))}
+      <Page size="A4" style={hvStyles.page} wrap>
+        <View style={hvStyles.head} fixed>
+          <HotelVoucherLogo />
+          <Text style={hvStyles.hvTitle}>Hotel Voucher</Text>
+        </View>
+
+        {first && (
+          <>
+            <View style={hvStyles.cols}>
+              <View style={hvStyles.col}>
+                <Text style={hvStyles.secLabel}>GUEST DETAILS</Text>
+                <Text style={hvStyles.secMain}>{first.guestName || "—"}</Text>
+                <Text style={hvStyles.secSub}>{first.occupancy}</Text>
+              </View>
+              <View style={hvStyles.col}>
+                <Text style={hvStyles.secLabel}>TRIP REFERENCE</Text>
+                <Text style={hvStyles.secMain}>{first.d2dBookingId}</Text>
+                <Text style={hvStyles.secSub}>Trip ID: {first.tripId}</Text>
+              </View>
+            </View>
+            <View style={hvStyles.refbar}>
+              <Text style={hvStyles.refItem}>D2D Booking ID: {first.d2dBookingId}</Text>
+              <Text style={hvStyles.refItem}>Trip ID: {first.tripId}</Text>
+              <Text style={hvStyles.refItem}>Hotel Stays: {data.entries.length}</Text>
+            </View>
+          </>
+        )}
+
+        {data.entries.map((entry, i) => (
+          <HotelVoucherCard entry={entry} key={i} />
+        ))}
+
+        <View style={hvStyles.foot} fixed>
+          <Text>Generated On : {data.generatedOn}</Text>
+          <Text><Text style={hvStyles.footBrand}>D2D Holidays</Text>  |  <Text style={hvStyles.footBrand}>Drive to Destination</Text></Text>
+        </View>
+      </Page>
     </Document>
   );
 }
