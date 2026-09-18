@@ -13,20 +13,8 @@ const REFRESH_TOKEN_COOKIE = "d2d_refresh_token";
 // may see their own attendance.
 const ADMIN_ONLY_PREFIXES = ["/admin/locker", "/admin/employees", "/admin/roles", "/admin/roster", "/admin/lead-assignment"];
 
-// Direct-navigation (plain <a href>, not fetch/apiClient) document downloads under the customer
-// account area. These never go through apiClient's fetch() and so never see the JSON 401 it
-// could otherwise retry-on-refresh (it doesn't do that yet anyway) — a browser tab just gets a
-// bare 401 body once the 15-minute access token expires, even mid-session. Routing them through
-// this same "silent refresh, then bounce to the original URL" flow fixes that: a genuine
-// full-page navigation follows the redirect chain transparently and lands on the PDF either way.
-const CUSTOMER_DOCUMENT_PATHS = [
-  "/api/customer/bookings/:id/travel-voucher",
-  "/api/customer/bookings/:id/hotel-voucher",
-  "/api/customer/bookings/:id/payment-acknowledgement",
-];
-
 /** Gates every /admin/** page (not just the API calls they make) behind a real staff session, plus
- * the customer document-download routes above. Logged-out visitors and Customer-role accounts are
+ * the customer document-download routes in config.matcher below. Logged-out visitors and Customer-role accounts are
  * bounced to /admin/login from /admin/**; non-Admin staff hitting an Admin-only section are
  * bounced to /admin. Document routes with no valid session just fall through to their own route
  * handler, which returns its usual JSON 401 (no HTML login page for those). */
@@ -75,6 +63,21 @@ export async function middleware(req: NextRequest) {
   return NextResponse.redirect(url);
 }
 
+// Next.js statically parses this export at build time and can't evaluate a spread of an
+// imported/local array (even a plain top-level const) — the matcher list must be a literal.
+//
+// The three /api/customer/bookings/:id/* entries are direct-navigation (plain <a href>, not
+// fetch/apiClient) document downloads under the customer account area. These never go through
+// apiClient's fetch() and so never see the JSON 401 it could otherwise retry-on-refresh (it
+// doesn't do that yet anyway) — a browser tab just gets a bare 401 body once the 15-minute
+// access token expires, even mid-session. Routing them through this same "silent refresh, then
+// bounce to the original URL" flow fixes that: a genuine full-page navigation follows the
+// redirect chain transparently and lands on the PDF either way.
 export const config = {
-  matcher: ["/admin/:path*", ...CUSTOMER_DOCUMENT_PATHS],
+  matcher: [
+    "/admin/:path*",
+    "/api/customer/bookings/:id/travel-voucher",
+    "/api/customer/bookings/:id/hotel-voucher",
+    "/api/customer/bookings/:id/payment-acknowledgement",
+  ],
 };
