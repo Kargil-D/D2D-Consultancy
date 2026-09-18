@@ -36,6 +36,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         lead: true,
         customerPayments: { orderBy: { paymentDate: "desc" } },
         timeline: { orderBy: { createdDate: "desc" } },
+        hotels: { select: { id: true } },
       },
     });
 

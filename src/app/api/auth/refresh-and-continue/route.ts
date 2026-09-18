@@ -13,7 +13,14 @@ export const runtime = "nodejs";
  * as the 7-day refresh token is still valid.
  */
 export async function GET(req: NextRequest) {
-  const redirectTo = req.nextUrl.searchParams.get("redirect") || "/admin";
+  const requested = req.nextUrl.searchParams.get("redirect") || "/admin";
+  // Guard against an open redirect (must be a same-site relative path) and, more importantly,
+  // against ever redirecting back into this same route — if `redirect` were ever this route's
+  // own URL (e.g. a request racing the one that already rotated the token, replaying a stale
+  // `redirect` param), following it blindly recurses forever, wrapping the URL in another layer
+  // of encoding each hop until the browser gives up with ERR_TOO_MANY_REDIRECTS.
+  const isSafeRelativePath = requested.startsWith("/") && !requested.startsWith("//");
+  const redirectTo = isSafeRelativePath && !requested.startsWith("/api/auth/refresh-and-continue") ? requested : "/admin";
 
   const loginUrl = new URL("/admin/login", req.url);
   loginUrl.search = `redirect=${encodeURIComponent(redirectTo)}`;

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Users, CalendarDays, Wallet, Receipt, History } from "lucide-react";
+import { ChevronLeft, Users, CalendarDays, Wallet, Receipt, History, BadgeCheck, Eye, Download, Plane, BedDouble, FileText } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
 import BookingStatusBadge from "@/components/account/BookingStatusBadge";
 import BookingJourneyTracker from "@/components/account/BookingJourneyTracker";
@@ -22,6 +22,7 @@ interface BookingDetailData {
   lead?: { seq: number };
   customerPayments: AdminBookingCustomerPayment[];
   timeline: AdminBookingTimelineEvent[];
+  hotels: { id: string }[];
 }
 
 const formatINR = (v: number) =>
@@ -102,6 +103,34 @@ export default function BookingTracking({ id }: { id: string }) {
         <BookingJourneyTracker status={booking.status} />
       </div>
 
+      <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 mb-6">
+        <h2 className="flex items-center gap-2 font-semibold text-slate-900 mb-4">
+          <FileText className="w-4 h-4 text-cyan-600" /> Trip Documents
+        </h2>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <DocumentTicket
+            icon={<Plane className="w-4 h-4" />}
+            eyebrow="Travel Voucher"
+            heading="Full Trip Itinerary"
+            caption="Passengers, stays & day-wise plan"
+            viewHref={`/api/customer/bookings/${booking.id}/travel-voucher`}
+            downloadHref={`/api/customer/bookings/${booking.id}/travel-voucher?download=1`}
+          />
+
+          {booking.hotels.length > 0 && (
+            <DocumentTicket
+              icon={<BedDouble className="w-4 h-4" />}
+              eyebrow="Hotel Voucher"
+              heading="Accommodation Details"
+              caption="Stay confirmation for your hotels"
+              viewHref={`/api/customer/bookings/${booking.id}/hotel-voucher`}
+              downloadHref={`/api/customer/bookings/${booking.id}/hotel-voucher?download=1`}
+            />
+          )}
+        </div>
+      </div>
+
       {booking.totalAmount > 0 && (
         <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 mb-6">
           <h2 className="flex items-center gap-2 font-semibold text-slate-900 mb-4">
@@ -127,6 +156,19 @@ export default function BookingTracking({ id }: { id: string }) {
             <div className={`h-full rounded-full ${pct >= 100 ? "bg-emerald-500" : "bg-cyan-500"}`} style={{ width: `${pct}%` }} />
           </div>
           <p className="text-xs text-slate-400">{pct}% paid</p>
+
+          {paid > 0 && (
+            <div className="mt-5">
+              <DocumentTicket
+                icon={<BadgeCheck className="w-4 h-4" />}
+                eyebrow="Payment Acknowledgement"
+                heading={formatINR(paid)}
+                caption={`Received so far${booking.lead ? ` · Ack No. ACK-${trackingCode(booking.lead.seq)}` : ""}`}
+                viewHref={`/api/customer/bookings/${booking.id}/payment-acknowledgement`}
+                downloadHref={`/api/customer/bookings/${booking.id}/payment-acknowledgement?download=1`}
+              />
+            </div>
+          )}
 
           {booking.customerPayments.length > 0 && (
             <div className="mt-5 border-t border-slate-100 pt-4">
@@ -201,6 +243,58 @@ function InfoChip({
       <div>
         <p className={`text-[10px] font-semibold uppercase leading-none tracking-wide ${labelColor}`}>{label}</p>
         <p className="mt-1 text-sm font-semibold leading-none text-slate-800">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function DocumentTicket({
+  icon,
+  eyebrow,
+  heading,
+  caption,
+  viewHref,
+  downloadHref,
+}: {
+  icon: React.ReactNode;
+  eyebrow: string;
+  heading: string;
+  caption: string;
+  viewHref: string;
+  downloadHref: string;
+}) {
+  return (
+    <div className="relative flex rounded-2xl border border-teal-100 shadow-sm overflow-hidden">
+      <div className="flex-1 bg-gradient-to-br from-teal-600 to-cyan-700 p-4 sm:p-5 text-white">
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15">{icon}</div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-white/85">{eyebrow}</p>
+        </div>
+        <p className="text-lg font-bold leading-tight">{heading}</p>
+        <p className="mt-0.5 text-xs text-white/80">{caption}</p>
+      </div>
+
+      {/* Ticket-stub perforation between the info panel and the actions */}
+      <div className="relative w-0 border-l-2 border-dashed border-teal-200/70">
+        <span className="absolute -top-3 -left-3 h-6 w-6 rounded-full bg-white" />
+        <span className="absolute -bottom-3 -left-3 h-6 w-6 rounded-full bg-white" />
+      </div>
+
+      <div className="flex w-36 sm:w-40 flex-col items-stretch justify-center gap-2 bg-white p-3 sm:p-4">
+        <a
+          href={viewHref}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-teal-200 px-3 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-50"
+        >
+          <Eye className="w-3.5 h-3.5" /> View
+        </a>
+        <a
+          href={downloadHref}
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700"
+        >
+          <Download className="w-3.5 h-3.5" /> Download
+        </a>
       </div>
     </div>
   );

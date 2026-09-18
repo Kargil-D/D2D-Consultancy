@@ -104,6 +104,22 @@ export async function getBooking(id: string) {
   return prisma.booking.findUnique({ where: { id }, include: BOOKING_INCLUDE });
 }
 
+/** Same full shape as getBooking, but scoped to a logged-in customer's own booking (matched by
+ * their Lead's email, same statuses the customer account area already exposes) — used by every
+ * self-service booking route/document under /api/customer/bookings/[id]/**. Returns null rather
+ * than throwing so callers can 404 with their own message. */
+export async function getCustomerOwnedBooking(id: string, email: string) {
+  return prisma.booking.findFirst({
+    where: {
+      id,
+      isDeleted: false,
+      status: { in: ["Booked", "OnTrip", "Completed", "Cancelled"] },
+      lead: { email: { equals: email, mode: "insensitive" } },
+    },
+    include: BOOKING_INCLUDE,
+  });
+}
+
 /** Strips the margin/internal-ops fields (DMC Communication, Supplier Invoice, Cost Sheet) from a
  * Booking payload before it reaches a viewer without BookingsMaster — the "Bookings" module alone
  * only grants the operational booking workspace, not cost/margin visibility. */

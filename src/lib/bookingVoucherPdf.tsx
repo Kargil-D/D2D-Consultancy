@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, Svg, Path, Defs, LinearGradient, Stop, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Svg, Path, Circle, Defs, LinearGradient, Stop, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import { SUPPORT_PHONES, SUPPORT_EMAIL } from "@/data/contact";
 
 const styles = StyleSheet.create({
@@ -632,4 +632,231 @@ function HotelTravelVoucherDocument({ data }: { data: HotelTravelVoucherPdfData 
 
 export async function renderHotelTravelVoucherPdf(data: HotelTravelVoucherPdfData): Promise<Buffer> {
   return renderToBuffer(<HotelTravelVoucherDocument data={data} />);
+}
+
+/**
+ * Customer-facing "Payment Acknowledgement" — a single-page certificate-style receipt for the
+ * *total* amount a customer has paid on a booking to date, with a supporting payment-by-payment
+ * breakup. Reuses the RC palette/logo from the trip receipt above for brand consistency. The
+ * circular "seal" on the hero card is the one deliberately decorative touch — everything else
+ * stays plain and legible since this is a document customers keep for their own records.
+ */
+export interface PaymentAckEntry {
+  label: string;
+  dateLabel: string;
+  modeLabel: string;
+  reference: string | null;
+  amount: number;
+}
+
+export interface PaymentAcknowledgementPdfData {
+  ackNumber: string;
+  issuedOn: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+  destinationName: string;
+  bookingId: string;
+  bookingStatusLabel: string;
+  totalReceived: number;
+  totalCost: number;
+  balanceDue: number;
+  payments: PaymentAckEntry[];
+}
+
+const ONES = [
+  "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+  "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen",
+];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+function twoDigitWords(n: number): string {
+  if (n < 20) return ONES[n];
+  const t = Math.floor(n / 10);
+  const o = n % 10;
+  return TENS[t] + (o ? ` ${ONES[o]}` : "");
+}
+function threeDigitWords(n: number): string {
+  const h = Math.floor(n / 100);
+  const r = n % 100;
+  return (h ? `${ONES[h]} Hundred${r ? " " : ""}` : "") + (r ? twoDigitWords(r) : "");
+}
+/** Indian numbering (crore/lakh/thousand), e.g. 1234567 -> "Twelve Lakh Thirty Four Thousand Five Hundred Sixty Seven". */
+function amountInWords(value: number): string {
+  const n = Math.round(Math.abs(value));
+  if (n === 0) return "Rupees Zero Only";
+  let remaining = n;
+  const crore = Math.floor(remaining / 10000000); remaining %= 10000000;
+  const lakh = Math.floor(remaining / 100000); remaining %= 100000;
+  const thousand = Math.floor(remaining / 1000); remaining %= 1000;
+  const hundred = remaining;
+  const parts: string[] = [];
+  if (crore) parts.push(`${threeDigitWords(crore)} Crore`);
+  if (lakh) parts.push(`${threeDigitWords(lakh)} Lakh`);
+  if (thousand) parts.push(`${threeDigitWords(thousand)} Thousand`);
+  if (hundred) parts.push(threeDigitWords(hundred));
+  return `Rupees ${parts.join(" ")} Only`;
+}
+
+const paStyles = StyleSheet.create({
+  page: { paddingTop: 32, paddingHorizontal: 34, paddingBottom: 30, fontSize: 10, fontFamily: "Helvetica", color: RC.ink },
+
+  hero: { marginTop: 18, borderRadius: 14, backgroundColor: RC.tealDark, paddingVertical: 22, paddingHorizontal: 24, position: "relative", overflow: "hidden" },
+  heroLbl: { fontSize: 9, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#d7f3f1" },
+  heroAmt: { fontSize: 32, fontWeight: 700, color: "#ffffff", marginTop: 6 },
+  heroWords: { fontSize: 9, fontStyle: "italic", color: "#d7f3f1", marginTop: 6, maxWidth: 340 },
+
+  stampWrap: { position: "absolute", top: 14, right: 18, width: 88, height: 88, transform: "rotate(-12deg)" },
+  stampTextWrap: { position: "absolute", top: 0, left: 0, width: 88, height: 88, alignItems: "center", justifyContent: "center" },
+  stampBrand: { fontSize: 6, fontWeight: 700, letterSpacing: 1, color: "#ffffff" },
+  stampWord: { fontSize: 7.5, fontWeight: 700, letterSpacing: 0.5, color: "#ffffff", marginTop: 1 },
+  stampCheck: { fontSize: 13, fontWeight: 700, color: "#ffffff", marginTop: 2, marginBottom: 2 },
+
+  cols: { flexDirection: "row", marginTop: 18, gap: 20 },
+  col: { flex: 1, borderWidth: 1, borderColor: RC.line, borderStyle: "solid", borderRadius: 8, padding: 12, backgroundColor: RC.lightBg },
+  colLbl: { fontSize: 7.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: RC.teal, marginBottom: 5 },
+  colMain: { fontSize: 12, fontWeight: 700, color: RC.ink },
+  colSub: { fontSize: 9, color: RC.body, marginTop: 2 },
+
+  table: { marginTop: 8, borderWidth: 1, borderColor: RC.line, borderStyle: "solid", borderRadius: 8, overflow: "hidden" },
+  tHeadRow: { flexDirection: "row", backgroundColor: RC.headBg, paddingVertical: 8, paddingHorizontal: 12 },
+  tHeadCell: { fontSize: 8.5, fontWeight: 700, color: RC.ink, textTransform: "uppercase", letterSpacing: 0.3 },
+  tRow: { flexDirection: "row", paddingVertical: 8, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: RC.line2, borderTopStyle: "solid" },
+  tCell: { fontSize: 9.5, color: RC.ink },
+  colNum: { width: "6%" },
+  colDate: { width: "20%" },
+  colMode: { width: "20%" },
+  colRef: { width: "30%" },
+  colAmt: { width: "24%", textAlign: "right", fontWeight: 700 },
+  tTotalRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 9, paddingHorizontal: 12, backgroundColor: RC.tealBg, borderTopWidth: 1, borderTopColor: RC.line, borderTopStyle: "solid" },
+  tTotalLbl: { fontSize: 10, fontWeight: 700, color: RC.ink },
+  tTotalVal: { fontSize: 11, fontWeight: 700, color: RC.paidBg },
+
+  strip: { flexDirection: "row", marginTop: 16, borderWidth: 1, borderColor: RC.line, borderStyle: "solid", borderRadius: 8 },
+  stripCell: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, borderRightWidth: 1, borderRightColor: RC.line, borderRightStyle: "solid" },
+  stripCellLast: { borderRightWidth: 0 },
+  stripLbl: { fontSize: 7.5, textTransform: "uppercase", letterSpacing: 0.5, color: RC.muted2, fontWeight: 700 },
+  stripVal: { fontSize: 11, fontWeight: 700, color: RC.ink, marginTop: 3 },
+
+  sign: { marginTop: 34, flexDirection: "row", justifyContent: "flex-end" },
+  signBox: { alignItems: "center", width: 170 },
+  signLine: { borderTopWidth: 1, borderTopColor: RC.ink, borderTopStyle: "solid", width: "100%", marginBottom: 4 },
+  signLbl: { fontSize: 8.5, color: RC.body },
+
+  footer: { marginTop: 18, textAlign: "center", borderTopWidth: 2, borderTopColor: RC.teal, borderTopStyle: "solid", paddingTop: 12 },
+  footerNote: { fontSize: 7.5, color: "#9aa4b4", lineHeight: 1.5 },
+  footerContact: { marginTop: 6, color: RC.ink, fontWeight: 700, fontSize: 9 },
+});
+
+function PaymentAckStamp() {
+  return (
+    <View style={paStyles.stampWrap}>
+      <Svg width={88} height={88} viewBox="0 0 88 88">
+        <Circle cx={44} cy={44} r={41} stroke="#ffffff" strokeWidth={1.25} strokeDasharray="3,3" fill="none" />
+        <Circle cx={44} cy={44} r={33} stroke="#ffffff" strokeWidth={0.75} fill="none" />
+      </Svg>
+      <View style={paStyles.stampTextWrap}>
+        <Text style={paStyles.stampBrand}>D2D HOLIDAYS</Text>
+        <Text style={paStyles.stampCheck}>✓</Text>
+        <Text style={paStyles.stampWord}>PAYMENT</Text>
+        <Text style={paStyles.stampWord}>RECEIVED</Text>
+      </View>
+    </View>
+  );
+}
+
+function PaymentAcknowledgementDocument({ data }: { data: PaymentAcknowledgementPdfData }) {
+  return (
+    <Document>
+      <Page size="A4" style={paStyles.page}>
+        <View style={rcStyles.head}>
+          <ReceiptLogo />
+          <View style={rcStyles.docMeta}>
+            <Text style={rcStyles.docTitle}>PAYMENT ACKNOWLEDGEMENT</Text>
+            <Text style={rcStyles.docId}>Ack No: {data.ackNumber}</Text>
+            <Text style={rcStyles.docIssued}>Issued: {data.issuedOn}</Text>
+          </View>
+        </View>
+
+        <View style={paStyles.hero}>
+          <PaymentAckStamp />
+          <Text style={paStyles.heroLbl}>Total Amount Received</Text>
+          <Text style={paStyles.heroAmt}>{formatINRSymbol(data.totalReceived)}</Text>
+          <Text style={paStyles.heroWords}>{amountInWords(data.totalReceived)}</Text>
+        </View>
+
+        <View style={paStyles.cols}>
+          <View style={paStyles.col}>
+            <Text style={paStyles.colLbl}>Received From</Text>
+            <Text style={paStyles.colMain}>{data.customerName || "—"}</Text>
+            {data.customerPhone ? <Text style={paStyles.colSub}>{data.customerPhone}</Text> : null}
+            {data.customerEmail ? <Text style={paStyles.colSub}>{data.customerEmail}</Text> : null}
+          </View>
+          <View style={paStyles.col}>
+            <Text style={paStyles.colLbl}>For Booking</Text>
+            <Text style={paStyles.colMain}>{data.destinationName || "—"}</Text>
+            <Text style={paStyles.colSub}>Booking ID: {data.bookingId} · {data.bookingStatusLabel}</Text>
+          </View>
+        </View>
+
+        <Text style={rcStyles.secH}>Payment Breakup</Text>
+        <View style={paStyles.table}>
+          <View style={paStyles.tHeadRow}>
+            <Text style={[paStyles.tHeadCell, paStyles.colNum]}>#</Text>
+            <Text style={[paStyles.tHeadCell, paStyles.colDate]}>Date</Text>
+            <Text style={[paStyles.tHeadCell, paStyles.colMode]}>Mode</Text>
+            <Text style={[paStyles.tHeadCell, paStyles.colRef]}>Reference</Text>
+            <Text style={[paStyles.tHeadCell, paStyles.colAmt]}>Amount</Text>
+          </View>
+          {data.payments.map((p, i) => (
+            <View style={paStyles.tRow} key={i}>
+              <Text style={[paStyles.tCell, paStyles.colNum]}>{i + 1}</Text>
+              <Text style={[paStyles.tCell, paStyles.colDate]}>{p.dateLabel}</Text>
+              <Text style={[paStyles.tCell, paStyles.colMode]}>{p.modeLabel}</Text>
+              <Text style={[paStyles.tCell, paStyles.colRef]}>{p.reference || "—"}</Text>
+              <Text style={[paStyles.tCell, paStyles.colAmt]}>{formatINRSymbol(p.amount)}</Text>
+            </View>
+          ))}
+          <View style={paStyles.tTotalRow}>
+            <Text style={paStyles.tTotalLbl}>Total Received</Text>
+            <Text style={paStyles.tTotalVal}>{formatINRSymbol(data.totalReceived)}</Text>
+          </View>
+        </View>
+
+        <View style={paStyles.strip}>
+          <View style={paStyles.stripCell}>
+            <Text style={paStyles.stripLbl}>Total Package Cost</Text>
+            <Text style={paStyles.stripVal}>{formatINRSymbol(data.totalCost)}</Text>
+          </View>
+          <View style={paStyles.stripCell}>
+            <Text style={paStyles.stripLbl}>Total Received</Text>
+            <Text style={[paStyles.stripVal, { color: RC.paidBg }]}>{formatINRSymbol(data.totalReceived)}</Text>
+          </View>
+          <View style={[paStyles.stripCell, paStyles.stripCellLast]}>
+            <Text style={paStyles.stripLbl}>Balance Due</Text>
+            <Text style={[paStyles.stripVal, { color: data.balanceDue > 0 ? RC.partialBg : RC.paidBg }]}>{formatINRSymbol(data.balanceDue)}</Text>
+          </View>
+        </View>
+
+        <View style={paStyles.sign}>
+          <View style={paStyles.signBox}>
+            <View style={paStyles.signLine} />
+            <Text style={paStyles.signLbl}>For D2D Holidays — Authorized Signatory</Text>
+          </View>
+        </View>
+
+        <View style={paStyles.footer}>
+          <Text style={paStyles.footerNote}>
+            This is a system-generated acknowledgement of payment(s) received towards the booking referenced above and does not require a physical signature or stamp.{"\n"}
+            Please retain this document for your records.
+          </Text>
+          <Text style={paStyles.footerContact}>Phone: {SUPPORT_PHONES.join(", ")} &nbsp;·&nbsp; Email: {SUPPORT_EMAIL}</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+export async function renderPaymentAcknowledgementPdf(data: PaymentAcknowledgementPdfData): Promise<Buffer> {
+  return renderToBuffer(<PaymentAcknowledgementDocument data={data} />);
 }
