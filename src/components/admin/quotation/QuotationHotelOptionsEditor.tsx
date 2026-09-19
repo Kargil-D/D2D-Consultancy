@@ -226,6 +226,10 @@ export default function QuotationHotelOptionsEditor({ options, onChange, destina
             <Field label="Room Type">
               {(catalog.find((c) => c.id === h.hotelMasterId)?.roomTypes.length ?? 0) > 0 ? (
                 <select className={selectCls} value={h.roomType} onChange={(e) => updateHotel(h.id, { roomType: e.target.value })}>
+                  {/* Keep the select honest: a stored value missing from the master list (or empty) must not silently display the first option. */}
+                  {!catalog.find((c) => c.id === h.hotelMasterId)!.roomTypes.includes(h.roomType) && (
+                    <option value={h.roomType}>{h.roomType || "Select room type"}</option>
+                  )}
                   {catalog.find((c) => c.id === h.hotelMasterId)!.roomTypes.map((rt) => (
                     <option key={rt} value={rt}>{rt}</option>
                   ))}
@@ -237,6 +241,9 @@ export default function QuotationHotelOptionsEditor({ options, onChange, destina
             <Field label="Meal Plan">
               {(catalog.find((c) => c.id === h.hotelMasterId)?.mealPlans.length ?? 0) > 0 ? (
                 <select className={selectCls} value={h.mealPlan} onChange={(e) => updateHotel(h.id, { mealPlan: e.target.value })}>
+                  {!catalog.find((c) => c.id === h.hotelMasterId)!.mealPlans.includes(h.mealPlan) && (
+                    <option value={h.mealPlan}>{h.mealPlan || "Select meal plan"}</option>
+                  )}
                   {catalog.find((c) => c.id === h.hotelMasterId)!.mealPlans.map((mp) => (
                     <option key={mp} value={mp}>{mp}</option>
                   ))}

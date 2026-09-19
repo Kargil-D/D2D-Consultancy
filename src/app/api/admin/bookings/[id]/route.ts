@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getBooking, updateBooking, removeBooking, requireBookingAccess, redactMasterFields } from "@/services/bookingService";
+import { getHotelVoucherMeta } from "@/services/hotelVoucherService";
+import { getPaymentReceiptMeta } from "@/services/paymentReceiptService";
 import { BookingUpdateSchema } from "@/lib/validation/booking";
 import { ApiError } from "@/lib/apiError";
 import { requireModuleAccess, hasModulePermission, toViewer } from "@/lib/permissions";
@@ -10,7 +12,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const { id } = await ctx.params;
     await requireBookingAccess(id, toViewer(user));
     const rec = await getBooking(id);
-    const data = rec && !hasModulePermission(user, "BookingsMaster", "canView") ? redactMasterFields(rec) : rec;
+    let data: Record<string, unknown> | null = null;
+    if (rec) {
+      // Meta is computed from the un-redacted record (Trip ID = Supplier Track ID is master-only),
+      // and the voucher snapshot itself never leaves the server — the UI only needs issued/stale.
+      const meta = { ...getHotelVoucherMeta(rec), ...getPaymentReceiptMeta(rec) };
+      data = { ...(hasModulePermission(user, "BookingsMaster", "canView") ? rec : redactMasterFields(rec)), ...meta };
+      delete data.hotelVoucher;
+      delete data.hotelVoucherHash;
+      delete data.paymentReceipt;
+      delete data.paymentReceiptHash;
+    }
     return NextResponse.json({ success: true, message: "OK", data });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });

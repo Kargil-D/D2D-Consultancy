@@ -205,6 +205,16 @@ export default function BookingHotelsEditor({ hotels, onChange, costSheet, onBoo
                 </Field>
               </div>
 
+              {/* Row 3 */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-3">
+                <Field label="Room Type" className="col-span-2 lg:col-span-2">
+                  <input className={cellInputCls} value={h.roomType} onChange={(e) => update(i, { roomType: e.target.value })} placeholder="Deluxe Room" />
+                </Field>
+                <Field label="Meal Plan" className="col-span-2 lg:col-span-2">
+                  <input className={cellInputCls} value={h.mealPlan} onChange={(e) => update(i, { mealPlan: e.target.value })} placeholder="Bed & Breakfast" />
+                </Field>
+              </div>
+
               <div className="flex justify-end">
                 <button
                   type="button"

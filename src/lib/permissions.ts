@@ -32,6 +32,18 @@ export async function requireModuleAccess(req: NextRequest, module: AdminModule,
   return user;
 }
 
+/** Like requireModuleAccess, but passes if the role holds the action on ANY of the given modules — for shared lookup data (e.g. campaign hotels feeding both the Campaigns editor and the Quotation builder). */
+export async function requireAnyModuleAccess(req: NextRequest, modules: AdminModule[], action: PermissionAction) {
+  const user = await getCurrentUser(req);
+  if (!modules.some((m) => hasModulePermission(user, m, action))) {
+    throw new ApiError(403, `You don't have permission to ${ACTION_VERB[action]} ${modules.join(" / ")}`);
+  }
+  return user;
+}
+
+/** Modules allowed to READ a campaign's itinerary/hotel/transfer plan: the Campaigns editor itself, the Quotation builder (pre-fills from it) and the dashboard stats page. Writes stay Campaigns-only. */
+export const CAMPAIGN_PLAN_READ_MODULES: AdminModule[] = ["Campaigns", "Quotations", "Dashboard"];
+
 /** Row-level visibility identity — separate from module-action permission. Admin sees every record regardless of assignment; everyone else is scoped to records assigned to them (see leadVisibilityScope/quotationVisibilityScope/bookingVisibilityScope). */
 export interface Viewer {
   id: string;

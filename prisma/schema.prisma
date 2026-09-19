@@ -944,6 +944,15 @@ model Booking {
   dmcEmailSentDate   DateTime?
   dmcResponse        String?
   dmcRemarks         String?
+  /// Issued Hotel Voucher — frozen snapshot of the document content (so viewing never re-generates);
+  /// hash is of the source data at issue time, used to flag the voucher as out of date after edits.
+  hotelVoucher         Json?
+  hotelVoucherHash     String?
+  hotelVoucherIssuedAt DateTime?
+  /// Issued Payment Receipt — same snapshot/hash/issuedAt lifecycle as the Hotel Voucher above.
+  paymentReceipt         Json?
+  paymentReceiptHash     String?
+  paymentReceiptIssuedAt DateTime?
 
   createdDate DateTime @default(now())
   updatedDate DateTime @updatedAt

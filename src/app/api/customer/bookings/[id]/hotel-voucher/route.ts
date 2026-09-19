@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { ApiError } from "@/lib/apiError";
 import { getCustomerOwnedBooking, bookingCode } from "@/services/bookingService";
 import { renderHotelTravelVoucherPdf } from "@/lib/bookingVoucherPdf";
-import { buildHotelVoucherData } from "@/lib/bookingDocumentBuilders";
+import { resolveHotelVoucherData } from "@/services/hotelVoucherService";
 
 export const runtime = "nodejs"; // @react-pdf/renderer needs the Node runtime
 
@@ -36,7 +36,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     const booking = await getCustomerOwnedBooking(id, user.email);
     if (!booking) throw new ApiError(404, "Booking not found");
 
-    const data = buildHotelVoucherData(booking);
+    // The issued voucher when ops has generated one; otherwise a live build, as before.
+    const data = resolveHotelVoucherData(booking);
     if (!data) {
       return NextResponse.json({ success: false, message: "No hotel stays on this booking yet", data: null }, { status: 400 });
     }

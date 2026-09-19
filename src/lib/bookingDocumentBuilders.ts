@@ -1,4 +1,6 @@
 import { getBooking, bookingCode } from "@/services/bookingService";
+import { amountInWords, formatINRSymbol } from "@/lib/bookingVoucherPdf";
+import type { QuotationItineraryDay } from "@/types/admin";
 import type {
   TripReceiptPdfData, TripReceiptDay, TripReceiptPassenger,
   HotelTravelVoucherPdfData, HotelTravelVoucherEntry,
@@ -14,7 +16,6 @@ const MONTH_FULL = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"];
 
 function shortDate(d: Date) {
   return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
@@ -37,15 +38,16 @@ function dateKey(d: Date) {
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
-function ordinal(n: number) {
-  return ORDINALS[n - 1] ?? `${n}th`;
-}
 
 /** Builds the full trip receipt ("Generate Travel Voucher") payload — trip summary, passengers,
  * accommodation, day-by-day transport/activities, and payment acknowledgement. Same document for
  * admin and the customer's own self-service download; only the auth/ownership check differs
- * between the two routes that call this. */
-export function buildTripReceiptData(booking: BookingWithRelations): TripReceiptPdfData {
+ * between the two routes that call this.
+ *
+ * `variant: "receipt"` is the wording used by the issued Payment Receipt (see
+ * buildPaymentReceiptData) — same document, phrased like the approved sample. */
+export function buildTripReceiptData(booking: BookingWithRelations, variant: "voucher" | "receipt" = "voucher"): TripReceiptPdfData {
+  const receipt = variant === "receipt";
   const paxCount = booking.adults + booking.children;
 
   // ---- trip date range: earliest/latest known dates across travel date + hotel stays ----
@@ -63,9 +65,10 @@ export function buildTripReceiptData(booking: BookingWithRelations): TripReceipt
   if (tripStart && tripEnd) {
     const nights = Math.max(0, Math.round((tripEnd.getTime() - tripStart.getTime()) / 86400000));
     const days = nights + 1;
+    const dash = receipt ? " – " : " - ";
     travelDatesLabel = tripStart.getMonth() === tripEnd.getMonth() && tripStart.getFullYear() === tripEnd.getFullYear()
-      ? `${tripStart.getDate()} - ${tripEnd.getDate()} ${MONTH_SHORT[tripEnd.getMonth()]} ${tripEnd.getFullYear()}`
-      : `${shortDate(tripStart)} - ${shortDate(tripEnd)} ${tripEnd.getFullYear()}`;
+      ? `${tripStart.getDate()}${dash}${tripEnd.getDate()} ${MONTH_SHORT[tripEnd.getMonth()]} ${tripEnd.getFullYear()}`
+      : `${shortDate(tripStart)}${dash}${shortDate(tripEnd)} ${tripEnd.getFullYear()}`;
     durationLabel = `${nights}N / ${days}D`;
   }
 
@@ -87,6 +90,8 @@ export function buildTripReceiptData(booking: BookingWithRelations): TripReceipt
   } else {
     passengers = [{ role: "Lead Passenger", name: booking.lead.customerName, phone: booking.lead.mobile, email: booking.lead.email }];
   }
+  // The Payment Receipt is addressed to the lead passenger only — no co-passenger details.
+  if (receipt) passengers = passengers.slice(0, 1);
 
   // ---- accommodation ----
   let runningNight = 1;
@@ -94,9 +99,11 @@ export function buildTripReceiptData(booking: BookingWithRelations): TripReceipt
     const nights = Math.max(h.nights, 0);
     const nightsLabel = nights <= 0
       ? "Stay"
-      : nights === 1
-        ? `Night ${runningNight}`
-        : `Nights ${runningNight} & ${runningNight + nights - 1}`;
+      : receipt
+        ? `${nights} ${nights === 1 ? "Night" : "Nights"}`
+        : nights === 1
+          ? `Night ${runningNight}`
+          : `Nights ${runningNight} & ${runningNight + nights - 1}`;
     runningNight += Math.max(nights, 1);
 
     const starsMatch = h.hotelCategory.match(/(\d)/);
@@ -110,7 +117,7 @@ export function buildTripReceiptData(booking: BookingWithRelations): TripReceipt
       hotelName: h.hotelName,
       stars: starsMatch ? Number(starsMatch[1]) : 0,
       mealPlan: h.mealPlan,
-      roomDetail: `${h.rooms} ${roomLabel} (${paxCount} Pax)`,
+      roomDetail: receipt ? `${h.rooms} ${roomLabel} – ${paxCount} Pax` : `${h.rooms} ${roomLabel} (${paxCount} Pax)`,
       amenities: h.amenities,
     };
   });
@@ -150,6 +157,19 @@ export function buildTripReceiptData(booking: BookingWithRelations): TripReceipt
     return { label: `Day ${dayNumber} · ${dayHeaderLabel(bucket.date)}`, items: bucket.items };
   });
 
+  // The Payment Receipt shows the quotation's itinerary instead of the booked transfers/activities.
+  const itineraryDays: TripReceiptDay[] = (booking.quotation?.itineraryDays as unknown as QuotationItineraryDay[] | undefined ?? [])
+    .map((d, i) => {
+      const dayNumber = d.dayNumber || i + 1;
+      const date = tripStart ? new Date(tripStart.getFullYear(), tripStart.getMonth(), tripStart.getDate() + dayNumber - 1) : null;
+      const title = d.title?.trim();
+      const meals = d.meals?.filter(Boolean) ?? [];
+      return {
+        label: [`Day ${dayNumber}`, date ? shortDate(date) : null, title && title.toLowerCase() !== `day ${dayNumber}` ? title : null].filter(Boolean).join(" · "),
+        items: [...bulletLines(d.description), ...(meals.length > 0 ? [`Meals: ${meals.join(", ")}`] : [])],
+      };
+    });
+
   // ---- payments ----
   const paymentsAsc = [...booking.customerPayments].sort((a, b) => a.paymentDate.getTime() - b.paymentDate.getTime());
   const totalReceived = paymentsAsc.reduce((sum, p) => sum + p.amount, 0);
@@ -161,7 +181,9 @@ export function buildTripReceiptData(booking: BookingWithRelations): TripReceipt
     dateLabel: shortDateYear(p.paymentDate),
   }));
 
-  const costPerLabel = booking.adults === 2 && booking.children === 0 ? "per Couple" : `per ${paxCount || 1} Pax`;
+  const costPerLabel = receipt
+    ? `for ${travellersLabel}`
+    : booking.adults === 2 && booking.children === 0 ? "per Couple" : `per ${paxCount || 1} Pax`;
   const perPersonCost = booking.totalAmount / (paxCount || 1);
 
   return {
@@ -175,8 +197,9 @@ export function buildTripReceiptData(booking: BookingWithRelations): TripReceipt
     destinationName: booking.destination.name,
     passengers,
     hotels,
-    days,
-    additionalServices,
+    days: receipt ? itineraryDays : days,
+    daysTitle: receipt ? "Itinerary" : undefined,
+    additionalServices: receipt ? [] : additionalServices,
     payments,
     totalReceived,
     balanceDue,
@@ -186,44 +209,107 @@ export function buildTripReceiptData(booking: BookingWithRelations): TripReceipt
   };
 }
 
-/** Builds the per-hotel-stay voucher ("Generate Hotel Voucher") payload. Returns null when the
- * booking has no hotel rows yet — callers should 400 rather than render an empty document. */
+/** One bullet per non-empty line; leading bullet marks ("•", "-", "*", ticks) are dropped. */
+function bulletLines(text: string | null | undefined): string[] {
+  return (text ?? "").split(/\r?\n/).map((l) => l.replace(/^\s*[•\-*✔✓✕✗]+\s*/, "").trim()).filter(Boolean);
+}
+
+/** "Rupees Fifty Nine Thousand Only" → "Rupees Fifty-Nine Thousand only" (how the sample reads). */
+function receiptAmountWords(value: number) {
+  return amountInWords(value)
+    .replace(/\b(Twenty|Thirty|Forty|Fifty|Sixty|Seventy|Eighty|Ninety) (One|Two|Three|Four|Five|Six|Seven|Eight|Nine)\b/g, "$1-$2")
+    .replace(/ Only$/, " only");
+}
+
+/** Builds the issued "Payment Receipt" payload — the trip receipt in the approved sample's wording,
+ * plus Inclusions & Exclusions (from the linked quotation), an amount-in-words acknowledgement
+ * and the SIC/Private footer note. Returns null until at least one customer payment is recorded —
+ * callers should 400 rather than issue a receipt for nothing. */
+export function buildPaymentReceiptData(booking: BookingWithRelations): TripReceiptPdfData | null {
+  if (booking.customerPayments.length === 0) return null;
+
+  const base = buildTripReceiptData(booking, "receipt");
+  const fullyPaid = base.paidStatus === "full";
+  const received = `${formatINRSymbol(base.totalReceived)}/- (${receiptAmountWords(base.totalReceived)})`;
+
+  return {
+    ...base,
+    inclusions: bulletLines(booking.quotation?.inclusionsText),
+    exclusions: bulletLines(booking.quotation?.exclusionsText),
+    acknowledgement: fullyPaid
+      ? { text: `We hereby acknowledge the receipt of ${received} as full and final payment towards the above ${booking.destination.name} booking.`, emphasis: "No balance is due." }
+      : { text: `We hereby acknowledge the receipt of ${received} as part payment towards the above ${booking.destination.name} booking.`, emphasis: `Balance due: ${formatINRSymbol(base.balanceDue)}.` },
+    footerNote: `This document confirms your booking and ${fullyPaid ? "full payment" : "payment"} received. Please carry a copy during your travel. SIC = Shared Transfer · Private = Dedicated Vehicle.`,
+  };
+}
+
+const SALUTATION_RE = /^(mr|mrs|ms|miss|mstr|master|dr)\b\.?/i;
+
+function utcGeneratedOn(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getUTCDate())} ${MONTH_SHORT[d.getUTCMonth()]}, ${d.getUTCFullYear()} - ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} Hrs UTC`;
+}
+
+/** Builds the Hotel Voucher ("Generate Hotel Voucher") payload — one entry (= one page) per
+ * hotel. Hotels-section rows for the same hotel + confirmation number are merged into one page
+ * whose table lists each row as a line item (rather than one row per night). Returns null when
+ * the booking has no hotel rows yet — callers should 400 rather than render an empty document.
+ *
+ * Field mapping: D2D Booking ID = the booking's tracking code, Booking CNF = the hotel row's
+ * Booking PNR, Trip ID = the booking's Supplier Track ID (Supplier Invoice section). */
 export function buildHotelVoucherData(booking: BookingWithRelations): HotelTravelVoucherPdfData | null {
   if (booking.hotels.length === 0) return null;
 
-  const tripCode = bookingCode(booking.lead.seq);
+  const bookingId = bookingCode(booking.lead.seq);
+  const tripId = booking.supplierTrackId?.trim() || "—";
+  const paxCount = booking.adults + booking.children;
   const occupancy = [
     `${booking.adults} ${booking.adults === 1 ? "Adult" : "Adults"}`,
     booking.children > 0 ? `${booking.children} ${booking.children === 1 ? "Child" : "Children"}` : null,
   ].filter(Boolean).join(", ");
-  const paxCount = booking.adults + booking.children;
 
-  const entries: HotelTravelVoucherEntry[] = booking.hotels.map((h) => {
-    const roomLabel = [h.roomCategory, h.roomType].filter(Boolean).join(" ") || "Room";
-    const rows = Array.from({ length: Math.max(h.nights, 1) }, (_, i) => ({
-      night: ordinal(i + 1),
-      mealPlan: h.mealPlan,
-      room: `${h.rooms} ${roomLabel} (${paxCount} Pax)`,
-    }));
+  const leadPax = booking.passengers[0];
+  const rawGuest = (leadPax?.name?.trim() || booking.lead.customerName || "").trim();
+  const salutation = !rawGuest || SALUTATION_RE.test(rawGuest)
+    ? ""
+    : leadPax?.gender === "Male" ? "Mr." : leadPax?.gender === "Female" ? "Ms." : "";
+  const guestName = [salutation, rawGuest].filter(Boolean).join(" ");
+
+  const groups = new Map<string, typeof booking.hotels>();
+  booking.hotels.forEach((h, i) => {
+    const name = h.hotelName.trim().toLowerCase();
+    const key = name ? `${name}|${h.bookingPnr.trim().toLowerCase()}` : `__row${i}`;
+    groups.set(key, [...(groups.get(key) ?? []), h]);
+  });
+
+  const entries: HotelTravelVoucherEntry[] = Array.from(groups.values()).map((lines) => {
+    const checkIns = lines.map((h) => h.checkIn).filter((d): d is Date => !!d);
+    const checkOuts = lines.map((h) => h.checkOut).filter((d): d is Date => !!d);
+    const checkIn = checkIns.length ? new Date(Math.min(...checkIns.map((d) => d.getTime()))) : null;
+    const checkOut = checkOuts.length ? new Date(Math.max(...checkOuts.map((d) => d.getTime()))) : null;
 
     return {
-      hotelName: h.hotelName,
-      hotelAddress: h.hotelAddress,
-      guestName: booking.lead.customerName,
+      hotelName: lines[0].hotelName,
+      hotelAddress: lines.find((h) => h.hotelAddress.trim())?.hotelAddress.trim() || booking.destination.name,
+      guestName,
       occupancy,
-      d2dBookingId: `D2D-${tripCode}`,
-      bookingCnf: h.bookingPnr || "—",
-      tripId: tripCode,
-      checkInDate: formatFullDateOrNull(h.checkIn),
-      checkOutDate: formatFullDateOrNull(h.checkOut),
-      nights: h.nights,
-      rows,
+      d2dBookingId: bookingId,
+      bookingCnf: lines.find((h) => h.bookingPnr.trim())?.bookingPnr.trim() || "—",
+      tripId,
+      checkInDate: formatFullDateOrNull(checkIn),
+      checkOutDate: formatFullDateOrNull(checkOut),
+      nights: lines.reduce((sum, h) => sum + Math.max(h.nights, 0), 0),
+      rows: lines.map((h) => {
+        const roomLabel = [h.roomCategory, h.roomType].filter(Boolean).join(" ") || "Room";
+        return {
+          night: h.nights > 0 ? `${h.nights} ${h.nights === 1 ? "Night" : "Nights"}` : "—",
+          dates: lines.length > 1 && h.checkIn && h.checkOut ? `${shortDate(h.checkIn)} – ${shortDate(h.checkOut)}` : null,
+          mealPlan: h.mealPlan,
+          room: `${h.rooms} ${roomLabel} (${paxCount} Pax)`,
+        };
+      }),
     };
   });
 
-  const generatedOn = new Date().toLocaleString("en-GB", {
-    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
-  }).replace(",", "") + " Hrs UTC";
-
-  return { entries, generatedOn };
+  return { entries, generatedOn: utcGeneratedOn(new Date()) };
 }

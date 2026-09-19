@@ -1,5 +1,28 @@
-import { Document, Page, Text, View, Svg, Path, Circle, Defs, LinearGradient, Stop, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Svg, Path, Circle, Defs, LinearGradient, Stop, StyleSheet, Font, renderToBuffer } from "@react-pdf/renderer";
 import { SUPPORT_PHONES, SUPPORT_EMAIL } from "@/data/contact";
+import { PDF_SYMBOL_FONT_REGULAR, PDF_SYMBOL_FONT_BOLD, PDF_SYMBOL_GLYPHS } from "@/lib/pdfSymbolFont";
+
+// Helvetica can't draw ₹ → ★ ✓ (see pdfSymbolFont.ts) — those characters alone are set in this font.
+Font.register({
+  family: "D2DSymbols",
+  fonts: [
+    { src: PDF_SYMBOL_FONT_REGULAR, fontWeight: 400 },
+    { src: PDF_SYMBOL_FONT_BOLD, fontWeight: 700 },
+  ],
+});
+const SYMBOL_SPLIT = new RegExp(`([${PDF_SYMBOL_GLYPHS}]+)`);
+
+/** Text that may contain ₹ / arrows / stars / ticks: those runs use the symbol font, the rest inherits
+ * the surrounding style (size, weight, colour). Must sit inside a <Text>. */
+function Sym({ children }: { children: string }) {
+  return (
+    <>
+      {children.split(SYMBOL_SPLIT).map((part, i) =>
+        i % 2 === 1 ? <Text key={i} style={{ fontFamily: "D2DSymbols" }}>{part}</Text> : part,
+      )}
+    </>
+  );
+}
 
 const styles = StyleSheet.create({
   page: { padding: 36, fontSize: 11, fontFamily: "Helvetica", color: "#1e293b" },
@@ -119,6 +142,13 @@ export interface TripReceiptPdfData {
   totalCost: number;
   costPerLabel: string;
   perPersonCost: number;
+  /** Optional extras used by the issued Payment Receipt — when absent the classic layout is unchanged. */
+  /** Heading for the days block — defaults to "Transportation & Activities". */
+  daysTitle?: string;
+  inclusions?: string[];
+  exclusions?: string[];
+  acknowledgement?: { text: string; emphasis: string };
+  footerNote?: string;
 }
 
 const RC = {
@@ -140,7 +170,7 @@ const RC = {
   dashLine: "#d4dce4",
 };
 
-function formatINRSymbol(value: number) {
+export function formatINRSymbol(value: number) {
   return `₹${new Intl.NumberFormat("en-IN").format(Math.round(value))}`;
 }
 
@@ -207,6 +237,16 @@ const rcStyles = StyleSheet.create({
   costLbl: { fontSize: 8, textTransform: "uppercase", letterSpacing: 0.5, color: RC.muted2, marginTop: 3 },
   costPp: { fontSize: 9, color: RC.body, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: RC.dashLine, borderTopStyle: "dashed" },
 
+  incExcWrap: { flexDirection: "row", gap: 12 },
+  incBox: { flex: 1, borderWidth: 1, borderColor: "#d7efe9", borderStyle: "solid", borderRadius: 8, padding: 12, backgroundColor: "#f0faf8" },
+  excBox: { flex: 1, borderWidth: 1, borderColor: "#f5d9d9", borderStyle: "solid", borderRadius: 8, padding: 12, backgroundColor: "#fef5f5" },
+  incExcTitle: { fontSize: 10.5, fontWeight: 700, marginBottom: 7 },
+  incExcItem: { flexDirection: "row", fontSize: 8.5, color: "#3a4657", paddingVertical: 2 },
+  incExcMark: { width: 12, fontWeight: 700 },
+  incExcText: { flex: 1 },
+
+  ackBox: { marginTop: 12, borderLeftWidth: 3, borderLeftColor: RC.paidBg, borderLeftStyle: "solid", borderRadius: 6, backgroundColor: "#f0faf8", paddingVertical: 10, paddingHorizontal: 14, fontSize: 10, lineHeight: 1.5, color: RC.ink },
+
   footer: { marginTop: 22, textAlign: "center", borderTopWidth: 2, borderTopColor: RC.teal, borderTopStyle: "solid", paddingTop: 12 },
   footerThanks: { fontSize: 11, fontWeight: 700, color: RC.tealDark },
   footerNote: { fontSize: 8, color: "#9aa4b4", marginTop: 5, lineHeight: 1.5 },
@@ -247,7 +287,7 @@ const PAID_BG: Record<TripReceiptPdfData["paidStatus"], string> = {
 
 function Stars({ count }: { count: number }) {
   if (count <= 0) return null;
-  return <Text style={rcStyles.hotelStars}> {"★".repeat(count)}</Text>;
+  return <Text style={rcStyles.hotelStars}> <Sym>{"★".repeat(count)}</Sym></Text>;
 }
 
 function TripReceiptDocument({ data }: { data: TripReceiptPdfData }) {
@@ -265,7 +305,7 @@ function TripReceiptDocument({ data }: { data: TripReceiptPdfData }) {
 
         <View style={rcStyles.band}>
           <Text style={rcStyles.bandTitle}>{data.packageTitle}</Text>
-          <Text style={[rcStyles.paidPill, { backgroundColor: PAID_BG[data.paidStatus] }]}>{PAID_LABEL[data.paidStatus]}</Text>
+          <Text style={[rcStyles.paidPill, { backgroundColor: PAID_BG[data.paidStatus] }]}><Sym>{PAID_LABEL[data.paidStatus]}</Sym></Text>
         </View>
 
         <View style={rcStyles.summary}>
@@ -325,14 +365,14 @@ function TripReceiptDocument({ data }: { data: TripReceiptPdfData }) {
 
         {(data.days.length > 0 || data.additionalServices.length > 0) && (
           <>
-            <Text style={rcStyles.secH}>Transportation &amp; Activities</Text>
+            <Text style={rcStyles.secH}>{data.daysTitle ?? "Transportation & Activities"}</Text>
             {data.days.map((d, i) => (
               <View style={rcStyles.day} key={i} wrap={false}>
                 <Text style={rcStyles.dayH}>{d.label}</Text>
                 {d.items.map((item, j) => (
                   <View style={rcStyles.dayItem} key={j}>
                     <Text style={rcStyles.dayArrow}>{"›"}</Text>
-                    <Text style={rcStyles.dayText}>{item}</Text>
+                    <Text style={rcStyles.dayText}><Sym>{item}</Sym></Text>
                   </View>
                 ))}
               </View>
@@ -343,11 +383,37 @@ function TripReceiptDocument({ data }: { data: TripReceiptPdfData }) {
                 {data.additionalServices.map((item, j) => (
                   <View style={rcStyles.dayItem} key={j}>
                     <Text style={rcStyles.dayArrow}>{"›"}</Text>
-                    <Text style={rcStyles.dayText}>{item}</Text>
+                    <Text style={rcStyles.dayText}><Sym>{item}</Sym></Text>
                   </View>
                 ))}
               </View>
             )}
+          </>
+        )}
+
+        {((data.inclusions?.length ?? 0) > 0 || (data.exclusions?.length ?? 0) > 0) && (
+          <>
+            <Text style={rcStyles.secH} minPresenceAhead={120}>Inclusions &amp; Exclusions</Text>
+            <View style={rcStyles.incExcWrap}>
+              <View style={rcStyles.incBox}>
+                <Text style={[rcStyles.incExcTitle, { color: RC.paidBg }]}><Sym>✔</Sym> Inclusions</Text>
+                {(data.inclusions ?? []).map((item, i) => (
+                  <View style={rcStyles.incExcItem} key={i} wrap={false}>
+                    <Text style={[rcStyles.incExcMark, { color: RC.paidBg }]}><Sym>✔</Sym></Text>
+                    <Text style={rcStyles.incExcText}><Sym>{item}</Sym></Text>
+                  </View>
+                ))}
+              </View>
+              <View style={rcStyles.excBox}>
+                <Text style={[rcStyles.incExcTitle, { color: RC.pendingBg }]}><Sym>✕</Sym> Exclusions</Text>
+                {(data.exclusions ?? []).map((item, i) => (
+                  <View style={rcStyles.incExcItem} key={i} wrap={false}>
+                    <Text style={[rcStyles.incExcMark, { color: RC.pendingBg }]}><Sym>✕</Sym></Text>
+                    <Text style={rcStyles.incExcText}><Sym>{item}</Sym></Text>
+                  </View>
+                ))}
+              </View>
+            </View>
           </>
         )}
 
@@ -361,30 +427,36 @@ function TripReceiptDocument({ data }: { data: TripReceiptPdfData }) {
             {data.payments.map((p, i) => (
               <View style={rcStyles.payRow} key={i}>
                 <Text style={rcStyles.payK}>{p.label}</Text>
-                <Text style={rcStyles.payV}>{formatINRSymbol(p.amount)} · {p.dateLabel}</Text>
+                <Text style={rcStyles.payV}><Sym>{`${formatINRSymbol(p.amount)} · ${p.dateLabel}`}</Sym></Text>
               </View>
             ))}
             <View style={[rcStyles.payRow, rcStyles.payRowTotal]}>
               <Text>Total Received</Text>
-              <Text>{formatINRSymbol(data.totalReceived)}</Text>
+              <Text><Sym>{formatINRSymbol(data.totalReceived)}</Sym></Text>
             </View>
             <View style={[rcStyles.payRow, rcStyles.payRowLast]}>
               <Text style={rcStyles.payK}>Balance Due</Text>
-              <Text style={[rcStyles.payV, { color: data.balanceDue <= 0 ? RC.paidBg : RC.ink }]}>{formatINRSymbol(data.balanceDue)}</Text>
+              <Text style={[rcStyles.payV, { color: data.balanceDue <= 0 ? RC.paidBg : RC.ink }]}><Sym>{formatINRSymbol(data.balanceDue)}</Sym></Text>
             </View>
           </View>
           <View style={rcStyles.costCard}>
             <Text style={rcStyles.costLbl}>Total Package Cost</Text>
-            <Text style={rcStyles.costAmt}>{formatINRSymbol(data.totalCost)}</Text>
+            <Text style={rcStyles.costAmt}><Sym>{formatINRSymbol(data.totalCost)}</Sym></Text>
             <Text style={rcStyles.costLbl}>{data.costPerLabel}</Text>
-            <Text style={rcStyles.costPp}>Per Person: {formatINRSymbol(data.perPersonCost)}</Text>
+            <Text style={rcStyles.costPp}><Sym>{`Per Person: ${formatINRSymbol(data.perPersonCost)}`}</Sym></Text>
           </View>
         </View>
 
-        <View style={rcStyles.footer}>
+        {data.acknowledgement && (
+          <Text style={rcStyles.ackBox} wrap={false}>
+            <Sym>{data.acknowledgement.text}</Sym> <Text style={{ fontWeight: 700 }}><Sym>{data.acknowledgement.emphasis}</Sym></Text>
+          </Text>
+        )}
+
+        <View style={rcStyles.footer} wrap={false}>
           <Text style={rcStyles.footerThanks}>Thank you for choosing D2D Holidays!</Text>
           <Text style={rcStyles.footerNote}>
-            This document is a confirmation of your booking and payment. Please carry a copy during your travel.{"\n"}
+            {data.footerNote ?? "This document is a confirmation of your booking and payment. Please carry a copy during your travel."}{"\n"}
             Drive To Destination · For assistance, contact your D2D Holidays travel coordinator.
           </Text>
           <Text style={rcStyles.footerContact}>Phone: {SUPPORT_PHONES.join(", ")} &nbsp;·&nbsp; Email: {SUPPORT_EMAIL}</Text>
@@ -399,12 +471,16 @@ export async function renderTripReceiptPdf(data: TripReceiptPdfData): Promise<Bu
 }
 
 /**
- * Per-hotel-stay "Hotel Voucher" — one page per BookingHotel row, laid out to match the
- * standalone D2D_Voucher_Generator.html reference tool pixel-for-pixel (header rule, two-column
- * details, ref bar, stay box, rooms/nights table, footer rule).
+ * "Hotel Voucher" — one page per hotel (same hotel + confirmation number), laid out to match the
+ * approved sample (Golden_Beach_Voucher_D2D.pdf): header rule, hotel/guest columns, ref bar,
+ * stay box, line-item table, notes, footer rule. Table rows are the Hotels-section line items
+ * that belong to that hotel — not one row per night.
  */
 export interface HotelTravelVoucherRow {
+  /** e.g. "2 Nights" */
   night: string;
+  /** e.g. "22 Sep – 24 Sep" — only set when the hotel has more than one line item. */
+  dates: string | null;
   mealPlan: string;
   room: string;
 }
@@ -445,58 +521,53 @@ const hvStyles = StyleSheet.create({
   logoWordHolidays: { fontSize: 12, fontWeight: 700, color: HV.teal },
   logoTagline: { fontSize: 5.5, letterSpacing: 1.2, color: HV.grey, marginTop: 1 },
   hvTitle: { fontSize: 18, fontWeight: 700, color: HV.navy },
-  cols: { flexDirection: "row", marginTop: 16, gap: 20 },
+  cols: { flexDirection: "row", marginTop: 18, gap: 20 },
   col: { flex: 1 },
-  secLabel: { fontSize: 8, fontWeight: 700, color: HV.teal, letterSpacing: 0.5, marginBottom: 5 },
-  secMain: { fontSize: 13, fontWeight: 700, color: HV.navy },
-  secSub: { fontSize: 10, color: HV.grey, marginTop: 1 },
+  secLabel: { fontSize: 9, fontWeight: 700, color: HV.teal, letterSpacing: 0.5, marginBottom: 6 },
+  secMain: { fontSize: 14, fontWeight: 700, color: HV.navy },
+  secSub: { fontSize: 10.5, color: HV.grey, marginTop: 2 },
   refbar: {
     flexDirection: "row",
+    justifyContent: "space-between",
     backgroundColor: HV.light,
-    borderRadius: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginTop: 12,
-  },
-  refItem: { flex: 1, fontSize: 9.5, fontWeight: 700, color: HV.navy },
-
-  hotelCard: {
-    borderWidth: 1,
-    borderColor: HV.line,
-    borderStyle: "solid",
-    borderRadius: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 8,
     marginTop: 14,
-    overflow: "hidden",
   },
-  hotelCardHead: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 9, paddingHorizontal: 14 },
-  hotelName: { fontSize: 12, fontWeight: 700, color: HV.navy },
-  hotelAddress: { fontSize: 8.5, color: HV.grey, marginTop: 1 },
-  hotelCnf: { fontSize: 8.5, color: HV.grey, textAlign: "right" },
-  hotelCnfVal: { color: HV.navy, fontWeight: 700 },
+  refItem: { fontSize: 10, fontWeight: 700, color: HV.navy },
 
   stay: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: HV.light,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: HV.line,
+    borderStyle: "solid",
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    marginTop: 36,
   },
-  stayLbl: { fontSize: 7.5, color: HV.grey, letterSpacing: 0.5 },
-  stayDate: { fontSize: 10.5, fontWeight: 700, color: HV.navy, marginTop: 1 },
-  stayTime: { fontSize: 7.5, color: HV.grey, marginTop: 1 },
-  stayNights: { fontSize: 11, fontWeight: 700, color: HV.teal },
+  staySide: { alignItems: "center" },
+  stayLbl: { fontSize: 9, color: HV.grey, letterSpacing: 0.4 },
+  stayDate: { fontSize: 13, fontWeight: 700, color: HV.navy, marginTop: 2 },
+  stayTime: { fontSize: 9, color: HV.grey, marginTop: 2 },
+  stayNights: { fontSize: 14, fontWeight: 700, color: HV.teal },
 
-  table: {},
-  tHeadRow: { flexDirection: "row", backgroundColor: HV.navy, paddingVertical: 6, paddingHorizontal: 10 },
-  tHeadCell: { color: "#ffffff", fontSize: 8.5, fontWeight: 700 },
-  tRow: { flexDirection: "row", paddingVertical: 6, paddingHorizontal: 10 },
+  table: { marginTop: 36, borderBottom: `1 solid ${HV.line}` },
+  tHeadRow: { flexDirection: "row", backgroundColor: HV.navy, paddingVertical: 9, paddingHorizontal: 12 },
+  tHeadCell: { color: "#ffffff", fontSize: 10, fontWeight: 700 },
+  tRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 12 },
   tRowOdd: { backgroundColor: HV.light },
-  tCell: { fontSize: 9, color: HV.navy },
+  tCell: { fontSize: 10, color: HV.navy },
+  tSub: { fontSize: 8, color: HV.grey, marginTop: 1 },
   colNum: { width: "8%" },
-  colNight: { width: "14%" },
-  colMeal: { width: "34%" },
-  colRoom: { width: "44%" },
+  colNight: { width: "26%" },
+  colMeal: { width: "26%" },
+  colRoom: { width: "40%" },
+  notes: { flexDirection: "row", marginTop: 14, paddingHorizontal: 6 },
+  notesLbl: { fontSize: 10, fontWeight: 700, color: HV.teal },
+  notesText: { fontSize: 10, color: HV.grey },
   foot: {
     position: "absolute",
     bottom: 20,
@@ -533,31 +604,51 @@ function HotelVoucherLogo() {
   );
 }
 
-/** One hotel's stay + night-by-night table, as a compact self-contained card — kept together
- * on one page (wrap=false) but stacked tightly under the next card rather than starting a
- * fresh page each time. */
-function HotelVoucherCard({ entry }: { entry: HotelTravelVoucherEntry }) {
+const HV_CHECK_IN_TIME = "14:00";
+const HV_CHECK_OUT_TIME = "12:00";
+const HV_NOTES = "A security deposit is not required for this Hotel";
+
+/** One hotel = one page, in the same order as the approved sample: hotel/guest columns, ref bar,
+ * stay box, line-item table, notes. The footer is `fixed` so it repeats if a hotel with many
+ * line items ever spills onto a second page. */
+function HotelVoucherPage({ entry, generatedOn }: { entry: HotelTravelVoucherEntry; generatedOn: string }) {
   return (
-    <View style={hvStyles.hotelCard} wrap={false}>
-      <View style={hvStyles.hotelCardHead}>
-        <View>
-          <Text style={hvStyles.hotelName}>{entry.hotelName || "—"}</Text>
-          {entry.hotelAddress ? <Text style={hvStyles.hotelAddress}>{entry.hotelAddress}</Text> : null}
-        </View>
-        <Text style={hvStyles.hotelCnf}>Booking CNF{"\n"}<Text style={hvStyles.hotelCnfVal}>{entry.bookingCnf}</Text></Text>
+    <Page size="A4" style={hvStyles.page} wrap>
+      <View style={hvStyles.head}>
+        <HotelVoucherLogo />
+        <Text style={hvStyles.hvTitle}>Hotel Voucher</Text>
       </View>
 
-      <View style={hvStyles.stay}>
-        <View>
+      <View style={hvStyles.cols}>
+        <View style={hvStyles.col}>
+          <Text style={hvStyles.secLabel}>HOTEL DETAILS</Text>
+          <Text style={hvStyles.secMain}>{entry.hotelName || "—"}</Text>
+          {entry.hotelAddress ? <Text style={hvStyles.secSub}>{entry.hotelAddress}</Text> : null}
+        </View>
+        <View style={hvStyles.col}>
+          <Text style={hvStyles.secLabel}>GUEST DETAILS</Text>
+          <Text style={hvStyles.secMain}>{entry.guestName || "—"}</Text>
+          <Text style={hvStyles.secSub}>{entry.occupancy}</Text>
+        </View>
+      </View>
+
+      <View style={hvStyles.refbar}>
+        <Text style={hvStyles.refItem}>D2D Booking ID: {entry.d2dBookingId}</Text>
+        <Text style={hvStyles.refItem}>Booking CNF: {entry.bookingCnf}</Text>
+        <Text style={hvStyles.refItem}>Trip ID: {entry.tripId}</Text>
+      </View>
+
+      <View style={hvStyles.stay} wrap={false}>
+        <View style={hvStyles.staySide}>
           <Text style={hvStyles.stayLbl}>CHECK-IN</Text>
           <Text style={hvStyles.stayDate}>{entry.checkInDate || "—"}</Text>
-          <Text style={hvStyles.stayTime}>at 12:00 hrs</Text>
+          <Text style={hvStyles.stayTime}>at {HV_CHECK_IN_TIME} hrs</Text>
         </View>
         <Text style={hvStyles.stayNights}>{entry.nights} {entry.nights === 1 ? "Night" : "Nights"}</Text>
-        <View>
+        <View style={hvStyles.staySide}>
           <Text style={hvStyles.stayLbl}>CHECK-OUT</Text>
           <Text style={hvStyles.stayDate}>{entry.checkOutDate || "—"}</Text>
-          <Text style={hvStyles.stayTime}>at 11:00 hrs</Text>
+          <Text style={hvStyles.stayTime}>at {HV_CHECK_OUT_TIME} hrs</Text>
         </View>
       </View>
 
@@ -569,63 +660,36 @@ function HotelVoucherCard({ entry }: { entry: HotelTravelVoucherEntry }) {
           <Text style={[hvStyles.tHeadCell, hvStyles.colRoom]}>Rooms</Text>
         </View>
         {entry.rows.map((r, i) => (
-          <View style={[hvStyles.tRow, ...(i % 2 === 0 ? [hvStyles.tRowOdd] : [])]} key={i}>
+          <View style={[hvStyles.tRow, ...(i % 2 === 0 ? [hvStyles.tRowOdd] : [])]} key={i} wrap={false}>
             <Text style={[hvStyles.tCell, hvStyles.colNum]}>{i + 1}</Text>
-            <Text style={[hvStyles.tCell, hvStyles.colNight]}>{r.night}</Text>
+            <View style={hvStyles.colNight}>
+              <Text style={hvStyles.tCell}>{r.night}</Text>
+              {r.dates ? <Text style={hvStyles.tSub}>{r.dates}</Text> : null}
+            </View>
             <Text style={[hvStyles.tCell, hvStyles.colMeal]}>{r.mealPlan || "—"}</Text>
             <Text style={[hvStyles.tCell, hvStyles.colRoom]}>{r.room || "—"}</Text>
           </View>
         ))}
       </View>
-    </View>
+
+      <View style={hvStyles.notes}>
+        <Text style={hvStyles.notesText}><Text style={hvStyles.notesLbl}>NOTES:  </Text>{HV_NOTES}</Text>
+      </View>
+
+      <View style={hvStyles.foot} fixed>
+        <Text>Generated On : {generatedOn}</Text>
+        <Text><Text style={hvStyles.footBrand}>D2D Holidays</Text>  |  <Text style={hvStyles.footBrand}>Drive to Destination</Text></Text>
+      </View>
+    </Page>
   );
 }
 
-/** All hotel stays on one continuously-flowing document — a single <Page> auto-paginates
- * across as many physical pages as the content needs, instead of forcing one page per hotel.
- * Guest/booking reference info (identical for every stay on the same trip) is shown once up
- * top rather than repeated per hotel. */
 function HotelTravelVoucherDocument({ data }: { data: HotelTravelVoucherPdfData }) {
-  const [first] = data.entries;
   return (
     <Document>
-      <Page size="A4" style={hvStyles.page} wrap>
-        <View style={hvStyles.head} fixed>
-          <HotelVoucherLogo />
-          <Text style={hvStyles.hvTitle}>Hotel Voucher</Text>
-        </View>
-
-        {first && (
-          <>
-            <View style={hvStyles.cols}>
-              <View style={hvStyles.col}>
-                <Text style={hvStyles.secLabel}>GUEST DETAILS</Text>
-                <Text style={hvStyles.secMain}>{first.guestName || "—"}</Text>
-                <Text style={hvStyles.secSub}>{first.occupancy}</Text>
-              </View>
-              <View style={hvStyles.col}>
-                <Text style={hvStyles.secLabel}>TRIP REFERENCE</Text>
-                <Text style={hvStyles.secMain}>{first.d2dBookingId}</Text>
-                <Text style={hvStyles.secSub}>Trip ID: {first.tripId}</Text>
-              </View>
-            </View>
-            <View style={hvStyles.refbar}>
-              <Text style={hvStyles.refItem}>D2D Booking ID: {first.d2dBookingId}</Text>
-              <Text style={hvStyles.refItem}>Trip ID: {first.tripId}</Text>
-              <Text style={hvStyles.refItem}>Hotel Stays: {data.entries.length}</Text>
-            </View>
-          </>
-        )}
-
-        {data.entries.map((entry, i) => (
-          <HotelVoucherCard entry={entry} key={i} />
-        ))}
-
-        <View style={hvStyles.foot} fixed>
-          <Text>Generated On : {data.generatedOn}</Text>
-          <Text><Text style={hvStyles.footBrand}>D2D Holidays</Text>  |  <Text style={hvStyles.footBrand}>Drive to Destination</Text></Text>
-        </View>
-      </Page>
+      {data.entries.map((entry, i) => (
+        <HotelVoucherPage entry={entry} generatedOn={data.generatedOn} key={i} />
+      ))}
     </Document>
   );
 }
@@ -682,7 +746,7 @@ function threeDigitWords(n: number): string {
   return (h ? `${ONES[h]} Hundred${r ? " " : ""}` : "") + (r ? twoDigitWords(r) : "");
 }
 /** Indian numbering (crore/lakh/thousand), e.g. 1234567 -> "Twelve Lakh Thirty Four Thousand Five Hundred Sixty Seven". */
-function amountInWords(value: number): string {
+export function amountInWords(value: number): string {
   const n = Math.round(Math.abs(value));
   if (n === 0) return "Rupees Zero Only";
   let remaining = n;

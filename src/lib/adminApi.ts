@@ -509,6 +509,22 @@ export const bookingsApi = {
     const res = await adminFetch(`/api/admin/bookings/${id}/hotels`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminBooking | null>;
   },
+  issueHotelVoucher: async (id: string): Promise<ApiResponse<{ hotelVoucherIssuedAt: string | null; hotelVoucherStale: boolean } | null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/hotels/voucher`, { method: "POST" });
+    return (await res.json()) as ApiResponse<{ hotelVoucherIssuedAt: string | null; hotelVoucherStale: boolean } | null>;
+  },
+  clearHotelVoucher: async (id: string): Promise<ApiResponse<{ hotelVoucherIssuedAt: string | null; hotelVoucherStale: boolean } | null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/hotels/voucher`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<{ hotelVoucherIssuedAt: string | null; hotelVoucherStale: boolean } | null>;
+  },
+  issuePaymentReceipt: async (id: string): Promise<ApiResponse<{ paymentReceiptIssuedAt: string | null; paymentReceiptStale: boolean } | null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/payment-receipt`, { method: "POST" });
+    return (await res.json()) as ApiResponse<{ paymentReceiptIssuedAt: string | null; paymentReceiptStale: boolean } | null>;
+  },
+  clearPaymentReceipt: async (id: string): Promise<ApiResponse<{ paymentReceiptIssuedAt: string | null; paymentReceiptStale: boolean } | null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/payment-receipt`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<{ paymentReceiptIssuedAt: string | null; paymentReceiptStale: boolean } | null>;
+  },
   saveActivities: async (id: string, rows: AdminBookingActivity[]): Promise<ApiResponse<AdminBooking | null>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/activities`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminBooking | null>;
@@ -538,6 +554,10 @@ export const bookingsApi = {
   ): Promise<ApiResponse<unknown>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/payments/customer`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<unknown>;
+  },
+  removeCustomerPayment: async (id: string, paymentId: string): Promise<ApiResponse<boolean>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/payments/customer/${paymentId}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
   },
   addSupplierPayment: async (
     id: string,

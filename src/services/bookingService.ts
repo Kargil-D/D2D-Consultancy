@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { trackingCode, parseTrackingCode } from "@/lib/idCodes";
 import { ApiError } from "@/lib/apiError";
+import { bookingTotalPrice } from "@/lib/quotationPricing";
 import type { Viewer } from "@/lib/permissions";
 import type { Paginated } from "@/types/admin";
 import type { Prisma, BookingStatus, BookingDocumentType, BookingServiceType } from "@/generated/prisma/client";
@@ -496,8 +497,31 @@ export async function saveCostSheet(bookingId: string, rows: CostSheetPatch[]) {
   });
 }
 
+const formatRupees = (n: number) => `₹${new Intl.NumberFormat("en-IN").format(Math.round(n))}`;
+
 export async function addCustomerPayment(bookingId: string, input: CustomerPaymentInput) {
   return prisma.$transaction(async (tx) => {
+    // Server-side cap: payments received can never exceed the booking's total price.
+    const booking = await tx.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        totalAmount: true,
+        quotation: { select: { marginPercent: true, gstPercent: true, items: { select: { qty: true, cost: true } } } },
+        customerPayments: { select: { amount: true } },
+      },
+    });
+    if (!booking) throw new ApiError(404, "Booking not found");
+    const totalPrice = bookingTotalPrice(booking);
+    if (totalPrice !== null) {
+      const received = booking.customerPayments.reduce((sum, p) => sum + p.amount, 0);
+      if (received + input.amount > totalPrice) {
+        throw new ApiError(
+          400,
+          `Payment exceeds the total price — total ${formatRupees(totalPrice)}, already received ${formatRupees(received)}, remaining ${formatRupees(Math.max(0, totalPrice - received))}`,
+        );
+      }
+    }
+
     const payment = await tx.bookingCustomerPayment.create({
       data: {
         bookingId,
@@ -511,6 +535,16 @@ export async function addCustomerPayment(bookingId: string, input: CustomerPayme
     });
     await logTimeline(tx, bookingId, `Customer payment received: ₹${input.amount}`);
     return payment;
+  });
+}
+
+export async function removeCustomerPayment(bookingId: string, paymentId: string) {
+  return prisma.$transaction(async (tx) => {
+    // Scoped to the booking so an id from another booking can't be deleted through this one.
+    const payment = await tx.bookingCustomerPayment.findFirst({ where: { id: paymentId, bookingId } });
+    if (!payment) throw new ApiError(404, "Payment not found");
+    await tx.bookingCustomerPayment.delete({ where: { id: paymentId } });
+    await logTimeline(tx, bookingId, `Customer payment removed: ${formatRupees(payment.amount)}`);
   });
 }
 

@@ -25,6 +25,7 @@ export const GET = withApiHandler("[/api/customer/activities] GET", async (req) 
       status: { in: ["Booked", "OnTrip", "Completed"] },
       lead: { email: { equals: user.email, mode: "insensitive" } },
     },
+    omit: { hotelVoucher: true, hotelVoucherHash: true, paymentReceipt: true, paymentReceiptHash: true },
     include: { destination: true, lead: true, customerPayments: { select: { amount: true } } },
     orderBy: { createdDate: "desc" },
   });

@@ -31,6 +31,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         status: { in: ["Booked", "OnTrip", "Completed", "Cancelled"] },
         lead: { email: { equals: user.email, mode: "insensitive" } },
       },
+      omit: { hotelVoucher: true, hotelVoucherHash: true, paymentReceipt: true, paymentReceiptHash: true },
       include: {
         destination: true,
         lead: true,

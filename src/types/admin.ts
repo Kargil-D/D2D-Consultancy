@@ -1025,6 +1025,14 @@ export interface AdminBooking {
   dmcEmailSentDate?: string | null;
   dmcResponse?: string | null;
   dmcRemarks?: string | null;
+  /** Set once a Hotel Voucher has been generated; cleared when it's removed to regenerate. */
+  hotelVoucherIssuedAt?: string | null;
+  /** True when hotel/guest/reference data changed after the voucher was issued. */
+  hotelVoucherStale?: boolean;
+  /** Set once a Payment Receipt has been generated; cleared when it's removed to regenerate. */
+  paymentReceiptIssuedAt?: string | null;
+  /** True when payments/trip details changed after the receipt was issued. */
+  paymentReceiptStale?: boolean;
   documents: AdminBookingDocument[];
   passengers: AdminBookingPassenger[];
   flights: AdminBookingFlight[];

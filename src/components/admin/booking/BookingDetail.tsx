@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   FileDown, Mail, Link as LinkIcon, ExternalLink, Save, Download,
@@ -23,6 +23,8 @@ import BookingCostSheet from "@/components/admin/booking/BookingCostSheet";
 import BookingPayments from "@/components/admin/booking/BookingPayments";
 import BookingDocumentsTab from "@/components/admin/booking/BookingDocumentsTab";
 import DocumentUpload from "@/components/admin/booking/DocumentUpload";
+import HotelVoucherControl from "@/components/admin/booking/HotelVoucherControl";
+import PaymentReceiptControl from "@/components/admin/booking/PaymentReceiptControl";
 import BookingChatTab from "@/components/admin/booking/BookingChatTab";
 import BookingTimelineTab from "@/components/admin/booking/BookingTimelineTab";
 import SendMailMenu from "@/components/admin/booking/SendMailMenu";
@@ -30,6 +32,7 @@ import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
 import { useAuth } from "@/contexts/AuthContext";
 import { canViewModule, type PermissionMap } from "@/lib/adminModules";
 import { bookingsApi, quotationsApi, salesUsersApi, currenciesApi } from "@/lib/adminApi";
+import { bookingTotalPrice, computeQuotationPricing } from "@/lib/quotationPricing";
 import { trackingCode } from "@/lib/idCodes";
 import type {
   AdminBooking, AdminBookingActivity, AdminBookingFlight, AdminBookingHotel, AdminBookingInsurance,
@@ -55,7 +58,7 @@ const TABS = [
   { key: "transfers", label: "Transfers", icon: ArrowRightLeft },
   { key: "visa", label: "Visa", icon: Stamp },
   { key: "insurance", label: "Insurance", icon: ShieldCheck },
-  { key: "payments", label: "Payments", icon: CreditCard },
+  { key: "payments", label: "Customer Payments", icon: CreditCard },
   { key: "documents", label: "Documents", icon: FolderOpen },
   { key: "chat", label: "Customer Chat", icon: MessageCircle },
   { key: "timeline", label: "Timeline", icon: History },
@@ -120,6 +123,14 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const [savingTransfers, setSavingTransfers] = useState(false);
   const [savingVisas, setSavingVisas] = useState(false);
   const [savingInsurances, setSavingInsurances] = useState(false);
+
+  // The Hotel Voucher is built from saved data, so generating with unsaved Hotels-tab edits would
+  // issue a voucher that doesn't match what's on screen — the control locks until they're saved.
+  const hotelsDirty = useMemo(() => {
+    if (!booking) return false;
+    const saved = booking.hotels.map((h) => ({ ...h, checkIn: h.checkIn?.slice(0, 10) ?? null, checkOut: h.checkOut?.slice(0, 10) ?? null, bookingDate: h.bookingDate?.slice(0, 10) ?? null }));
+    return JSON.stringify(saved) !== JSON.stringify(hotels);
+  }, [booking, hotels]);
 
   const reload = useCallback(async () => {
     const res = await bookingsApi.get(id);
@@ -514,9 +525,26 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   };
   const loadHotelsFromQuotation = () => {
     if (!booking?.quotation) return;
+    const quotationHotels = booking.quotation.hotelOptions.flatMap((g) => g.hotels);
     const existingIds = new Set(hotels.map((h) => h.id));
-    const rows: AdminBookingHotel[] = booking.quotation.hotelOptions
-      .flatMap((g) => g.hotels)
+
+    // Rows already copied from the quotation keep their edits, but any of these fields still
+    // blank (e.g. copied before the quotation had them filled in) are back-filled from it.
+    let refreshed = 0;
+    const backfilled = hotels.map((row) => {
+      const src = quotationHotels.find((q) => q.id === row.id);
+      if (!src) return row;
+      const patch: Partial<AdminBookingHotel> = {};
+      if (!row.roomType && src.roomType) patch.roomType = src.roomType;
+      if (!row.mealPlan && src.mealPlan) patch.mealPlan = src.mealPlan;
+      if (!row.checkIn && src.checkIn) patch.checkIn = src.checkIn;
+      if (!row.checkOut && src.checkOut) patch.checkOut = src.checkOut;
+      if (Object.keys(patch).length === 0) return row;
+      refreshed += 1;
+      return { ...row, ...patch };
+    });
+
+    const rows: AdminBookingHotel[] = quotationHotels
       .filter((h) => !existingIds.has(h.id))
       .map((h) => ({
         id: h.id,
@@ -542,8 +570,16 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         bookingPnr: "",
         updatedBy: "",
       }));
-    setHotels((prev) => [...prev, ...rows]);
-    notify(rows.length > 0 ? `${rows.length} hotel(s) loaded from quotation` : "All hotels from the quotation are already loaded", rows.length > 0 ? "success" : "info");
+    setHotels([...backfilled, ...rows]);
+    if (rows.length > 0 || refreshed > 0) {
+      const parts = [
+        rows.length > 0 ? `${rows.length} hotel(s) loaded` : "",
+        refreshed > 0 ? `${refreshed} existing hotel(s) updated with missing details` : "",
+      ].filter(Boolean);
+      notify(`${parts.join(", ")} from quotation`, "success");
+    } else {
+      notify("All hotels from the quotation are already loaded", "info");
+    }
   };
 
   const loadActivitiesFromQuotation = () => {
@@ -678,8 +714,18 @@ export default function BookingDetail({ id }: BookingDetailProps) {
 
   const addCustomerPayment = async (payload: { paymentDate: string; paymentMode: PaymentMode; amount: number; transactionReference?: string; referenceImageUrl?: string; remarks?: string }) => {
     const res = await bookingsApi.addCustomerPayment(id, payload);
-    if (!res.success) return notify(res.message || "Unable to record payment", "error");
+    if (!res.success) {
+      notify(res.message || "Unable to record payment", "error");
+      return false;
+    }
     notify("Customer payment recorded", "success");
+    reload();
+    return true;
+  };
+  const removeCustomerPayment = async (paymentId: string) => {
+    const res = await bookingsApi.removeCustomerPayment(id, paymentId);
+    if (!res.success) return notify(res.message || "Unable to remove payment", "error");
+    notify("Customer payment removed", "success");
     reload();
   };
   const uploadDocument = async (type: BookingDocumentType, url: string, description?: string) => {
@@ -720,17 +766,15 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const shareUrl = booking.quotation?.shareToken ? `/quote/${booking.quotation.shareToken}` : null;
 
   // Margin/Deal Price mirror the linked Quotation's own pricing step (cost -> +margin -> +GST = grand total);
-  // Total Paid is the Payments tab's Customer Payments total (same figure shown there).
+  // Payment Received is the Payments tab's Customer Payments total (same figure shown there).
   const quotePricing = selectedQuotation
     ? (() => {
-        const cost = selectedQuotation.items.reduce((sum, i) => sum + i.qty * i.cost, 0);
-        const marginValue = Math.round(cost * (selectedQuotation.marginPercent / 100));
-        const subtotal = cost + marginValue;
-        const gstValue = Math.round(subtotal * (selectedQuotation.gstPercent / 100));
-        const sellingPrice = subtotal + gstValue;
-        return { marginValue, sellingPrice };
+        const { marginValue, dealPrice } = computeQuotationPricing(selectedQuotation);
+        return { marginValue, sellingPrice: dealPrice };
       })()
     : null;
+  // Payments tab total price (deal price + margin) — the same figure the server caps payments at.
+  const totalPrice = bookingTotalPrice({ totalAmount: booking.totalAmount, quotation: selectedQuotation }) ?? undefined;
   const totalPaid = booking.customerPayments.reduce((sum, p) => sum + p.amount, 0);
 
   const anyBusy =
@@ -784,7 +828,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               </div>
               <div className="w-px h-9 bg-slate-200" />
               <div className="text-right">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Paid</div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Payment Received</div>
                 <div className="text-lg font-bold text-emerald-600">{formatINR(totalPaid)}</div>
               </div>
             </div>
@@ -809,6 +853,13 @@ export default function BookingDetail({ id }: BookingDetailProps) {
           <a href={`/api/admin/bookings/${id}/travel-voucher`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700">
             <FileDown className="w-3.5 h-3.5" /> Generate Travel Voucher
           </a>
+          <PaymentReceiptControl
+            bookingId={id}
+            issuedAt={booking.paymentReceiptIssuedAt}
+            stale={booking.paymentReceiptStale}
+            hasPayments={booking.customerPayments.length > 0}
+            onChange={(meta) => setBooking((prev) => (prev ? { ...prev, ...meta } : prev))}
+          />
           <a href={`/api/admin/bookings/${id}/invoice?kind=customer`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700">
             <Mail className="w-3.5 h-3.5" /> Generate Invoice
           </a>
@@ -1012,16 +1063,15 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               saving={savingHotels}
               label="Save Hotels"
               extra={
-                <div className="flex items-center gap-2">
-                  {booking.hotels.length > 0 && (
-                    <a
-                      href={`/api/admin/bookings/${id}/hotels/voucher`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700"
-                    >
-                      <FileDown className="w-3.5 h-3.5" /> Generate Hotel Voucher
-                    </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(booking.hotels.length > 0 || booking.hotelVoucherIssuedAt) && (
+                    <HotelVoucherControl
+                      bookingId={id}
+                      issuedAt={booking.hotelVoucherIssuedAt}
+                      stale={booking.hotelVoucherStale}
+                      hasUnsavedHotels={hotelsDirty}
+                      onChange={(meta) => setBooking((prev) => (prev ? { ...prev, ...meta } : prev))}
+                    />
                   )}
                   {booking.quotation && booking.quotation.hotelOptions.some((g) => g.hotels.length > 0) && (
                     <LoadFromQuotationButton onClick={loadHotelsFromQuotation} />
@@ -1097,7 +1147,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
             <BookingPayments
               customerPayments={booking.customerPayments}
               onAddCustomerPayment={addCustomerPayment}
-              dealPrice={quotePricing?.sellingPrice}
+              onRemoveCustomerPayment={removeCustomerPayment}
+              totalPrice={totalPrice}
             />
           )}
           {tab === "documents" && (
