@@ -368,6 +368,16 @@ export default async function PublicQuotePage({ params }: PageProps) {
                 </div>
               )}
 
+              {data.departureDate && (
+                <div className="flex items-center justify-between gap-3 py-3 border-b border-dashed border-slate-200 text-sm">
+                  <span className="flex items-center gap-1.5 text-slate-600">
+                    <CalendarDays className="w-4 h-4 text-blue-600" />
+                    Departure Date
+                  </span>
+                  <span className="font-semibold text-slate-900 text-right">{data.departureDate}</span>
+                </div>
+              )}
+
               {(data.travelDate || data.travelEndDate) && (
                 <div className="flex items-center justify-between gap-3 py-3 border-b border-dashed border-slate-200 text-sm">
                   <span className="flex items-center gap-1.5 text-slate-600">

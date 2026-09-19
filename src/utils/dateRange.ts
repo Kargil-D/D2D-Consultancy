@@ -16,6 +16,17 @@ export function isFutureDate(dateStr: string): boolean {
   return !!dateStr && dateStr > todayIso();
 }
 
+/** Trip length from a YYYY-MM-DD start/end pair: nights = end - start, days = nights + 1 (both
+ * dates count). Null when either date is missing or the end is before the start. */
+export function tripLengthFromDates(startIso: string, endIso: string): { days: number; nights: number } | null {
+  if (!startIso || !endIso) return null;
+  const [sy, sm, sd] = startIso.split("-").map(Number);
+  const [ey, em, ed] = endIso.split("-").map(Number);
+  const nights = Math.round((Date.UTC(ey, em - 1, ed) - Date.UTC(sy, sm - 1, sd)) / 86_400_000);
+  if (!Number.isFinite(nights) || nights < 0) return null;
+  return { days: nights + 1, nights };
+}
+
 /** "2026-08-12" -> "12/08/26" — the DD/MM/YY format used in the "pick a date between X and Y" message. */
 export function formatShortDate(isoDate: string): string {
   const [y, m, d] = isoDate.split("-");

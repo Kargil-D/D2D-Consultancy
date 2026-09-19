@@ -41,7 +41,7 @@ import QuotationItineraryDaysEditor, { newQuotationDay } from "@/components/admi
 import QuotationHotelOptionsEditor from "@/components/admin/quotation/QuotationHotelOptionsEditor";
 import QuotationTransfersEditor from "@/components/admin/quotation/QuotationTransfersEditor";
 import QuotationActivitiesEditor from "@/components/admin/quotation/QuotationActivitiesEditor";
-import { isFutureDate, todayIso, tomorrowIso } from "@/utils/dateRange";
+import { isFutureDate, todayIso, tomorrowIso, tripLengthFromDates } from "@/utils/dateRange";
 import { migrateInlineImages } from "@/lib/inlineImages";
 import type {
   AdminCurrency,
@@ -136,10 +136,9 @@ interface Draft {
   customer: QuotationCustomerInput;
   destinationId: string;
   campaignId: string;
+  departureDate: string;
   travelDate: string;
   travelEndDate: string;
-  days: string;
-  nights: string;
   adults: number;
   children: number;
   infants: number;
@@ -165,10 +164,9 @@ const emptyDraft = (): Draft => ({
   customer: { customerName: "", mobile: "", email: "", companyName: "" },
   destinationId: "",
   campaignId: "",
+  departureDate: "",
   travelDate: "",
   travelEndDate: "",
-  days: "",
-  nights: "",
   adults: 1,
   children: 0,
   infants: 0,
@@ -321,10 +319,9 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           },
           destinationId: q.destinationId,
           campaignId: q.campaignId ?? "",
+          departureDate: q.departureDate ? q.departureDate.slice(0, 10) : "",
           travelDate: q.travelDate ? q.travelDate.slice(0, 10) : "",
           travelEndDate: q.travelEndDate ? q.travelEndDate.slice(0, 10) : "",
-          days: q.days != null ? String(q.days) : "",
-          nights: q.nights != null ? String(q.nights) : "",
           adults: q.adults,
           children: q.children,
           infants: q.infants,
@@ -514,34 +511,38 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     }
   };
 
-  const buildPayload = (d: Draft = draft) => ({
-    customer: d.customer,
-    destinationId: d.destinationId,
-    campaignId: d.campaignId || null,
-    travelDate: d.travelDate || null,
-    travelEndDate: d.travelEndDate || null,
-    days: d.days === "" ? null : Number(d.days),
-    nights: d.nights === "" ? null : Number(d.nights),
-    adults: d.adults,
-    children: d.children,
-    infants: d.infants,
-    salesExecutiveId: d.salesExecutiveId || null,
-    source: d.source || null,
-    validUntil: d.validUntil || null,
-    internalNotes: d.internalNotes || null,
-    marginPercent: d.marginPercent,
-    gstPercent: d.gstPercent,
-    items: d.items.map((r, i) => ({ ...r, sortOrder: i })),
-    itineraryMode: d.itineraryMode,
-    itineraryDays: d.itineraryDays,
-    hotelOptions: d.hotelOptions,
-    transfers: d.transfers,
-    activities: d.activities,
-    inclusionsText: d.inclusionsText,
-    exclusionsText: d.exclusionsText,
-    includeChildCosting: d.includeChildCosting,
-    advanceAmount: d.advanceAmount,
-  });
+  const buildPayload = (d: Draft = draft) => {
+    const length = tripLengthFromDates(d.travelDate, d.travelEndDate);
+    return {
+      customer: d.customer,
+      destinationId: d.destinationId,
+      campaignId: d.campaignId || null,
+      departureDate: d.departureDate || null,
+      travelDate: d.travelDate || null,
+      travelEndDate: d.travelEndDate || null,
+      days: length?.days ?? null,
+      nights: length?.nights ?? null,
+      adults: d.adults,
+      children: d.children,
+      infants: d.infants,
+      salesExecutiveId: d.salesExecutiveId || null,
+      source: d.source || null,
+      validUntil: d.validUntil || null,
+      internalNotes: d.internalNotes || null,
+      marginPercent: d.marginPercent,
+      gstPercent: d.gstPercent,
+      items: d.items.map((r, i) => ({ ...r, sortOrder: i })),
+      itineraryMode: d.itineraryMode,
+      itineraryDays: d.itineraryDays,
+      hotelOptions: d.hotelOptions,
+      transfers: d.transfers,
+      activities: d.activities,
+      inclusionsText: d.inclusionsText,
+      exclusionsText: d.exclusionsText,
+      includeChildCosting: d.includeChildCosting,
+      advanceAmount: d.advanceAmount,
+    };
+  };
 
   /** Uploads any legacy inline base64 images to Blob storage and swaps in their URLs before a
    * save — oversized payloads are otherwise rejected by the platform with 413 (request too
@@ -561,6 +562,8 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
     setDraft(next);
     return next;
   };
+
+  const tripLength = tripLengthFromDates(draft.travelDate, draft.travelEndDate);
 
   const canSaveStep1 =
     !!draft.customer.customerName.trim() &&
@@ -707,7 +710,8 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
         leadId: saved.leadId,
         quotationId: saved.id,
         destinationId: draft.destinationId,
-        travelDate: draft.travelDate || null,
+        // Booking's travelDate is the departure date (BookingDetail labels it "Dept:"), matching resolveQuotationChange.
+        travelDate: draft.departureDate || draft.travelDate || null,
         totalAmount: sellingPrice,
       });
       if (!bookingRes.success || !bookingRes.data) return notify(bookingRes.message || "Unable to create booking", "error");
@@ -997,6 +1001,12 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                         ))}
                       </select>
                     </Field>
+                    <Field label="Departure Date" hint="Optional — when the customer leaves home" className="md:col-span-2">
+                      <DateInput
+                        value={draft.departureDate}
+                        onChange={(value) => patch({ departureDate: value })}
+                      />
+                    </Field>
                     <Field label="Travel Date" required hint="Must be a future date">
                       <DateInput
                         min={tomorrowIso()}
@@ -1006,28 +1016,33 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
                             notify("Travel date must be after today", "error");
                             return;
                           }
-                          patch({ travelDate: value });
+                          // A start date after the current end date would give a negative trip length.
+                          patch({ travelDate: value, ...(value && draft.travelEndDate && draft.travelEndDate < value ? { travelEndDate: "" } : {}) });
                         }}
                       />
                     </Field>
                     <Field label="Travel End Date" required hint="Must be a future date">
                       <DateInput
-                        min={tomorrowIso()}
+                        min={draft.travelDate && draft.travelDate > tomorrowIso() ? draft.travelDate : tomorrowIso()}
                         value={draft.travelEndDate}
                         onChange={(value) => {
                           if (value && !isFutureDate(value)) {
                             notify("Travel end date must be after today", "error");
                             return;
                           }
+                          if (value && draft.travelDate && value < draft.travelDate) {
+                            notify("Travel end date can't be before the travel date", "error");
+                            return;
+                          }
                           patch({ travelEndDate: value });
                         }}
                       />
                     </Field>
-                    <Field label="Days">
-                      <input type="number" min={0} className={inputCls} value={draft.days} onChange={(e) => patch({ days: e.target.value })} />
+                    <Field label="Days" hint="Calculated from the travel dates">
+                      <input type="number" className={inputCls} value={tripLength?.days ?? ""} readOnly disabled />
                     </Field>
-                    <Field label="Nights">
-                      <input type="number" min={0} className={inputCls} value={draft.nights} onChange={(e) => patch({ nights: e.target.value })} />
+                    <Field label="Nights" hint="Calculated from the travel dates">
+                      <input type="number" className={inputCls} value={tripLength?.nights ?? ""} readOnly disabled />
                     </Field>
                   </div>
                 </div>

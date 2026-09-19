@@ -759,6 +759,7 @@ export interface AdminQuotation {
   pdfGeneratedAt?: string | null;
 
   // Step 1 — Trip / Traveller / Other details
+  departureDate?: string | null;
   travelDate?: string | null;
   travelEndDate?: string | null;
   days?: number | null;
@@ -1033,6 +1034,8 @@ export interface AdminBooking {
   paymentReceiptIssuedAt?: string | null;
   /** True when payments/trip details changed after the receipt was issued. */
   paymentReceiptStale?: boolean;
+  /** True when the linked quotation was edited since this booking last synced to it (or chose to keep it as-is). */
+  quotationChanged?: boolean;
   documents: AdminBookingDocument[];
   passengers: AdminBookingPassenger[];
   flights: AdminBookingFlight[];

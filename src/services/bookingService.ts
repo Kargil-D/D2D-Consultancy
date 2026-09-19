@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { trackingCode, parseTrackingCode } from "@/lib/idCodes";
 import { ApiError } from "@/lib/apiError";
 import { bookingTotalPrice } from "@/lib/quotationPricing";
+import { quotationSyncHash } from "@/lib/quotationSyncHash";
 import type { Viewer } from "@/lib/permissions";
-import type { Paginated } from "@/types/admin";
+import type { Paginated, QuotationActivityItem, QuotationHotelOptionGroup, QuotationTransferItem } from "@/types/admin";
 import type { Prisma, BookingStatus, BookingDocumentType, BookingServiceType } from "@/generated/prisma/client";
 import type {
   BookingFlightInput,
@@ -155,12 +156,21 @@ interface BookingInput {
   supplierInvoiceUrl?: string | null;
 }
 
+/** Hash of the quotation as it stands right now — the baseline a booking is compared against to
+ * detect later edits. null when there's no (live) quotation to track. */
+async function currentQuotationHash(db: Pick<Tx, "quotation">, quotationId: string | null | undefined): Promise<string | null> {
+  if (!quotationId) return null;
+  const q = await db.quotation.findFirst({ where: { id: quotationId, isDeleted: false }, include: { items: { orderBy: { sortOrder: "asc" } } } });
+  return q ? quotationSyncHash(q) : null;
+}
+
 export async function createBooking(input: BookingInput) {
   return prisma.$transaction(async (tx) => {
     const booking = await tx.booking.create({
       data: {
         leadId: input.leadId,
         quotationId: input.quotationId || null,
+        quotationSyncHash: await currentQuotationHash(tx, input.quotationId),
         destinationId: input.destinationId,
         travelDate: input.travelDate ? new Date(input.travelDate) : null,
         adults: input.adults ?? 1,
@@ -184,9 +194,19 @@ export async function createBooking(input: BookingInput) {
 }
 
 export async function updateBooking(id: string, input: Partial<BookingInput>) {
+  // Only re-baseline when the booking is pointed at a *different* quotation — the details form re-sends
+  // the current quotationId on every save, and that must not silently dismiss a pending "quotation changed" prompt.
+  let relinked: { quotationSyncHash: string | null } | null = null;
+  if (input.quotationId !== undefined) {
+    const current = await prisma.booking.findUnique({ where: { id }, select: { quotationId: true } });
+    if ((input.quotationId || null) !== (current?.quotationId ?? null)) {
+      relinked = { quotationSyncHash: await currentQuotationHash(prisma, input.quotationId) };
+    }
+  }
   return prisma.booking.update({
     where: { id },
     data: {
+      ...relinked,
       ...(input.quotationId !== undefined && { quotationId: input.quotationId || null }),
       ...(input.destinationId !== undefined && { destinationId: input.destinationId }),
       ...(input.travelDate !== undefined && { travelDate: input.travelDate ? new Date(input.travelDate) : null }),
@@ -574,16 +594,133 @@ export async function createBookingFromWonLead(
   const latestQuotation = await tx.quotation.findFirst({
     where: { leadId: lead.id, isDeleted: false },
     orderBy: { createdDate: "desc" },
+    include: { items: { orderBy: { sortOrder: "asc" } } },
   });
 
   const booking = await tx.booking.create({
     data: {
       leadId: lead.id,
       quotationId: latestQuotation?.id ?? null,
+      quotationSyncHash: latestQuotation ? quotationSyncHash(latestQuotation) : null,
       destinationId: lead.destinationId,
       travelDate: lead.travelDate,
     },
   });
   await logTimeline(tx, booking.id, "Booking created automatically from Won lead");
   return booking;
+}
+
+/**
+ * Whether the linked Quotation was edited since the booking last synced to it. Bookings that predate
+ * change tracking (no baseline hash yet) are baselined to the quotation as it is now rather than being
+ * flagged, since there's no way to tell what they were last in sync with.
+ */
+export async function getQuotationChangeStatus(booking: {
+  id: string;
+  quotationId: string | null;
+  quotationSyncHash: string | null;
+  quotation: Parameters<typeof quotationSyncHash>[0] | null;
+}): Promise<{ quotationChanged: boolean }> {
+  if (!booking.quotationId || !booking.quotation) return { quotationChanged: false };
+  const current = quotationSyncHash(booking.quotation);
+  if (!booking.quotationSyncHash) {
+    await prisma.booking.updateMany({ where: { id: booking.id, quotationSyncHash: null }, data: { quotationSyncHash: current } });
+    return { quotationChanged: false };
+  }
+  return { quotationChanged: current !== booking.quotationSyncHash };
+}
+
+/** Light read for the detail page's focus re-check — same answer as the full booking GET without loading its 13 relations. */
+export async function getQuotationChangeStatusById(id: string) {
+  const booking = await prisma.booking.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      quotationId: true,
+      quotationSyncHash: true,
+      quotation: { include: { items: { orderBy: { sortOrder: "asc" } } } },
+    },
+  });
+  if (!booking) throw new ApiError(404, "Booking not found");
+  return getQuotationChangeStatus(booking);
+}
+
+const toDate = (v: string | null | undefined) => {
+  if (!v) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+/**
+ * Answers the "quotation changed" prompt. "refresh" pulls the quotation's current trip details and its
+ * hotel/activity/transfer rows into the booking; "keep" leaves the booking untouched. Either way the
+ * booking is re-baselined so the prompt only returns after the quotation changes again.
+ *
+ * Refresh overwrites only quotation-sourced fields on rows it already copied (matched by id) and adds
+ * rows new to the quotation — supplier, PNR, voucher, cost and other operations data are never touched,
+ * and rows removed from the quotation are left in place (they can't be told apart from rows added by hand).
+ */
+export async function resolveQuotationChange(id: string, action: "refresh" | "keep") {
+  return prisma.$transaction(async (tx) => {
+    const booking = await tx.booking.findUniqueOrThrow({
+      where: { id },
+      include: { quotation: { include: { items: { orderBy: { sortOrder: "asc" } } } } },
+    });
+    const q = booking.quotation;
+    if (!q || q.isDeleted) throw new ApiError(400, "This booking has no linked quotation");
+
+    if (action === "refresh") {
+      const departure = q.departureDate ?? q.travelDate;
+      await tx.booking.update({
+        where: { id },
+        data: { ...(departure && { travelDate: departure }), adults: q.adults, children: q.children, infants: q.infants },
+      });
+
+      const hotels = (Array.isArray(q.hotelOptions) ? (q.hotelOptions as unknown as QuotationHotelOptionGroup[]) : []).flatMap((g) => g.hotels ?? []);
+      const activities = Array.isArray(q.activities) ? (q.activities as unknown as QuotationActivityItem[]) : [];
+      const transfers = Array.isArray(q.transfers) ? (q.transfers as unknown as QuotationTransferItem[]) : [];
+
+      // Quotation row ids double as the booking row ids (that's how the Cost Sheet ties back to quotation
+      // costs), so a row that already exists under another booking can't be created here — it's skipped.
+      const owners = (rows: { id: string; bookingId: string }[]) => new Map(rows.map((r) => [r.id, r.bookingId]));
+
+      const hotelOwners = owners(await tx.bookingHotel.findMany({ where: { id: { in: hotels.map((h) => h.id) } }, select: { id: true, bookingId: true } }));
+      let hotelOrder = await tx.bookingHotel.count({ where: { bookingId: id } });
+      for (const h of hotels) {
+        const data = {
+          hotelName: h.hotelName, hotelCategory: h.category ?? "", checkIn: toDate(h.checkIn), checkOut: toDate(h.checkOut),
+          nights: h.nights, rooms: h.rooms, roomType: h.roomType, mealPlan: h.mealPlan, amenities: h.amenities ?? [], googleMapLink: h.googleMapUrl ?? null,
+        };
+        const owner = hotelOwners.get(h.id);
+        if (owner === id) await tx.bookingHotel.update({ where: { id: h.id }, data });
+        else if (!owner) await tx.bookingHotel.create({ data: { id: h.id, bookingId: id, sortOrder: hotelOrder++, ...data } });
+      }
+
+      const activityOwners = owners(await tx.bookingActivity.findMany({ where: { id: { in: activities.map((a) => a.id) } }, select: { id: true, bookingId: true } }));
+      let activityOrder = await tx.bookingActivity.count({ where: { bookingId: id } });
+      for (const a of activities) {
+        const data = { activityName: a.name, activityDate: toDate(a.activityDate), activityTime: a.activityTime, duration: a.duration, pickupTime: a.reportingTime, pax: a.pax || 1 };
+        const owner = activityOwners.get(a.id);
+        if (owner === id) await tx.bookingActivity.update({ where: { id: a.id }, data });
+        else if (!owner) await tx.bookingActivity.create({ data: { id: a.id, bookingId: id, sortOrder: activityOrder++, ...data } });
+      }
+
+      const transferOwners = owners(await tx.bookingTransfer.findMany({ where: { id: { in: transfers.map((t) => t.id) } }, select: { id: true, bookingId: true } }));
+      let transferOrder = await tx.bookingTransfer.count({ where: { bookingId: id } });
+      for (const t of transfers) {
+        const data = { transferType: t.name, vehicleType: t.vehicleType, mode: t.mode, pickupLocation: t.pickupLocation, dropLocation: t.dropLocation };
+        const owner = transferOwners.get(t.id);
+        if (owner === id) await tx.bookingTransfer.update({ where: { id: t.id }, data });
+        else if (!owner) await tx.bookingTransfer.create({ data: { id: t.id, bookingId: id, sortOrder: transferOrder++, ...data } });
+      }
+
+      await reconcileCostSheet(tx, id);
+      await logTimeline(tx, id, "Booking refreshed from the updated quotation");
+    } else {
+      await logTimeline(tx, id, "Quotation changes reviewed — booking kept as-is");
+    }
+
+    await tx.booking.update({ where: { id }, data: { quotationSyncHash: quotationSyncHash(q) } });
+    return { quotationChanged: false };
+  }, { timeout: 20000 });
 }

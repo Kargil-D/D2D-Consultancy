@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getBooking, updateBooking, removeBooking, requireBookingAccess, redactMasterFields } from "@/services/bookingService";
+import { getBooking, updateBooking, removeBooking, requireBookingAccess, redactMasterFields, getQuotationChangeStatus } from "@/services/bookingService";
 import { getHotelVoucherMeta } from "@/services/hotelVoucherService";
 import { getPaymentReceiptMeta } from "@/services/paymentReceiptService";
 import { BookingUpdateSchema } from "@/lib/validation/booking";
@@ -16,8 +16,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (rec) {
       // Meta is computed from the un-redacted record (Trip ID = Supplier Track ID is master-only),
       // and the voucher snapshot itself never leaves the server — the UI only needs issued/stale.
-      const meta = { ...getHotelVoucherMeta(rec), ...getPaymentReceiptMeta(rec) };
+      const meta = { ...getHotelVoucherMeta(rec), ...getPaymentReceiptMeta(rec), ...(await getQuotationChangeStatus(rec)) };
       data = { ...(hasModulePermission(user, "BookingsMaster", "canView") ? rec : redactMasterFields(rec)), ...meta };
+      delete data.quotationSyncHash;
       delete data.hotelVoucher;
       delete data.hotelVoucherHash;
       delete data.paymentReceipt;

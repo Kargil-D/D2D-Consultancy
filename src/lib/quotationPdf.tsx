@@ -14,6 +14,7 @@ export interface QuotationPdfData {
   packageName: string | null;
   importantNotes: string | null;
   heroImage: string;
+  departureDate: string | null;
   travelDate: string | null;
   travelEndDate: string | null;
   days: number | null;
@@ -433,6 +434,7 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
               <View style={styles.qrow}><Text style={styles.qrowK}>Prepared For</Text><Text style={styles.qrowV}>{data.customerName}</Text></View>
               <View style={styles.qrow}><Text style={styles.qrowK}>Destination</Text><Text style={styles.qrowV}>{data.destinationName}</Text></View>
               <View style={styles.qrow}><Text style={styles.qrowK}>Departure From</Text><Text style={styles.qrowV}>Trichy</Text></View>
+              {data.departureDate && <View style={styles.qrow}><Text style={styles.qrowK}>Departure Date</Text><Text style={styles.qrowV}>{data.departureDate}</Text></View>}
               <View style={styles.qrow}><Text style={styles.qrowK}>Valid Until</Text><Text style={styles.qrowV}>{data.validUntil || "-"}</Text></View>
             </View>
           </View>

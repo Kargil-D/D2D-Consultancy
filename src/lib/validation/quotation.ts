@@ -102,6 +102,7 @@ const QuotationFieldsSchema = z.object({
   campaignId: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional().nullable()),
 
   // Step 1 — Trip / Traveller / Other details
+  departureDate: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.date().optional().nullable()),
   travelDate: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.date().optional().nullable()),
   travelEndDate: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.date().optional().nullable()),
   days: z.coerce.number().int().min(0).optional().nullable(),

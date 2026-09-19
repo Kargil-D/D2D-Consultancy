@@ -732,6 +732,7 @@ model Quotation {
   pdfGeneratedAt DateTime?
 
   // Step 1 — Trip & Traveller Details (quotation-specific, independent of the linked Lead's own values)
+  departureDate DateTime?
   travelDate    DateTime?
   travelEndDate DateTime?
   days       Int?
@@ -953,6 +954,9 @@ model Booking {
   paymentReceipt         Json?
   paymentReceiptHash     String?
   paymentReceiptIssuedAt DateTime?
+  /// Content hash of the linked Quotation as of the last sync (or the user choosing to keep the booking as-is);
+  /// a different hash on the live Quotation means it was edited since, which drives the "quotation changed — refresh?" prompt.
+  quotationSyncHash      String?
 
   createdDate DateTime @default(now())
   updatedDate DateTime @updatedAt

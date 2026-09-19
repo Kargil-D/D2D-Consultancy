@@ -5,12 +5,14 @@ import Link from "next/link";
 import {
   FileDown, Mail, Link as LinkIcon, ExternalLink, Save, Download,
   Wallet, Plane, BedDouble, Ticket, ArrowRightLeft, Stamp, ShieldCheck,
-  CreditCard, FolderOpen, MessageCircle, History, Users,
+  CreditCard, FolderOpen, MessageCircle, History, Users, Phone,
 } from "lucide-react";
+import { tripLengthFromDates } from "@/utils/dateRange";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
 import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
+import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import BookingStatusStepper from "@/components/admin/booking/BookingStatusStepper";
 import BookingFlightsEditor from "@/components/admin/booking/BookingFlightsEditor";
 import BookingHotelsEditor, { type HotelQuotationMeta } from "@/components/admin/booking/BookingHotelsEditor";
@@ -47,6 +49,19 @@ interface BookingDetailProps {
 const formatINR = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", currencyDisplay: "code", maximumFractionDigits: 0 }).format(v);
 
+const SENIOR_CITIZEN_AGE = 60;
+
+/** "Feb 9, 2025". Travel dates are date-only (midnight UTC), so they're formatted in UTC to avoid shifting a day. */
+const formatHeaderDate = (iso: string, dateOnly = false) =>
+  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", ...(dateOnly && { timeZone: "UTC" }) });
+
+const paxSummary = (adults: number, children: number, infants: number) =>
+  [
+    `${adults} ${adults === 1 ? "Adult" : "Adults"}`,
+    children > 0 ? `${children} ${children === 1 ? "Child" : "Children"}` : "",
+    infants > 0 ? `${infants} ${infants === 1 ? "Infant" : "Infants"}` : "",
+  ].filter(Boolean).join(", ");
+
 const STATUSES: BookingStatus[] = ["Won", "Booked", "OnTrip", "Completed", "Cancelled"];
 
 const TABS = [
@@ -75,6 +90,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const [booking, setBooking] = useState<AdminBooking | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [resolvingQuotation, setResolvingQuotation] = useState(false);
   const [tab, setTab] = useState<TabKey>("costsheet");
 
   const [dmcName, setDmcName] = useState("");
@@ -183,6 +199,48 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   useEffect(() => {
     if (tab === "costsheet" && !canViewMaster) setTab("passengers");
   }, [tab, canViewMaster]);
+
+  // The quotation is usually edited in another tab ("View Quotation" opens one), so re-check when this
+  // tab regains focus. Only the flag is updated — a full reload would wipe unsaved edits on this page.
+  const hasQuotation = !!booking?.quotationId;
+  useEffect(() => {
+    if (!hasQuotation) return;
+    const recheck = async () => {
+      if (document.visibilityState !== "visible") return;
+      const res = await bookingsApi.getQuotationChangeStatus(id);
+      if (res.success && res.data?.quotationChanged) {
+        setBooking((prev) => (prev && !prev.quotationChanged ? { ...prev, quotationChanged: true } : prev));
+      }
+    };
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    return () => {
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+    };
+  }, [id, hasQuotation]);
+
+  const resolveQuotationChange = async (action: "refresh" | "keep") => {
+    if (resolvingQuotation) return;
+    setResolvingQuotation(true);
+    try {
+      const res = await bookingsApi.resolveQuotationChange(id, action);
+      if (!res.success) {
+        notify(res.message || "Unable to update booking from quotation", "error");
+        return;
+      }
+      if (action === "refresh") {
+        notify("Booking refreshed from the updated quotation", "success");
+        await reload();
+      } else {
+        setBooking((prev) => (prev ? { ...prev, quotationChanged: false } : prev));
+      }
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Unexpected error", "error");
+    } finally {
+      setResolvingQuotation(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -765,6 +823,13 @@ export default function BookingDetail({ id }: BookingDetailProps) {
 
   const shareUrl = booking.quotation?.shareToken ? `/quote/${booking.quotation.shareToken}` : null;
 
+  // Header summary line. Nights come from the linked Quotation (its own field, else its date range);
+  // departure city has no field of its own, so it's the origin of the booking's first flight.
+  const q = booking.quotation;
+  const nights = q?.nights ?? (q?.travelDate && q.travelEndDate ? tripLengthFromDates(q.travelDate.slice(0, 10), q.travelEndDate.slice(0, 10))?.nights : null);
+  const departureCity = booking.flights[0]?.fromLocation?.trim() ?? "";
+  const seniorCount = booking.passengers.filter((p) => p.paxType === "Adult" && (p.age ?? 0) >= SENIOR_CITIZEN_AGE).length;
+
   // Margin/Deal Price mirror the linked Quotation's own pricing step (cost -> +margin -> +GST = grand total);
   // Payment Received is the Payments tab's Customer Payments total (same figure shown there).
   const quotePricing = selectedQuotation
@@ -805,14 +870,41 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   return (
     <div className="space-y-6">
       <LoadingOverlay show={anyBusy} label={busyLabel} />
+      <ConfirmModal
+        open={!!booking.quotationChanged}
+        tone="primary"
+        title="Quotation has been updated"
+        message="The linked quotation was changed after this booking was last synced. Refresh to bring in its latest trip details, hotels, activities and transfers (supplier, PNR and cost entries are kept, and any unsaved edits on this page are discarded), or keep the booking as it is."
+        confirmText="Refresh booking"
+        cancelText="Keep current data"
+        loading={resolvingQuotation}
+        onConfirm={() => resolveQuotationChange("refresh")}
+        onCancel={() => resolveQuotationChange("keep")}
+      />
       {/* Identity + quick actions */}
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <span className="font-mono text-xs font-semibold text-slate-500">{booking.lead ? trackingCode(booking.lead.seq) : ""}</span>
-            <h1 className="text-2xl font-bold text-slate-900 mt-1">{booking.lead?.customerName ?? "—"}</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {booking.destination?.name} · {formatINR(booking.totalAmount)} · {new Date(booking.createdDate).toLocaleDateString("en-IN")}
+            <div className="flex items-center flex-wrap gap-x-4 gap-y-1">
+              <span className="font-mono text-sm font-semibold text-slate-500">{booking.lead ? trackingCode(booking.lead.seq) : ""}</span>
+              <h1 className="text-2xl font-bold text-slate-900">{booking.lead?.customerName ?? "—"}</h1>
+              {booking.lead?.mobile && (
+                <span className="inline-flex items-center gap-1.5 text-sm text-slate-600"><Phone className="w-4 h-4 text-slate-400" /> {booking.lead.mobile}</span>
+              )}
+              {booking.lead?.email && (
+                <span className="inline-flex items-center gap-1.5 text-sm text-slate-600"><Mail className="w-4 h-4 text-slate-400" /> {booking.lead.email}</span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5">
+              <span className="font-semibold text-slate-700">{[nights ? `${nights}N` : "", booking.destination?.name ? `to ${booking.destination.name}` : ""].filter(Boolean).join(" ") || "—"}</span>
+              {booking.travelDate && (
+                <span><span className="font-semibold text-slate-700">Dept:</span> {[formatHeaderDate(booking.travelDate, true), departureCity].filter(Boolean).join(", ")}</span>
+              )}
+              <span><span className="font-semibold text-slate-700">Conv:</span> {formatHeaderDate(booking.createdDate)}</span>
+              <span>
+                <span className="font-semibold text-slate-700">Pax:</span> {paxSummary(booking.adults, booking.children, booking.infants)}
+                {seniorCount > 0 && <span className="text-red-600"> ({seniorCount > 1 ? `${seniorCount} Senior Citizens` : "Senior Citizen"})</span>}
+              </span>
             </p>
           </div>
           {quotePricing && (

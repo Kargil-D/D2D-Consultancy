@@ -509,6 +509,14 @@ export const bookingsApi = {
     const res = await adminFetch(`/api/admin/bookings/${id}/hotels`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminBooking | null>;
   },
+  getQuotationChangeStatus: async (id: string): Promise<ApiResponse<{ quotationChanged: boolean } | null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/quotation-sync`);
+    return (await res.json()) as ApiResponse<{ quotationChanged: boolean } | null>;
+  },
+  resolveQuotationChange: async (id: string, action: "refresh" | "keep"): Promise<ApiResponse<{ quotationChanged: boolean } | null>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/quotation-sync`, { method: "POST", body: JSON.stringify({ action }), headers: { "Content-Type": "application/json" } });
+    return (await res.json()) as ApiResponse<{ quotationChanged: boolean } | null>;
+  },
   issueHotelVoucher: async (id: string): Promise<ApiResponse<{ hotelVoucherIssuedAt: string | null; hotelVoucherStale: boolean } | null>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/hotels/voucher`, { method: "POST" });
     return (await res.json()) as ApiResponse<{ hotelVoucherIssuedAt: string | null; hotelVoucherStale: boolean } | null>;
