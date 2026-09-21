@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   FileDown, Mail, Link as LinkIcon, ExternalLink, Save, Download,
   Wallet, Plane, BedDouble, Ticket, ArrowRightLeft, Stamp, ShieldCheck,
-  CreditCard, FolderOpen, MessageCircle, History, Users, Phone,
+  CreditCard, Banknote, FolderOpen, MessageCircle, History, Users, Phone,
 } from "lucide-react";
 import { tripLengthFromDates } from "@/utils/dateRange";
 import { Field, inputCls, selectCls, textareaCls } from "@/components/admin/ui/Field";
@@ -23,6 +23,7 @@ import BookingVisasEditor from "@/components/admin/booking/BookingVisasEditor";
 import BookingInsurancesEditor from "@/components/admin/booking/BookingInsurancesEditor";
 import BookingCostSheet from "@/components/admin/booking/BookingCostSheet";
 import BookingPayments from "@/components/admin/booking/BookingPayments";
+import SupplierPayments from "@/components/admin/booking/SupplierPayments";
 import BookingDocumentsTab from "@/components/admin/booking/BookingDocumentsTab";
 import DocumentUpload from "@/components/admin/booking/DocumentUpload";
 import HotelVoucherControl from "@/components/admin/booking/HotelVoucherControl";
@@ -39,7 +40,7 @@ import { trackingCode } from "@/lib/idCodes";
 import type {
   AdminBooking, AdminBookingActivity, AdminBookingFlight, AdminBookingHotel, AdminBookingInsurance,
   AdminBookingPassenger, AdminBookingTransfer, AdminBookingVisa, AdminQuotation, AdminSalesUser, BookingDocumentType, BookingStatus,
-  CostSheetStatus, PaymentMode,
+  CostSheetStatus, PaymentMode, SettlementStatus,
 } from "@/types/admin";
 
 interface BookingDetailProps {
@@ -74,6 +75,7 @@ const TABS = [
   { key: "visa", label: "Visa", icon: Stamp },
   { key: "insurance", label: "Insurance", icon: ShieldCheck },
   { key: "payments", label: "Customer Payments", icon: CreditCard },
+  { key: "supplierpayments", label: "Supplier Payments", icon: Banknote },
   { key: "documents", label: "Documents", icon: FolderOpen },
   { key: "chat", label: "Customer Chat", icon: MessageCircle },
   { key: "timeline", label: "Timeline", icon: History },
@@ -86,7 +88,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const { user } = useAuth();
   const isAdmin = user?.roles.includes("admin") ?? false;
   const canViewMaster = isAdmin || canViewModule(user?.permissions as PermissionMap | undefined, "BookingsMaster");
-  const visibleTabs = TABS.filter((t) => t.key !== "costsheet" || canViewMaster);
+  // Cost Sheet and Supplier Payments are Bookings-Master-only (supplier cost figures).
+  const visibleTabs = TABS.filter((t) => (t.key !== "costsheet" && t.key !== "supplierpayments") || canViewMaster);
   const [booking, setBooking] = useState<AdminBooking | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -113,6 +116,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const [detailSupplierTrackId, setDetailSupplierTrackId] = useState("");
   const [detailSupplierInvoiceAmount, setDetailSupplierInvoiceAmount] = useState<number | "">("");
   const [detailSupplierInvoiceUrl, setDetailSupplierInvoiceUrl] = useState("");
+  const [detailSupplierOtherDocumentUrl, setDetailSupplierOtherDocumentUrl] = useState("");
+  const [detailSupplierNotes, setDetailSupplierNotes] = useState("");
   const [detailAdults, setDetailAdults] = useState(1);
   const [detailChildren, setDetailChildren] = useState(0);
   const [detailInfants, setDetailInfants] = useState(0);
@@ -167,6 +172,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       setDetailSupplierTrackId(b.supplierTrackId ?? "");
       setDetailSupplierInvoiceAmount(b.supplierInvoiceAmount ?? "");
       setDetailSupplierInvoiceUrl(b.supplierInvoiceUrl ?? "");
+      setDetailSupplierOtherDocumentUrl(b.supplierOtherDocumentUrl ?? "");
+      setDetailSupplierNotes(b.supplierNotes ?? "");
       setDetailAdults(b.adults);
       setDetailChildren(b.children);
       setDetailInfants(b.infants);
@@ -197,7 +204,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   }, [reload]);
 
   useEffect(() => {
-    if (tab === "costsheet" && !canViewMaster) setTab("passengers");
+    if ((tab === "costsheet" || tab === "supplierpayments") && !canViewMaster) setTab("passengers");
   }, [tab, canViewMaster]);
 
   // The quotation is usually edited in another tab ("View Quotation" opens one), so re-check when this
@@ -461,6 +468,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         supplierTrackId: detailSupplierTrackId || null,
         supplierInvoiceAmount: detailSupplierInvoiceAmount === "" ? null : detailSupplierInvoiceAmount,
         supplierInvoiceUrl: detailSupplierInvoiceUrl || null,
+        supplierOtherDocumentUrl: detailSupplierOtherDocumentUrl || null,
+        supplierNotes: detailSupplierNotes || null,
         adults: detailAdults,
         children: detailChildren,
         infants: detailInfants,
@@ -786,6 +795,22 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     notify("Customer payment removed", "success");
     reload();
   };
+  const addSupplierPayment = async (payload: { supplierName: string; paymentDate: string; amount: number; paymentMode: PaymentMode; transactionReference?: string; settlementStatus: SettlementStatus }) => {
+    const res = await bookingsApi.addSupplierPayment(id, payload);
+    if (!res.success) {
+      notify(res.message || "Unable to record supplier payment", "error");
+      return false;
+    }
+    notify("Supplier payment recorded", "success");
+    reload();
+    return true;
+  };
+  const removeSupplierPayment = async (paymentId: string) => {
+    const res = await bookingsApi.removeSupplierPayment(id, paymentId);
+    if (!res.success) return notify(res.message || "Unable to remove supplier payment", "error");
+    notify("Supplier payment removed", "success");
+    reload();
+  };
   const uploadDocument = async (type: BookingDocumentType, url: string, description?: string) => {
     const res = await bookingsApi.uploadDocument(id, type, url, description);
     if (!res.success) return notify(res.message || "Unable to upload document", "error");
@@ -1073,7 +1098,15 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               />
             </Field>
           </div>
-          <DocumentUpload label="Supplier Invoice" value={detailSupplierInvoiceUrl} onChange={setDetailSupplierInvoiceUrl} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <DocumentUpload label="Supplier Invoice" value={detailSupplierInvoiceUrl} onChange={setDetailSupplierInvoiceUrl} />
+            <DocumentUpload label="Other Supplier Document" value={detailSupplierOtherDocumentUrl} onChange={setDetailSupplierOtherDocumentUrl} />
+          </div>
+          <div className="mt-4">
+            <Field label="Notes">
+              <textarea className={textareaCls} value={detailSupplierNotes} onChange={(e) => setDetailSupplierNotes(e.target.value)} rows={3} />
+            </Field>
+          </div>
           <button
             type="button"
             onClick={saveDetails}
@@ -1241,6 +1274,14 @@ export default function BookingDetail({ id }: BookingDetailProps) {
               onAddCustomerPayment={addCustomerPayment}
               onRemoveCustomerPayment={removeCustomerPayment}
               totalPrice={totalPrice}
+            />
+          )}
+          {tab === "supplierpayments" && canViewMaster && (
+            <SupplierPayments
+              supplierPayments={booking.supplierPayments}
+              onAddSupplierPayment={addSupplierPayment}
+              onRemoveSupplierPayment={removeSupplierPayment}
+              totalPrice={booking.supplierInvoiceAmount ? booking.supplierInvoiceAmount : undefined}
             />
           )}
           {tab === "documents" && (

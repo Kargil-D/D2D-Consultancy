@@ -1,4 +1,6 @@
+import { del } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
+import { ApiError } from "@/lib/apiError";
 import { getBooking, bookingCode, addBookingTimelineEvent } from "@/services/bookingService";
 import { sendComposedEmail } from "@/services/emailService";
 import { formatINR } from "@/utils/format";
@@ -48,11 +50,38 @@ export async function saveEmailDraft(bookingId: string, recipientType: EmailReci
   });
 }
 
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+// Gmail rejects messages over ~25 MB after base64 encoding (+33%), so cap the raw total well under that.
+const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+
+/** Downloads the Blob-hosted files the mail screen uploaded. URLs are already restricted to our Blob host by BookingSendEmailSchema. */
+async function loadAttachments(attachments: BookingSendEmailInput["attachments"]) {
+  const loaded: { filename: string; content: Buffer }[] = [];
+  let total = 0;
+  for (const { filename, url } of attachments) {
+    const safeName = filename.replace(/[\\/\r\n\0]/g, "_");
+    const res = await fetch(url, { signal: AbortSignal.timeout(20_000) }).catch(() => null);
+    if (!res?.ok) throw new ApiError(400, `Couldn't read attachment "${safeName}". Please remove it and upload it again.`);
+    const content = Buffer.from(await res.arrayBuffer());
+    if (content.length > MAX_ATTACHMENT_BYTES) throw new ApiError(400, `"${safeName}" is larger than 10 MB.`);
+    total += content.length;
+    if (total > MAX_TOTAL_ATTACHMENT_BYTES) throw new ApiError(400, "Attachments together are larger than 15 MB. Remove some and try again.");
+    loaded.push({ filename: safeName, content });
+  }
+  return loaded;
+}
+
 export async function sendBookingEmail(bookingId: string, input: BookingSendEmailInput) {
   const booking = await getBooking(bookingId);
   if (!booking) throw new Error("Booking not found");
 
-  await sendComposedEmail(input.toEmail, { cc: input.cc, bcc: input.bcc, subject: input.subject, html: input.bodyHtml });
+  const attachments = await loadAttachments(input.attachments);
+  await sendComposedEmail(input.toEmail, { cc: input.cc, bcc: input.bcc, subject: input.subject, html: input.bodyHtml, attachments });
+
+  // The uploads only existed to be mailed — drop them from Blob once sent. Best-effort: a failed cleanup must never fail a mail that already went out.
+  if (input.attachments.length) {
+    await del(input.attachments.map((a) => a.url)).catch((err) => console.error("[bookingEmailService] attachment cleanup failed", err));
+  }
 
   await prisma.bookingEmailDraft.upsert({
     where: { bookingId_recipientType: { bookingId, recipientType: input.recipientType } },
@@ -61,7 +90,8 @@ export async function sendBookingEmail(bookingId: string, input: BookingSendEmai
   });
 
   const label = input.recipientType === "Customer" ? "customer" : `supplier (${input.toEmail})`;
-  await addBookingTimelineEvent(bookingId, `Email sent to ${label}`);
+  const attached = input.attachments.length ? ` with ${input.attachments.length} attachment${input.attachments.length > 1 ? "s" : ""}` : "";
+  await addBookingTimelineEvent(bookingId, `Email sent to ${label}${attached}`);
 }
 
 function buildCustomerEmailTemplate(booking: Booking): { subject: string; bodyHtml: string } {

@@ -6,13 +6,13 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
   ArrowLeft, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
-  Link as LinkIcon, Eraser, Smile, Save, Send,
+  Link as LinkIcon, Eraser, Smile, Save, Send, Paperclip, X, FileText,
 } from "lucide-react";
 import { Field, inputCls } from "@/components/admin/ui/Field";
 import TagInput from "@/components/admin/ui/TagInput";
 import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import { useToast } from "@/components/admin/ui/Toast";
-import { bookingsApi } from "@/lib/adminApi";
+import { bookingsApi, uploadImage } from "@/lib/adminApi";
 import type { EmailRecipientType } from "@/types/admin";
 import { EMAIL_EMOJIS } from "@/components/admin/booking/emojiList";
 
@@ -23,6 +23,19 @@ interface MailDrafterProps {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const csvToTags = (v: string) => v.split(",").map((s) => s.trim()).filter(Boolean);
+
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const ATTACHMENT_TYPES = ["application/pdf", "image/png", "image/jpeg"];
+
+interface MailAttachment {
+  filename: string;
+  url: string;
+  size: number;
+}
+
+const formatSize = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 const badgeCls: Record<EmailRecipientType, string> = {
   Customer: "bg-blue-100 text-blue-700",
@@ -44,8 +57,11 @@ export default function MailDrafter({ bookingId, recipientType }: MailDrafterPro
   const [cc, setCc] = useState<string[]>([]);
   const [bcc, setBcc] = useState<string[]>([]);
   const [subject, setSubject] = useState("");
+  const [attachments, setAttachments] = useState<MailAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const emojiRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const backTo = `/admin/bookings/${bookingId}`;
 
   const editor = useEditor({
@@ -107,6 +123,45 @@ export default function MailDrafter({ bookingId, recipientType }: MailDrafterPro
     bodyHtml: editor?.getHTML() ?? "",
   });
 
+  const attachFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const picked = Array.from(files);
+    if (attachments.length + picked.length > MAX_ATTACHMENTS) {
+      return notify(`You can attach up to ${MAX_ATTACHMENTS} files`, "error");
+    }
+    const rejected = picked.find((f) => !ATTACHMENT_TYPES.includes(f.type) || f.size > MAX_ATTACHMENT_BYTES);
+    if (rejected) {
+      return notify(`"${rejected.name}" must be a PDF, PNG or JPG under 10 MB`, "error");
+    }
+
+    setUploading(true);
+    try {
+      const results = await Promise.all(
+        picked.map(async (file) => {
+          const res = await uploadImage(file);
+          return res.success && res.data.url
+            ? { ok: true as const, attachment: { filename: file.name, url: res.data.url, size: file.size } }
+            : { ok: false as const, name: file.name, message: res.message };
+        }),
+      );
+      const uploaded = results.flatMap((r) => (r.ok ? [r.attachment] : []));
+      const failed = results.flatMap((r) => (r.ok ? [] : [r]));
+      if (uploaded.length) {
+        setAttachments((prev) => [...prev, ...uploaded]);
+        setDirty(true);
+      }
+      if (failed.length) notify(`Couldn't upload "${failed[0].name}": ${failed[0].message || "Upload failed"}`, "error");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const removeAttachment = (url: string) => {
+    setAttachments((prev) => prev.filter((a) => a.url !== url));
+    setDirty(true);
+  };
+
   const saveDraft = useCallback(async () => {
     setSaving(true);
     try {
@@ -132,7 +187,10 @@ export default function MailDrafter({ bookingId, recipientType }: MailDrafterPro
 
     setSending(true);
     try {
-      const res = await bookingsApi.sendMail(bookingId, payload);
+      const res = await bookingsApi.sendMail(bookingId, {
+        ...payload,
+        attachments: attachments.map(({ filename, url }) => ({ filename, url })),
+      });
       if (!res.success) {
         notify(res.message || "Unable to send email. Please try again.", "error");
         return;
@@ -155,7 +213,7 @@ export default function MailDrafter({ bookingId, recipientType }: MailDrafterPro
     router.push(backTo);
   };
 
-  const busy = saving || sending;
+  const busy = saving || sending || uploading;
   const toolbarBtn = (active: boolean) =>
     `p-2 rounded-lg text-slate-600 hover:bg-slate-100 ${active ? "bg-slate-200 text-slate-900" : ""}`;
 
@@ -287,6 +345,43 @@ export default function MailDrafter({ bookingId, recipientType }: MailDrafterPro
         </div>
 
         <EditorContent editor={editor} />
+
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+              className="hidden"
+              onChange={(e) => attachFiles(e.target.files)}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy || attachments.length >= MAX_ATTACHMENTS}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {uploading ? <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <Paperclip className="w-4 h-4" />}
+              {uploading ? "Uploading…" : "Attach files"}
+            </button>
+            <span className="text-xs text-slate-500">PDF, PNG or JPG · up to 10 MB each · max {MAX_ATTACHMENTS}</span>
+          </div>
+          {attachments.length > 0 && (
+            <ul className="flex flex-wrap gap-2">
+              {attachments.map((a) => (
+                <li key={a.url} className="inline-flex items-center gap-2 max-w-full pl-2.5 pr-1.5 py-1 rounded-lg bg-white border border-slate-200 text-xs text-slate-700">
+                  <FileText className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                  <span className="truncate max-w-[200px]">{a.filename}</span>
+                  <span className="text-slate-400 shrink-0">{formatSize(a.size)}</span>
+                  <button type="button" title="Remove" onClick={() => removeAttachment(a.url)} disabled={busy} className="p-0.5 rounded hover:bg-slate-100 text-slate-500 disabled:opacity-50">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-end gap-2">

@@ -6,7 +6,8 @@ import { requireModuleAccess, toViewer } from "@/lib/permissions";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireModuleAccess(req, "Bookings", "canEdit");
+    // Supplier figures (invoice amount, payments) are Bookings-Master-only, like the Cost Sheet.
+    const user = await requireModuleAccess(req, "BookingsMaster", "canEdit");
     const { id } = await ctx.params;
     await requireBookingAccess(id, toViewer(user));
     const parsed = SupplierPaymentSchema.parse(await req.json());

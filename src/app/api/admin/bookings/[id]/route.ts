@@ -48,6 +48,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       delete parsed.supplierTrackId;
       delete parsed.supplierInvoiceAmount;
       delete parsed.supplierInvoiceUrl;
+      delete parsed.supplierOtherDocumentUrl;
+      delete parsed.supplierNotes;
     }
     const updated = await updateBooking(id, parsed);
     return NextResponse.json({ success: true, message: "Updated", data: updated });

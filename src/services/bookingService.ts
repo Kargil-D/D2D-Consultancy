@@ -135,6 +135,9 @@ export function redactMasterFields<T extends Record<string, unknown>>(booking: T
     supplierTrackId: null,
     supplierInvoiceAmount: null,
     supplierInvoiceUrl: null,
+    supplierOtherDocumentUrl: null,
+    supplierNotes: null,
+    supplierPayments: [],
     costSheet: [],
   };
 }
@@ -154,6 +157,8 @@ interface BookingInput {
   supplierTrackId?: string | null;
   supplierInvoiceAmount?: number | null;
   supplierInvoiceUrl?: string | null;
+  supplierOtherDocumentUrl?: string | null;
+  supplierNotes?: string | null;
 }
 
 /** Hash of the quotation as it stands right now — the baseline a booking is compared against to
@@ -183,6 +188,8 @@ export async function createBooking(input: BookingInput) {
         supplierTrackId: input.supplierTrackId,
         supplierInvoiceAmount: input.supplierInvoiceAmount,
         supplierInvoiceUrl: input.supplierInvoiceUrl,
+        supplierOtherDocumentUrl: input.supplierOtherDocumentUrl,
+        supplierNotes: input.supplierNotes,
       },
     });
     await logTimeline(tx, booking.id, "Booking created");
@@ -220,6 +227,8 @@ export async function updateBooking(id: string, input: Partial<BookingInput>) {
       ...(input.supplierTrackId !== undefined && { supplierTrackId: input.supplierTrackId }),
       ...(input.supplierInvoiceAmount !== undefined && { supplierInvoiceAmount: input.supplierInvoiceAmount }),
       ...(input.supplierInvoiceUrl !== undefined && { supplierInvoiceUrl: input.supplierInvoiceUrl }),
+      ...(input.supplierOtherDocumentUrl !== undefined && { supplierOtherDocumentUrl: input.supplierOtherDocumentUrl }),
+      ...(input.supplierNotes !== undefined && { supplierNotes: input.supplierNotes }),
     },
     include: BOOKING_INCLUDE,
   });
@@ -570,6 +579,24 @@ export async function removeCustomerPayment(bookingId: string, paymentId: string
 
 export async function addSupplierPayment(bookingId: string, input: SupplierPaymentInput) {
   return prisma.$transaction(async (tx) => {
+    // Server-side cap: payments to suppliers can never exceed the Supplier Invoice Amount
+    // (Overview → Supplier Invoice). No invoice amount recorded yet → nothing to cap against.
+    const booking = await tx.booking.findUnique({
+      where: { id: bookingId },
+      select: { supplierInvoiceAmount: true, supplierPayments: { select: { amount: true } } },
+    });
+    if (!booking) throw new ApiError(404, "Booking not found");
+    const invoiceAmount = booking.supplierInvoiceAmount ?? 0;
+    if (invoiceAmount > 0) {
+      const paid = booking.supplierPayments.reduce((sum, p) => sum + p.amount, 0);
+      if (paid + input.amount > invoiceAmount) {
+        throw new ApiError(
+          400,
+          `Payment exceeds the supplier invoice amount — invoice ${formatRupees(invoiceAmount)}, already paid ${formatRupees(paid)}, remaining ${formatRupees(Math.max(0, invoiceAmount - paid))}`,
+        );
+      }
+    }
+
     const payment = await tx.bookingSupplierPayment.create({
       data: {
         bookingId,
@@ -583,6 +610,16 @@ export async function addSupplierPayment(bookingId: string, input: SupplierPayme
     });
     await logTimeline(tx, bookingId, `Supplier payment made to ${input.supplierName}: ₹${input.amount}`);
     return payment;
+  });
+}
+
+export async function removeSupplierPayment(bookingId: string, paymentId: string) {
+  return prisma.$transaction(async (tx) => {
+    // Scoped to the booking so an id from another booking can't be deleted through this one.
+    const payment = await tx.bookingSupplierPayment.findFirst({ where: { id: paymentId, bookingId } });
+    if (!payment) throw new ApiError(404, "Payment not found");
+    await tx.bookingSupplierPayment.delete({ where: { id: paymentId } });
+    await logTimeline(tx, bookingId, `Supplier payment removed (${payment.supplierName}): ${formatRupees(payment.amount)}`);
   });
 }
 

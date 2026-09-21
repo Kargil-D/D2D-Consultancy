@@ -236,6 +236,9 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   // computed marginValue below so the field doesn't snap back to a recomputed number (0 whenever
   // totalCost is 0) on every keystroke. Non-null only while the field is focused.
   const [marginValueDraft, setMarginValueDraft] = useState<string | null>(null);
+  // Same idea for "Margin %": the stored percent stays exact (a typed Margin Value of 1500 on 52,000
+  // is 2.8846…%, and rounding that to 2.88 would turn it into 1498), while the field only *shows* 2 decimals.
+  const [marginPercentDraft, setMarginPercentDraft] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
 
@@ -337,7 +340,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           inclusionsText: q.inclusionsText,
           exclusionsText: q.exclusionsText,
           includeChildCosting: q.includeChildCosting,
-          marginPercent: Math.round(q.marginPercent * 100) / 100,
+          marginPercent: q.marginPercent,
           gstPercent: q.gstPercent,
           advanceAmount: q.advanceAmount,
           items: q.items,
@@ -1455,9 +1458,13 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
             min={0}
             step={0.5}
             className={inputCls}
-            value={draft.marginPercent}
-            onChange={(e) => patch({ marginPercent: Number(e.target.value) || 0 })}
-            onBlur={() => patch({ marginPercent: Math.round(draft.marginPercent * 100) / 100 })}
+            value={marginPercentDraft ?? Math.round(draft.marginPercent * 100) / 100}
+            onFocus={() => setMarginPercentDraft(String(Math.round(draft.marginPercent * 100) / 100))}
+            onChange={(e) => {
+              setMarginPercentDraft(e.target.value);
+              patch({ marginPercent: Number(e.target.value) || 0 });
+            }}
+            onBlur={() => setMarginPercentDraft(null)}
           />
         </Field>
         <Field label="Margin Value (INR)">
@@ -1470,7 +1477,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
             onChange={(e) => {
               setMarginValueDraft(e.target.value);
               const value = Number(e.target.value) || 0;
-              patch({ marginPercent: totalCost > 0 ? Math.round((value / totalCost) * 10000) / 100 : 0 });
+              patch({ marginPercent: totalCost > 0 ? (value / totalCost) * 100 : 0 });
             }}
             onBlur={() => setMarginValueDraft(null)}
           />

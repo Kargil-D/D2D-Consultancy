@@ -92,7 +92,7 @@ function splitAddresses(value?: string): string[] | undefined {
 /** Generic composed-email sender behind the Mail Drafter — subject/body are user-edited, wrapped in the same branded shell as every other outbound email. */
 export async function sendComposedEmail(
   to: string,
-  opts: { cc?: string; bcc?: string; subject: string; html: string },
+  opts: { cc?: string; bcc?: string; subject: string; html: string; attachments?: { filename: string; content: Buffer }[] },
 ) {
   const transport = buildTransport();
   await transport.sendMail({
@@ -102,6 +102,7 @@ export async function sendComposedEmail(
     bcc: splitAddresses(opts.bcc),
     subject: opts.subject,
     html: wrapper(opts.subject, opts.html),
+    attachments: opts.attachments,
   });
 }
 

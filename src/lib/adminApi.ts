@@ -574,6 +574,10 @@ export const bookingsApi = {
     const res = await adminFetch(`/api/admin/bookings/${id}/payments/supplier`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<unknown>;
   },
+  removeSupplierPayment: async (id: string, paymentId: string): Promise<ApiResponse<boolean>> => {
+    const res = await adminFetch(`/api/admin/bookings/${id}/payments/supplier/${paymentId}`, { method: "DELETE" });
+    return (await res.json()) as ApiResponse<boolean>;
+  },
   addNote: async (id: string, authorName: string, message: string): Promise<ApiResponse<unknown>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/notes`, { method: "POST", body: JSON.stringify({ authorName, message }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<unknown>;
@@ -591,7 +595,15 @@ export const bookingsApi = {
   },
   sendMail: async (
     id: string,
-    payload: { recipientType: EmailRecipientType; toEmail: string; cc: string; bcc: string; subject: string; bodyHtml: string },
+    payload: {
+      recipientType: EmailRecipientType;
+      toEmail: string;
+      cc: string;
+      bcc: string;
+      subject: string;
+      bodyHtml: string;
+      attachments?: { filename: string; url: string }[];
+    },
   ): Promise<ApiResponse<null>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/send-mail`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<null>;

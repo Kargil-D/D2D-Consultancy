@@ -15,6 +15,8 @@ export const BookingCreateSchema = z.object({
   supplierTrackId: z.string().optional().nullable(),
   supplierInvoiceAmount: z.coerce.number().min(0).optional().nullable(),
   supplierInvoiceUrl: z.string().optional().nullable(),
+  supplierOtherDocumentUrl: z.string().optional().nullable(),
+  supplierNotes: z.string().optional().nullable(),
 });
 
 export const BookingUpdateSchema = BookingCreateSchema.partial();

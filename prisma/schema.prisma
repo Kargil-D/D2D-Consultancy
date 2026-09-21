@@ -941,6 +941,8 @@ model Booking {
   supplierTrackId       String?
   supplierInvoiceAmount Int?
   supplierInvoiceUrl    String?
+  supplierOtherDocumentUrl String?
+  supplierNotes         String?
   dmcName            String?
   dmcEmailSentDate   DateTime?
   dmcResponse        String?

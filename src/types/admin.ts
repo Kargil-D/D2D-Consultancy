@@ -1022,6 +1022,8 @@ export interface AdminBooking {
   supplierTrackId?: string | null;
   supplierInvoiceAmount?: number | null;
   supplierInvoiceUrl?: string | null;
+  supplierOtherDocumentUrl?: string | null;
+  supplierNotes?: string | null;
   dmcName?: string | null;
   dmcEmailSentDate?: string | null;
   dmcResponse?: string | null;
