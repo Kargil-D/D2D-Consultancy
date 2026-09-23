@@ -14,6 +14,7 @@ export const BookingCreateSchema = z.object({
   remarks: z.string().optional().nullable(),
   supplierTrackId: z.string().optional().nullable(),
   supplierInvoiceAmount: z.coerce.number().min(0).optional().nullable(),
+  supplierPaymentDueDate: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional().nullable()),
   supplierInvoiceUrl: z.string().optional().nullable(),
   supplierOtherDocumentUrl: z.string().optional().nullable(),
   supplierNotes: z.string().optional().nullable(),

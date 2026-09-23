@@ -115,6 +115,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const [detailRemarks, setDetailRemarks] = useState("");
   const [detailSupplierTrackId, setDetailSupplierTrackId] = useState("");
   const [detailSupplierInvoiceAmount, setDetailSupplierInvoiceAmount] = useState<number | "">("");
+  const [detailSupplierPaymentDueDate, setDetailSupplierPaymentDueDate] = useState("");
   const [detailSupplierInvoiceUrl, setDetailSupplierInvoiceUrl] = useState("");
   const [detailSupplierOtherDocumentUrl, setDetailSupplierOtherDocumentUrl] = useState("");
   const [detailSupplierNotes, setDetailSupplierNotes] = useState("");
@@ -171,6 +172,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
       setDetailRemarks(b.remarks ?? "");
       setDetailSupplierTrackId(b.supplierTrackId ?? "");
       setDetailSupplierInvoiceAmount(b.supplierInvoiceAmount ?? "");
+      setDetailSupplierPaymentDueDate(b.supplierPaymentDueDate?.slice(0, 10) ?? "");
       setDetailSupplierInvoiceUrl(b.supplierInvoiceUrl ?? "");
       setDetailSupplierOtherDocumentUrl(b.supplierOtherDocumentUrl ?? "");
       setDetailSupplierNotes(b.supplierNotes ?? "");
@@ -467,6 +469,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         remarks: detailRemarks,
         supplierTrackId: detailSupplierTrackId || null,
         supplierInvoiceAmount: detailSupplierInvoiceAmount === "" ? null : detailSupplierInvoiceAmount,
+        supplierPaymentDueDate: detailSupplierPaymentDueDate || null,
         supplierInvoiceUrl: detailSupplierInvoiceUrl || null,
         supplierOtherDocumentUrl: detailSupplierOtherDocumentUrl || null,
         supplierNotes: detailSupplierNotes || null,
@@ -866,6 +869,8 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   // Payments tab total price (= deal price) — the same figure the server caps payments at.
   const totalPrice = bookingTotalPrice({ totalAmount: booking.totalAmount, quotation: selectedQuotation }) ?? undefined;
   const totalPaid = booking.customerPayments.reduce((sum, p) => sum + p.amount, 0);
+  // Same figure the Supplier Payments tab totals up — shown read-only here so it can't drift from that ledger.
+  const supplierTotalPaid = booking.supplierPayments.reduce((sum, p) => sum + p.amount, 0);
 
   const anyBusy =
     updatingStatus || savingDetails || savingDmc || savingPassengers || savingFlights || savingHotels ||
@@ -1096,6 +1101,12 @@ export default function BookingDetail({ id }: BookingDetailProps) {
                 value={detailSupplierInvoiceAmount}
                 onChange={(e) => setDetailSupplierInvoiceAmount(e.target.value === "" ? "" : Number(e.target.value))}
               />
+            </Field>
+            <Field label="Supplier Payment Due Date">
+              <DateInput value={detailSupplierPaymentDueDate} onChange={(iso) => setDetailSupplierPaymentDueDate(iso)} />
+            </Field>
+            <Field label="Supplier Paid Amount" hint="Total of the Supplier Payments tab's ledger — not editable here">
+              <input className={inputCls} value={formatINR(supplierTotalPaid)} disabled />
             </Field>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

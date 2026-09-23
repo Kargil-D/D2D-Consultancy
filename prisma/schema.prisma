@@ -940,6 +940,8 @@ model Booking {
   remarks            String?
   supplierTrackId       String?
   supplierInvoiceAmount Int?
+  /// Deadline to pay the supplier by, tracked separately from the invoice amount/upload — surfaced on the booking's Overview card so ops doesn't miss it.
+  supplierPaymentDueDate DateTime?
   supplierInvoiceUrl    String?
   supplierOtherDocumentUrl String?
   supplierNotes         String?

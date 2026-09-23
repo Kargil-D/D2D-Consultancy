@@ -134,6 +134,7 @@ export function redactMasterFields<T extends Record<string, unknown>>(booking: T
     dmcRemarks: null,
     supplierTrackId: null,
     supplierInvoiceAmount: null,
+    supplierPaymentDueDate: null,
     supplierInvoiceUrl: null,
     supplierOtherDocumentUrl: null,
     supplierNotes: null,
@@ -156,6 +157,7 @@ interface BookingInput {
   remarks?: string | null;
   supplierTrackId?: string | null;
   supplierInvoiceAmount?: number | null;
+  supplierPaymentDueDate?: string | null;
   supplierInvoiceUrl?: string | null;
   supplierOtherDocumentUrl?: string | null;
   supplierNotes?: string | null;
@@ -187,6 +189,7 @@ export async function createBooking(input: BookingInput) {
         remarks: input.remarks,
         supplierTrackId: input.supplierTrackId,
         supplierInvoiceAmount: input.supplierInvoiceAmount,
+        supplierPaymentDueDate: input.supplierPaymentDueDate ? new Date(input.supplierPaymentDueDate) : null,
         supplierInvoiceUrl: input.supplierInvoiceUrl,
         supplierOtherDocumentUrl: input.supplierOtherDocumentUrl,
         supplierNotes: input.supplierNotes,
@@ -226,6 +229,7 @@ export async function updateBooking(id: string, input: Partial<BookingInput>) {
       ...(input.remarks !== undefined && { remarks: input.remarks }),
       ...(input.supplierTrackId !== undefined && { supplierTrackId: input.supplierTrackId }),
       ...(input.supplierInvoiceAmount !== undefined && { supplierInvoiceAmount: input.supplierInvoiceAmount }),
+      ...(input.supplierPaymentDueDate !== undefined && { supplierPaymentDueDate: input.supplierPaymentDueDate ? new Date(input.supplierPaymentDueDate) : null }),
       ...(input.supplierInvoiceUrl !== undefined && { supplierInvoiceUrl: input.supplierInvoiceUrl }),
       ...(input.supplierOtherDocumentUrl !== undefined && { supplierOtherDocumentUrl: input.supplierOtherDocumentUrl }),
       ...(input.supplierNotes !== undefined && { supplierNotes: input.supplierNotes }),
