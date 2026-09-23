@@ -76,7 +76,7 @@ export default function Dashboard() {
         <KpiCard icon={FileText} iconGradient="from-orange-500 to-amber-500" label="Total Quotations" value={String(data.kpis.quotations.value)} changePct={data.kpis.quotations.changePct} sparkline={data.trend.quotations} sparklineColor={SERIES_COLOR.quotations} />
         <KpiCard icon={Briefcase} iconGradient="from-emerald-500 to-teal-500" label="Total Bookings" value={String(data.kpis.bookings.value)} changePct={data.kpis.bookings.changePct} sparkline={data.trend.bookings} sparklineColor={SERIES_COLOR.bookings} />
         <KpiCard icon={Target} iconGradient="from-violet-500 to-purple-500" label="Conversion Rate" value={`${data.kpis.conversionRate.value}%`} changePct={data.kpis.conversionRate.changePct} />
-        <KpiCard icon={IndianRupee} iconGradient="from-rose-500 to-pink-500" label="Total Revenue" value={formatINRCompact(data.kpis.revenue.value)} changePct={data.kpis.revenue.changePct} />
+        <KpiCard icon={IndianRupee} iconGradient="from-rose-500 to-pink-500" label="Total Profit" value={formatINRCompact(data.kpis.profit.value)} changePct={data.kpis.profit.changePct} />
       </div>
 
       {/* Trend + Leads by Source */}

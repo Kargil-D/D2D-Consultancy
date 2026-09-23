@@ -1102,7 +1102,8 @@ export interface AdminDashboardOverview {
     quotations: AdminDashboardKpi;
     bookings: AdminDashboardKpi;
     conversionRate: AdminDashboardKpi;
-    revenue: AdminDashboardKpi;
+    /** Profit = deal price (quotation-derived) minus Supplier Invoice Amount, summed across bookings created in the period. */
+    profit: AdminDashboardKpi;
   };
   trend: {
     days: number;

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { bookingTotalPrice } from "@/lib/quotationPricing";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -40,6 +41,27 @@ function dailyBuckets<T extends { createdDate: Date }>(rows: T[], start: Date, d
 const fullName = (u: { firstName: string; lastName: string } | null | undefined) =>
   u ? `${u.firstName} ${u.lastName}`.trim() : "Unassigned";
 
+/** Fields bookingTotalPrice() needs to derive the real deal price — same figure the booking
+ * header and Customer Payments cap use, never the raw totalAmount column (see quotationPricing.ts). */
+const PROFIT_SELECT = {
+  totalAmount: true,
+  supplierInvoiceAmount: true,
+  quotation: { select: { marginPercent: true, gstPercent: true, items: { select: { qty: true, cost: true } } } },
+} as const;
+
+interface ProfitRow {
+  totalAmount: number;
+  supplierInvoiceAmount: number | null;
+  quotation: { marginPercent: number; gstPercent: number; items: { qty: number; cost: number }[] } | null;
+}
+
+/** Profit per booking = deal price (quotation-derived) minus the agreed Supplier Invoice Amount.
+ * A booking with no supplier invoice recorded yet counts its full deal price as profit until Ops
+ * fills that in — there's no other "supplier amount" on a booking to fall back to. */
+function bookingProfitSum(rows: ProfitRow[]): number {
+  return rows.reduce((sum, b) => sum + (bookingTotalPrice(b) ?? 0) - (b.supplierInvoiceAmount ?? 0), 0);
+}
+
 /**
  * Everything the admin home dashboard needs in one call. `includeEmployeePerformance` gates the
  * one section (per-salesperson breakdown) that's sensitive enough to keep Admin-only — every
@@ -55,7 +77,7 @@ export async function getDashboardOverview(includeEmployeePerformance: boolean) 
     quotationsThisPeriod, quotationsPriorPeriod,
     bookingsThisPeriod, bookingsPriorPeriod,
     leadsWonThisPeriod, leadsWonPriorPeriod,
-    revenueThisPeriod, revenuePriorPeriod,
+    profitRowsThisPeriod, profitRowsPriorPeriod,
     leadTrendRows, quotationTrendRows, bookingTrendRows,
     leadsBySource,
     destinationCounts,
@@ -72,8 +94,8 @@ export async function getDashboardOverview(includeEmployeePerformance: boolean) 
     prisma.booking.count({ where: { isDeleted: false, createdDate: { gte: trend.priorStart, lt: trend.priorEnd } } }),
     prisma.lead.count({ where: { isDeleted: false, status: "Won", createdDate: { gte: trend.start, lt: trend.end } } }),
     prisma.lead.count({ where: { isDeleted: false, status: "Won", createdDate: { gte: trend.priorStart, lt: trend.priorEnd } } }),
-    prisma.booking.aggregate({ _sum: { totalAmount: true }, where: { isDeleted: false, createdDate: { gte: trend.start, lt: trend.end } } }),
-    prisma.booking.aggregate({ _sum: { totalAmount: true }, where: { isDeleted: false, createdDate: { gte: trend.priorStart, lt: trend.priorEnd } } }),
+    prisma.booking.findMany({ where: { isDeleted: false, createdDate: { gte: trend.start, lt: trend.end } }, select: PROFIT_SELECT }),
+    prisma.booking.findMany({ where: { isDeleted: false, createdDate: { gte: trend.priorStart, lt: trend.priorEnd } }, select: PROFIT_SELECT }),
     prisma.lead.findMany({ where: { isDeleted: false, createdDate: { gte: trend.start, lt: trend.end } }, select: { createdDate: true } }),
     prisma.quotation.findMany({ where: { isDeleted: false, createdDate: { gte: trend.start, lt: trend.end } }, select: { createdDate: true } }),
     prisma.booking.findMany({ where: { isDeleted: false, createdDate: { gte: trend.start, lt: trend.end } }, select: { createdDate: true } }),
@@ -205,9 +227,9 @@ export async function getDashboardOverview(includeEmployeePerformance: boolean) 
         value: conversionRate(leadsWonThisPeriod, leadsThisPeriod),
         changePct: pctChange(conversionRate(leadsWonThisPeriod, leadsThisPeriod), conversionRate(leadsWonPriorPeriod, leadsPriorPeriod)),
       },
-      revenue: {
-        value: revenueThisPeriod._sum.totalAmount ?? 0,
-        changePct: pctChange(revenueThisPeriod._sum.totalAmount ?? 0, revenuePriorPeriod._sum.totalAmount ?? 0),
+      profit: {
+        value: bookingProfitSum(profitRowsThisPeriod),
+        changePct: pctChange(bookingProfitSum(profitRowsThisPeriod), bookingProfitSum(profitRowsPriorPeriod)),
       },
     },
     trend: {
