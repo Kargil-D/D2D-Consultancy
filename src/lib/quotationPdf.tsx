@@ -157,6 +157,8 @@ const styles = StyleSheet.create({
   srow: { flexDirection: "row", justifyContent: "space-between", fontSize: 9, marginTop: 4, gap: 6 },
   srowK: { color: C.muted },
   srowV: { fontWeight: 700, color: "#26363d", textAlign: "right" },
+  amenLabel: { marginTop: 8, fontSize: 8, fontWeight: 700, letterSpacing: 1, color: C.muted },
+  amenText: { marginTop: 2, fontSize: 8.5, lineHeight: 1.45, color: C.body },
   npill: { marginTop: 8, alignSelf: "flex-start", backgroundColor: "#cfe6f0", borderRadius: 14, paddingVertical: 3, paddingHorizontal: 9, fontFamily: "Times-Bold", fontWeight: 700, fontSize: 8.5, color: C.ink },
   optionPill: { alignSelf: "flex-start", backgroundColor: C.navy, color: "#ffffff", borderRadius: 14, paddingVertical: 4, paddingHorizontal: 12, fontFamily: "Times-Bold", fontWeight: 700, fontSize: 9.5, letterSpacing: 0.5, marginTop: 10, marginBottom: 6 },
 
@@ -342,6 +344,23 @@ function SectionHead({ title }: { title: string }) {
   );
 }
 
+const MAX_PDF_AMENITIES = 8;
+
+/** Shifts a YYYY-MM-DD string by whole days (UTC, so no DST drift); "" when the input isn't a valid date. */
+function addDaysIso(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Check-in and check-out are entered independently in the wizard, so either can be blank while the other and the night count are set — derive the missing one rather than dropping the row. */
+function stayDates(h: { checkIn: string; checkOut: string; nights: number }) {
+  const checkIn = h.checkIn || (h.checkOut && h.nights > 0 ? addDaysIso(h.checkOut, -h.nights) : "");
+  const checkOut = h.checkOut || (h.checkIn && h.nights > 0 ? addDaysIso(h.checkIn, h.nights) : "");
+  return { checkIn, checkOut };
+}
+
 /** Real photo when one exists, the brand's sky-and-hills illustration otherwise — never a blank box. */
 function SplitPic({ src }: { src?: string | null }) {
   return (
@@ -492,21 +511,33 @@ function QuotationDocument({ data }: { data: QuotationPdfData }) {
                   {hotelGroupsWithHotels.map((group) => (
                     <View key={group.id}>
                       {hotelGroupsWithHotels.length > 1 && <Text style={styles.optionPill}>{group.label}</Text>}
-                      {group.hotels.map((h, i) => (
-                        <View key={h.id} style={[styles.split, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
-                          <View style={styles.splitTxt}>
-                            <Text style={styles.splitH3}>{h.hotelName}</Text>
-                            {h.roomType && <View style={styles.srow}><Text style={styles.srowK}>Room</Text><Text style={styles.srowV}>{h.roomType}</Text></View>}
-                            {h.checkIn && <View style={styles.srow}><Text style={styles.srowK}>Check-in</Text><Text style={styles.srowV}>{h.checkIn}</Text></View>}
-                            {h.checkOut && <View style={styles.srow}><Text style={styles.srowK}>Check-out</Text><Text style={styles.srowV}>{h.checkOut}</Text></View>}
-                            {h.mealPlan && <View style={styles.srow}><Text style={styles.srowK}>Plan</Text><Text style={styles.srowV}>{h.mealPlan}</Text></View>}
-                            {h.googleMapUrl && <View style={styles.srow}><Text style={styles.srowK}>Map</Text><Link src={h.googleMapUrl} style={styles.srowV}>View on Map</Link></View>}
-                            {h.website && <View style={styles.srow}><Text style={styles.srowK}>Website</Text><Link src={h.website} style={styles.srowV}>Visit Website</Link></View>}
-                            <Text style={styles.npill}>{h.nights || 1} {h.nights === 1 ? "Night" : "Nights"}</Text>
+                      {group.hotels.map((h, i) => {
+                        const { checkIn, checkOut } = stayDates(h);
+                        const amenities = (h.amenities ?? []).map((a) => a.trim()).filter(Boolean);
+                        const shownAmenities = amenities.slice(0, MAX_PDF_AMENITIES);
+                        const hiddenAmenities = amenities.length - shownAmenities.length;
+                        return (
+                          <View key={h.id} style={[styles.split, i % 2 === 1 ? { flexDirection: "row-reverse" as const } : {}]} wrap={false}>
+                            <View style={styles.splitTxt}>
+                              <Text style={styles.splitH3}>{h.hotelName}</Text>
+                              {h.roomType && <View style={styles.srow}><Text style={styles.srowK}>Room</Text><Text style={styles.srowV}>{h.roomType}</Text></View>}
+                              {checkIn && <View style={styles.srow}><Text style={styles.srowK}>Check-in</Text><Text style={styles.srowV}>{checkIn}</Text></View>}
+                              {checkOut && <View style={styles.srow}><Text style={styles.srowK}>Check-out</Text><Text style={styles.srowV}>{checkOut}</Text></View>}
+                              {h.mealPlan && <View style={styles.srow}><Text style={styles.srowK}>Plan</Text><Text style={styles.srowV}>{h.mealPlan}</Text></View>}
+                              {h.googleMapUrl && <View style={styles.srow}><Text style={styles.srowK}>Map</Text><Link src={h.googleMapUrl} style={styles.srowV}>View on Map</Link></View>}
+                              {h.website && <View style={styles.srow}><Text style={styles.srowK}>Website</Text><Link src={h.website} style={styles.srowV}>Visit Website</Link></View>}
+                              {shownAmenities.length > 0 && (
+                                <>
+                                  <Text style={styles.amenLabel}>AMENITIES</Text>
+                                  <Text style={styles.amenText}>{shownAmenities.join(" · ")}{hiddenAmenities > 0 ? ` · +${hiddenAmenities} more` : ""}</Text>
+                                </>
+                              )}
+                              <Text style={styles.npill}>{h.nights || 1} {h.nights === 1 ? "Night" : "Nights"}</Text>
+                            </View>
+                            <SplitPic src={h.images?.[0]} />
                           </View>
-                          <SplitPic src={h.images?.[0]} />
-                        </View>
-                      ))}
+                        );
+                      })}
                     </View>
                   ))}
                 </>

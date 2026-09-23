@@ -863,7 +863,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         return { marginValue, sellingPrice: dealPrice };
       })()
     : null;
-  // Payments tab total price (deal price + margin) — the same figure the server caps payments at.
+  // Payments tab total price (= deal price) — the same figure the server caps payments at.
   const totalPrice = bookingTotalPrice({ totalAmount: booking.totalAmount, quotation: selectedQuotation }) ?? undefined;
   const totalPaid = booking.customerPayments.reduce((sum, p) => sum + p.amount, 0);
 

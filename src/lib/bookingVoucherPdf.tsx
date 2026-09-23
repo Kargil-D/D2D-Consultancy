@@ -356,7 +356,8 @@ function TripReceiptDocument({ data }: { data: TripReceiptPdfData }) {
                 <View style={rcStyles.hotelInfo}>
                   <Text style={rcStyles.hotelNameRow}>{h.hotelName || "—"}<Stars count={h.stars} /></Text>
                   <Text style={rcStyles.hotelDetail}>{h.mealPlan || "—"} • {h.roomDetail}</Text>
-                  {h.amenities.length > 0 && <Text style={rcStyles.hotelBadge}>{h.amenities.join(", ")}</Text>}
+                  {/* The issued Payment Receipt (only document that sets `acknowledgement`) omits amenities; the Travel Voucher keeps them. Hidden at render time rather than in the builder so issued snapshots and their stale-check hashes stay valid. */}
+                  {!data.acknowledgement && h.amenities.length > 0 && <Text style={rcStyles.hotelBadge}>{h.amenities.join(", ")}</Text>}
                 </View>
               </View>
             ))}
