@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { ApiError } from "@/lib/apiError";
 import { getCustomerOwnedBooking, bookingCode } from "@/services/bookingService";
+import { bookingTotalPrice } from "@/lib/quotationPricing";
 import { renderPaymentAcknowledgementPdf, type PaymentAcknowledgementPdfData } from "@/lib/bookingVoucherPdf";
 
 export const runtime = "nodejs"; // @react-pdf/renderer needs the Node runtime
@@ -59,7 +60,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
     const code = bookingCode(booking.lead.seq);
     const totalReceived = payments.reduce((sum, p) => sum + p.amount, 0);
-    const balanceDue = Math.max(0, booking.totalAmount - totalReceived);
+    // Same figure the admin booking header ("Deal Price") and the Customer Payments cap use —
+    // never the raw totalAmount column, which can sit stale after the quotation's pricing changes.
+    const totalCost = bookingTotalPrice(booking) ?? 0;
+    const balanceDue = Math.max(0, totalCost - totalReceived);
 
     const data: PaymentAcknowledgementPdfData = {
       ackNumber: `ACK-${code}`,
@@ -71,7 +75,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       bookingId: code,
       bookingStatusLabel: STATUS_LABELS[booking.status] ?? booking.status,
       totalReceived,
-      totalCost: booking.totalAmount,
+      totalCost,
       balanceDue,
       payments: payments.map((p, i) => ({
         label: `Payment ${i + 1}`,

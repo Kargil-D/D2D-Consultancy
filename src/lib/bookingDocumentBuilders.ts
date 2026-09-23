@@ -1,4 +1,5 @@
 import { getBooking, bookingCode } from "@/services/bookingService";
+import { bookingTotalPrice } from "@/lib/quotationPricing";
 import { amountInWords, formatINRSymbol } from "@/lib/bookingVoucherPdf";
 import type { QuotationItineraryDay } from "@/types/admin";
 import type {
@@ -171,9 +172,13 @@ export function buildTripReceiptData(booking: BookingWithRelations, variant: "vo
     });
 
   // ---- payments ----
+  // Same figure the booking header ("Deal Price") and the Customer Payments cap use — never the
+  // raw totalAmount column, which is only a fallback for bookings with no linked quotation and
+  // can otherwise sit stale after the quotation's pricing changes post-booking.
+  const totalCost = bookingTotalPrice(booking) ?? 0;
   const paymentsAsc = [...booking.customerPayments].sort((a, b) => a.paymentDate.getTime() - b.paymentDate.getTime());
   const totalReceived = paymentsAsc.reduce((sum, p) => sum + p.amount, 0);
-  const balanceDue = Math.max(0, booking.totalAmount - totalReceived);
+  const balanceDue = Math.max(0, totalCost - totalReceived);
   const paidStatus: TripReceiptPdfData["paidStatus"] = totalReceived <= 0 ? "pending" : balanceDue <= 0 ? "full" : "partial";
   const payments = paymentsAsc.map((p, i) => ({
     label: `Payment ${i + 1}`,
@@ -184,7 +189,7 @@ export function buildTripReceiptData(booking: BookingWithRelations, variant: "vo
   const costPerLabel = receipt
     ? `for ${travellersLabel}`
     : booking.adults === 2 && booking.children === 0 ? "per Couple" : `per ${paxCount || 1} Pax`;
-  const perPersonCost = booking.totalAmount / (paxCount || 1);
+  const perPersonCost = totalCost / (paxCount || 1);
 
   return {
     bookingId: bookingCode(booking.lead.seq),
@@ -203,7 +208,7 @@ export function buildTripReceiptData(booking: BookingWithRelations, variant: "vo
     payments,
     totalReceived,
     balanceDue,
-    totalCost: booking.totalAmount,
+    totalCost,
     costPerLabel,
     perPersonCost,
   };
