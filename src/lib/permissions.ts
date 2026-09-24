@@ -41,6 +41,18 @@ export async function requireAnyModuleAccess(req: NextRequest, modules: AdminMod
   return user;
 }
 
+/** Throws ApiError(401) if not authenticated, ApiError(403) if authenticated but not the Admin
+ * role — for features gated to Admin outright rather than to a specific module permission (e.g.
+ * the Supplier Payments Due notifications, which surface the same master-only cost data as the
+ * Supplier Invoice card but aren't part of that RolePermission matrix). */
+export async function requireAdmin(req: NextRequest) {
+  const user = await getCurrentUser(req);
+  if (user.role.name !== "Admin") {
+    throw new ApiError(403, "Admin only");
+  }
+  return user;
+}
+
 /** Modules allowed to READ a campaign's itinerary/hotel/transfer plan: the Campaigns editor itself, the Quotation builder (pre-fills from it) and the dashboard stats page. Writes stay Campaigns-only. */
 export const CAMPAIGN_PLAN_READ_MODULES: AdminModule[] = ["Campaigns", "Quotations", "Dashboard"];
 

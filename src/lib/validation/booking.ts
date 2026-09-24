@@ -193,6 +193,7 @@ export const SupplierPaymentSchema = z.object({
   amount: z.coerce.number().min(0),
   paymentMode: z.enum(["Cash", "BankTransfer", "Card", "UPI", "Cheque", "Other"]).default("Cash"),
   transactionReference: nullableStr,
+  referenceImageUrl: nullableStr,
   settlementStatus: z.enum(["Pending", "Settled", "Partial"]).default("Pending"),
 });
 

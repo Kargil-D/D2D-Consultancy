@@ -609,6 +609,7 @@ export async function addSupplierPayment(bookingId: string, input: SupplierPayme
         amount: input.amount,
         paymentMode: input.paymentMode,
         transactionReference: input.transactionReference,
+        referenceImageUrl: input.referenceImageUrl,
         settlementStatus: input.settlementStatus,
       },
     });
@@ -625,6 +626,71 @@ export async function removeSupplierPayment(bookingId: string, paymentId: string
     await tx.bookingSupplierPayment.delete({ where: { id: paymentId } });
     await logTimeline(tx, bookingId, `Supplier payment removed (${payment.supplierName}): ${formatRupees(payment.amount)}`);
   });
+}
+
+export interface SupplierPaymentDueNotification {
+  bookingId: string;
+  bookingCode: string;
+  customerName: string;
+  destinationName: string;
+  supplierPaymentDueDate: string;
+  /** Negative = overdue by that many days, 0 = due today, positive = due in that many days. */
+  daysUntilDue: number;
+  amountOwed: number;
+  amountPaid: number;
+  balanceDue: number;
+}
+
+/** Admin-only alert list: bookings whose Supplier Payment Due Date is within the next 3 days or
+ * has already passed, and whose Supplier Invoice Amount isn't yet fully paid off per the Supplier
+ * Payments ledger — same "owed vs. paid" comparison addSupplierPayment caps against. A booking
+ * with no invoice amount recorded yet keeps alerting (nothing to compare against means it can't
+ * be "fully paid"), same as it always shows the full deal price as unrecovered cost elsewhere.
+ * Clears the moment the ledger catches up, or the due date/invoice is removed — never persisted,
+ * always computed live off the current data. */
+export async function listSupplierPaymentsDue(): Promise<SupplierPaymentDueNotification[]> {
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const cutoff = new Date(todayUtc + 3 * 24 * 60 * 60 * 1000);
+
+  const rows = await prisma.booking.findMany({
+    where: {
+      isDeleted: false,
+      status: { not: "Cancelled" },
+      supplierPaymentDueDate: { not: null, lte: cutoff },
+    },
+    select: {
+      id: true,
+      supplierPaymentDueDate: true,
+      supplierInvoiceAmount: true,
+      lead: { select: { customerName: true, seq: true } },
+      destination: { select: { name: true } },
+      supplierPayments: { select: { amount: true } },
+    },
+    orderBy: { supplierPaymentDueDate: "asc" },
+  });
+
+  return rows
+    .map((b) => {
+      const dueDate = b.supplierPaymentDueDate as Date;
+      const dueUtc = Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate());
+      const amountOwed = b.supplierInvoiceAmount ?? 0;
+      const amountPaid = b.supplierPayments.reduce((sum, p) => sum + p.amount, 0);
+      return {
+        bookingId: b.id,
+        bookingCode: bookingCode(b.lead.seq),
+        customerName: b.lead.customerName,
+        destinationName: b.destination.name,
+        supplierPaymentDueDate: dueDate.toISOString(),
+        daysUntilDue: Math.round((dueUtc - todayUtc) / (24 * 60 * 60 * 1000)),
+        amountOwed,
+        amountPaid,
+        balanceDue: Math.max(0, amountOwed - amountPaid),
+        fullyPaid: amountOwed > 0 && amountPaid >= amountOwed,
+      };
+    })
+    .filter((n) => !n.fullyPaid)
+    .map(({ fullyPaid: _fullyPaid, ...n }) => n);
 }
 
 /** Called when a Lead is marked Won — creates the Booking automatically, per the spec's "most bookings arrive via the Won trigger." */

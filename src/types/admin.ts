@@ -982,8 +982,23 @@ export interface AdminBookingSupplierPayment {
   amount: number;
   paymentMode: PaymentMode;
   transactionReference?: string | null;
+  referenceImageUrl?: string | null;
   settlementStatus: SettlementStatus;
   createdDate?: string;
+}
+
+/** One row of the Admin-only "Supplier Payments Due" account-menu alert — see listSupplierPaymentsDue(). */
+export interface AdminSupplierPaymentDueNotification {
+  bookingId: string;
+  bookingCode: string;
+  customerName: string;
+  destinationName: string;
+  supplierPaymentDueDate: string;
+  /** Negative = overdue by that many days, 0 = due today, positive = due in that many days. */
+  daysUntilDue: number;
+  amountOwed: number;
+  amountPaid: number;
+  balanceDue: number;
 }
 
 export interface AdminBookingTimelineEvent {

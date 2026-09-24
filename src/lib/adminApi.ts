@@ -48,6 +48,7 @@ import type {
   AdminMyRoster,
   RosterStatus,
   AdminSalesUser,
+  AdminSupplierPaymentDueNotification,
   AdminTransfer,
   AdminTransferType,
   ApiResponse,
@@ -569,7 +570,7 @@ export const bookingsApi = {
   },
   addSupplierPayment: async (
     id: string,
-    payload: { supplierName: string; paymentDate: string; amount: number; paymentMode: string; transactionReference?: string | null; settlementStatus: string },
+    payload: { supplierName: string; paymentDate: string; amount: number; paymentMode: string; transactionReference?: string | null; referenceImageUrl?: string | null; settlementStatus: string },
   ): Promise<ApiResponse<unknown>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/payments/supplier`, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<unknown>;
@@ -1100,6 +1101,17 @@ export const leadAssignmentApi = {
       headers: { "Content-Type": "application/json" },
     });
     return (await res.json()) as ApiResponse<{ updated: number }>;
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Notifications — Admin-only account-menu alerts                            */
+/* -------------------------------------------------------------------------- */
+
+export const notificationsApi = {
+  supplierPaymentsDue: async (): Promise<ApiResponse<AdminSupplierPaymentDueNotification[]>> => {
+    const res = await adminFetch(`/api/admin/notifications/supplier-payments-due`);
+    return (await res.json()) as ApiResponse<AdminSupplierPaymentDueNotification[]>;
   },
 };
 

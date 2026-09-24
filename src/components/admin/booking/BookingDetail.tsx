@@ -798,7 +798,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     notify("Customer payment removed", "success");
     reload();
   };
-  const addSupplierPayment = async (payload: { supplierName: string; paymentDate: string; amount: number; paymentMode: PaymentMode; transactionReference?: string; settlementStatus: SettlementStatus }) => {
+  const addSupplierPayment = async (payload: { supplierName: string; paymentDate: string; amount: number; paymentMode: PaymentMode; transactionReference?: string; referenceImageUrl?: string; settlementStatus: SettlementStatus }) => {
     const res = await bookingsApi.addSupplierPayment(id, payload);
     if (!res.success) {
       notify(res.message || "Unable to record supplier payment", "error");

@@ -1230,6 +1230,8 @@ model BookingSupplierPayment {
   amount               Int
   paymentMode          PaymentMode      @default(Cash)
   transactionReference String?
+  /** Uploaded proof-of-payment (receipt/screenshot) — same field as BookingCustomerPayment.referenceImageUrl. */
+  referenceImageUrl    String?
   settlementStatus     SettlementStatus @default(Pending)
   createdDate          DateTime         @default(now())
 

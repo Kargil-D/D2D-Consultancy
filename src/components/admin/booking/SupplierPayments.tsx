@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import Image from "next/image";
+import { Plus, Receipt, X } from "lucide-react";
 import { Field, inputCls, selectCls } from "@/components/admin/ui/Field";
 import DateInput from "@/components/admin/ui/DateInput";
+import ImageUpload from "@/components/admin/ui/ImageUpload";
 import ConfirmModal from "@/components/admin/ui/ConfirmModal";
 import type { AdminBookingSupplierPayment, PaymentMode, SettlementStatus } from "@/types/admin";
 
-type NewSupplierPayment = { supplierName: string; paymentDate: string; amount: number; paymentMode: PaymentMode; transactionReference?: string; settlementStatus: SettlementStatus };
+type NewSupplierPayment = { supplierName: string; paymentDate: string; amount: number; paymentMode: PaymentMode; transactionReference?: string; referenceImageUrl?: string; settlementStatus: SettlementStatus };
 
 interface Props {
   supplierPayments: AdminBookingSupplierPayment[];
@@ -29,6 +31,7 @@ export default function SupplierPayments({ supplierPayments, onAddSupplierPaymen
   const [mode, setMode] = useState<PaymentMode>("BankTransfer");
   const [amount, setAmount] = useState(0);
   const [ref, setRef] = useState("");
+  const [refImage, setRefImage] = useState("");
   const [status, setStatus] = useState<SettlementStatus>("Pending");
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState<AdminBookingSupplierPayment | null>(null);
@@ -42,8 +45,8 @@ export default function SupplierPayments({ supplierPayments, onAddSupplierPaymen
     if (!supplier.trim() || !date || amount <= 0 || exceedsTotal) return;
     setSaving(true);
     try {
-      const saved = await onAddSupplierPayment({ supplierName: supplier.trim(), paymentDate: date, amount, paymentMode: mode, transactionReference: ref, settlementStatus: status });
-      if (saved) { setSupplier(""); setDate(""); setAmount(0); setRef(""); setStatus("Pending"); }
+      const saved = await onAddSupplierPayment({ supplierName: supplier.trim(), paymentDate: date, amount, paymentMode: mode, transactionReference: ref, referenceImageUrl: refImage || undefined, settlementStatus: status });
+      if (saved) { setSupplier(""); setDate(""); setAmount(0); setRef(""); setRefImage(""); setStatus("Pending"); }
     } finally {
       setSaving(false);
     }
@@ -63,7 +66,7 @@ export default function SupplierPayments({ supplierPayments, onAddSupplierPaymen
   return (
     <div>
       <h3 className="text-sm font-bold text-slate-900 mb-3">Supplier Payments</h3>
-      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 grid grid-cols-1 md:grid-cols-6 gap-3 items-end mb-3">
+      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 grid grid-cols-1 md:grid-cols-7 gap-3 items-end mb-3">
         <Field label="Supplier Name" required className="md:col-span-2">
           <input className={inputCls} value={supplier} onChange={(e) => setSupplier(e.target.value)} />
         </Field>
@@ -81,12 +84,15 @@ export default function SupplierPayments({ supplierPayments, onAddSupplierPaymen
           <input type="number" min={0} max={balance !== undefined ? Math.max(0, balance) : undefined} className={inputCls} value={amount} onChange={(e) => setAmount(Number(e.target.value) || 0)} />
         </Field>
         <Field label="Transaction Ref"><input className={inputCls} value={ref} onChange={(e) => setRef(e.target.value)} /></Field>
+        <Field label="Reference Image">
+          <ImageUpload value={refImage} onChange={setRefImage} label="Upload" compact />
+        </Field>
         <Field label="Settlement Status" className="md:col-span-2">
           <select className={selectCls} value={status} onChange={(e) => setStatus(e.target.value as SettlementStatus)}>
             {STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
           </select>
         </Field>
-        <button type="button" onClick={add} disabled={saving || exceedsTotal} className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 md:col-start-6">
+        <button type="button" onClick={add} disabled={saving || exceedsTotal} className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 md:col-start-7">
           <Plus className="w-3.5 h-3.5" /> Add
         </button>
       </div>
@@ -95,7 +101,7 @@ export default function SupplierPayments({ supplierPayments, onAddSupplierPaymen
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs font-semibold text-slate-500 uppercase border-b border-slate-100">
-              <th className="px-3 py-2">Date</th><th className="px-3 py-2">Supplier</th><th className="px-3 py-2">Mode</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Reference</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 w-10"><span className="sr-only">Remove</span></th>
+              <th className="px-3 py-2">Date</th><th className="px-3 py-2">Supplier</th><th className="px-3 py-2">Mode</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Reference</th><th className="px-3 py-2">Ref. Image</th><th className="px-3 py-2">Status</th><th className="px-3 py-2 w-10"><span className="sr-only">Remove</span></th>
             </tr>
           </thead>
           <tbody>
@@ -106,6 +112,15 @@ export default function SupplierPayments({ supplierPayments, onAddSupplierPaymen
                 <td className="px-3 py-2">{p.paymentMode}</td>
                 <td className="px-3 py-2 text-right font-semibold">{formatINR(p.amount)}</td>
                 <td className="px-3 py-2 text-slate-500">{p.transactionReference || "—"}</td>
+                <td className="px-3 py-2">
+                  {p.referenceImageUrl ? (
+                    <a href={p.referenceImageUrl} target="_blank" rel="noreferrer" className="block relative w-9 h-9 rounded-md overflow-hidden border border-slate-200 hover:opacity-80">
+                      <Image src={p.referenceImageUrl} alt="Payment reference" fill sizes="36px" className="object-cover" unoptimized />
+                    </a>
+                  ) : (
+                    <span className="text-slate-300"><Receipt className="w-4 h-4" /></span>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-slate-500">{p.settlementStatus}</td>
                 <td className="px-3 py-2 text-right">
                   {p.id && (

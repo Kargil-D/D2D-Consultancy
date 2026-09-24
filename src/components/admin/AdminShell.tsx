@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, LogOut, UserCog, AlertCircle, CalendarDays, Wallet } from "lucide-react";
+import { ExternalLink, LogOut, UserCog, AlertCircle, CalendarDays, Wallet, Bell, IndianRupee } from "lucide-react";
 import Logo from "@/components/common/Logo";
 import { ToastProvider } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { employeesApi } from "@/lib/adminApi";
+import { employeesApi, notificationsApi } from "@/lib/adminApi";
+import type { AdminSupplierPaymentDueNotification } from "@/types/admin";
+import { formatINR } from "@/utils/format";
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -20,9 +22,33 @@ export default function AdminShell({ children, title }: AdminShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [resolvingProfile, setResolvingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [supplierPaymentsDue, setSupplierPaymentsDue] = useState<AdminSupplierPaymentDueNotification[]>([]);
 
   const isAdmin = user?.roles.includes("admin") ?? false;
   const initial = user?.name?.trim()?.[0]?.toUpperCase() ?? "?";
+
+  // Admin-only alert: supplier payments due within 3 days or overdue, not yet fully paid.
+  // Fetched once on load and refreshed each time the menu is opened, so it never goes far stale.
+  useEffect(() => {
+    if (!isAdmin) return;
+    notificationsApi.supplierPaymentsDue().then((res) => {
+      if (res.success && res.data) setSupplierPaymentsDue(res.data);
+    });
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin || !menuOpen) return;
+    notificationsApi.supplierPaymentsDue().then((res) => {
+      if (res.success && res.data) setSupplierPaymentsDue(res.data);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuOpen]);
+
+  const dueLabel = (days: number) => {
+    if (days < 0) return { text: `Overdue by ${-days} day${-days === 1 ? "" : "s"}`, tone: "text-rose-600" };
+    if (days === 0) return { text: "Due today", tone: "text-amber-600" };
+    return { text: `Due in ${days} day${days === 1 ? "" : "s"}`, tone: "text-slate-500" };
+  };
 
   const handleLogout = () => {
     logout();
@@ -72,10 +98,18 @@ export default function AdminShell({ children, title }: AdminShellProps) {
                 <button
                   type="button"
                   onClick={() => setMenuOpen((o) => !o)}
-                  className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold"
+                  className="relative w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-teal-500 flex items-center justify-center text-white text-xs font-bold"
                   aria-label="Account menu"
                 >
                   {initial}
+                  {isAdmin && supplierPaymentsDue.length > 0 && (
+                    <span
+                      className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-slate-900"
+                      aria-label={`${supplierPaymentsDue.length} supplier payment${supplierPaymentsDue.length === 1 ? "" : "s"} due`}
+                    >
+                      {supplierPaymentsDue.length}
+                    </span>
+                  )}
                 </button>
                 {menuOpen && (
                   <>
@@ -85,6 +119,44 @@ export default function AdminShell({ children, title }: AdminShellProps) {
                         <div className="text-sm font-semibold truncate">{user?.name ?? "—"}</div>
                         <div className="text-xs text-slate-500 truncate">{user?.email ?? "—"}</div>
                       </div>
+                      {isAdmin && (
+                        <div className="border-b border-slate-100">
+                          <div className="flex items-center gap-1.5 px-4 pt-3 pb-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                            <Bell className="w-3.5 h-3.5" /> Supplier Payments Due
+                          </div>
+                          {supplierPaymentsDue.length === 0 ? (
+                            <div className="px-4 pb-3 text-xs text-slate-400">Nothing due in the next 3 days.</div>
+                          ) : (
+                            <div className="max-h-64 overflow-y-auto pb-1">
+                              {supplierPaymentsDue.map((n) => {
+                                const label = dueLabel(n.daysUntilDue);
+                                return (
+                                  <button
+                                    key={n.bookingId}
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuOpen(false);
+                                      router.push(`/admin/bookings/${n.bookingId}`);
+                                    }}
+                                    className="w-full flex items-start gap-2 px-4 py-2 text-left hover:bg-slate-50"
+                                  >
+                                    <IndianRupee className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block text-sm text-slate-800 truncate">
+                                        {n.bookingCode} · {n.customerName}
+                                      </span>
+                                      <span className="block text-xs text-slate-500 truncate">{n.destinationName}</span>
+                                      <span className={`block text-xs font-medium ${label.tone}`}>
+                                        {label.text} · Balance {formatINR(n.balanceDue)}
+                                      </span>
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {isAdmin && (
                         <button
                           type="button"
