@@ -1001,6 +1001,19 @@ export interface AdminSupplierPaymentDueNotification {
   balanceDue: number;
 }
 
+/** One row of the "Customer Departures" account-menu alert — see listCustomerDeparturesDue(). */
+export interface AdminCustomerDepartureDueNotification {
+  bookingId: string;
+  bookingCode: string;
+  customerName: string;
+  destinationName: string;
+  travelDate: string;
+  tripEndDate: string;
+  daysUntilDeparture: number;
+  onTrip: boolean;
+  statusLabel: string;
+}
+
 export interface AdminBookingTimelineEvent {
   id: string;
   message: string;

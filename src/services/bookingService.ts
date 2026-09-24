@@ -693,6 +693,84 @@ export async function listSupplierPaymentsDue(): Promise<SupplierPaymentDueNotif
     .map(({ fullyPaid: _fullyPaid, ...n }) => n);
 }
 
+export interface CustomerDepartureDueNotification {
+  bookingId: string;
+  bookingCode: string;
+  customerName: string;
+  destinationName: string;
+  travelDate: string;
+  tripEndDate: string;
+  /** Negative once the trip has started (days since departure); 0 = departs today; positive = departs in that many days. */
+  daysUntilDeparture: number;
+  /** True once today falls between departure and the trip's end date, inclusive. */
+  onTrip: boolean;
+  statusLabel: string;
+}
+
+/** Bookings whose departure is within the next 3 days or already under way, shown through the
+ * trip's own end date (departure + hotel stays — the same date range buildTripReceiptData derives
+ * for the Payment Receipt/Travel Voucher's trip summary). Excludes Cancelled and Completed
+ * bookings outright; a booking left open past its actual end date (status never updated) still
+ * drops off once the date range itself has passed — never persisted, always computed live. */
+export async function listCustomerDeparturesDue(): Promise<CustomerDepartureDueNotification[]> {
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const cutoff = new Date(todayUtc + 3 * 24 * 60 * 60 * 1000);
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const utcDay = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+
+  const rows = await prisma.booking.findMany({
+    where: {
+      isDeleted: false,
+      status: { notIn: ["Cancelled", "Completed"] },
+      travelDate: { not: null, lte: cutoff },
+    },
+    select: {
+      id: true,
+      travelDate: true,
+      lead: { select: { customerName: true, seq: true } },
+      destination: { select: { name: true } },
+      hotels: { select: { checkIn: true, checkOut: true } },
+    },
+    orderBy: { travelDate: "asc" },
+  });
+
+  return rows
+    .map((b) => {
+      const travelDate = b.travelDate as Date;
+      const knownDates = [
+        utcDay(travelDate),
+        ...b.hotels.flatMap((h) => [h.checkIn, h.checkOut].filter((d): d is Date => !!d).map(utcDay)),
+      ];
+      const tripStartUtc = Math.min(...knownDates);
+      const tripEndUtc = Math.max(...knownDates);
+      const daysUntilDeparture = Math.round((tripStartUtc - todayUtc) / DAY_MS);
+      const daysUntilEnd = Math.round((tripEndUtc - todayUtc) / DAY_MS);
+      const onTrip = todayUtc >= tripStartUtc && todayUtc <= tripEndUtc;
+      const statusLabel = onTrip
+        ? daysUntilEnd <= 0
+          ? "On trip · ends today"
+          : `On trip · ends in ${daysUntilEnd} day${daysUntilEnd === 1 ? "" : "s"}`
+        : daysUntilDeparture === 0
+          ? "Departing today"
+          : `Departs in ${daysUntilDeparture} day${daysUntilDeparture === 1 ? "" : "s"}`;
+      return {
+        bookingId: b.id,
+        bookingCode: bookingCode(b.lead.seq),
+        customerName: b.lead.customerName,
+        destinationName: b.destination.name,
+        travelDate: travelDate.toISOString(),
+        tripEndDate: new Date(tripEndUtc).toISOString(),
+        daysUntilDeparture,
+        onTrip,
+        statusLabel,
+        tripOver: todayUtc > tripEndUtc,
+      };
+    })
+    .filter((n) => !n.tripOver)
+    .map(({ tripOver: _tripOver, ...n }) => n);
+}
+
 /** Called when a Lead is marked Won — creates the Booking automatically, per the spec's "most bookings arrive via the Won trigger." */
 export async function createBookingFromWonLead(
   tx: Prisma.TransactionClient,

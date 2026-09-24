@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, LogOut, UserCog, AlertCircle, CalendarDays, Wallet, Bell, IndianRupee } from "lucide-react";
+import { ExternalLink, LogOut, UserCog, AlertCircle, CalendarDays, Wallet, Bell, IndianRupee, Plane } from "lucide-react";
 import Logo from "@/components/common/Logo";
 import { ToastProvider } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { employeesApi, notificationsApi } from "@/lib/adminApi";
-import type { AdminSupplierPaymentDueNotification } from "@/types/admin";
+import type { AdminSupplierPaymentDueNotification, AdminCustomerDepartureDueNotification } from "@/types/admin";
 import { formatINR } from "@/utils/format";
 
 interface AdminShellProps {
@@ -23,24 +23,39 @@ export default function AdminShell({ children, title }: AdminShellProps) {
   const [resolvingProfile, setResolvingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [supplierPaymentsDue, setSupplierPaymentsDue] = useState<AdminSupplierPaymentDueNotification[]>([]);
+  const [customerDeparturesDue, setCustomerDeparturesDue] = useState<AdminCustomerDepartureDueNotification[]>([]);
 
   const isAdmin = user?.roles.includes("admin") ?? false;
+  // Departure alerts aren't master-only cost data — anyone who can already see travel dates on
+  // the booking header (Bookings module view) gets them; Admin always has this via the matrix bypass.
+  const canViewBookings = user?.permissions?.["Bookings"]?.canView ?? false;
   const initial = user?.name?.trim()?.[0]?.toUpperCase() ?? "?";
+  const notificationCount = supplierPaymentsDue.length + customerDeparturesDue.length;
 
-  // Admin-only alert: supplier payments due within 3 days or overdue, not yet fully paid.
-  // Fetched once on load and refreshed each time the menu is opened, so it never goes far stale.
+  const fetchNotifications = () => {
+    if (isAdmin) {
+      notificationsApi.supplierPaymentsDue().then((res) => {
+        if (res.success && res.data) setSupplierPaymentsDue(res.data);
+      });
+    }
+    if (canViewBookings) {
+      notificationsApi.customerDeparturesDue().then((res) => {
+        if (res.success && res.data) setCustomerDeparturesDue(res.data);
+      });
+    }
+  };
+
+  // Admin-only: supplier payments due within 3 days or overdue, not yet fully paid.
+  // Bookings-view: departures within 3 days or already under way, through the trip's end date.
+  // Fetched once on load and refreshed each time the menu is opened, so neither goes far stale.
   useEffect(() => {
-    if (!isAdmin) return;
-    notificationsApi.supplierPaymentsDue().then((res) => {
-      if (res.success && res.data) setSupplierPaymentsDue(res.data);
-    });
-  }, [isAdmin]);
+    fetchNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, canViewBookings]);
 
   useEffect(() => {
-    if (!isAdmin || !menuOpen) return;
-    notificationsApi.supplierPaymentsDue().then((res) => {
-      if (res.success && res.data) setSupplierPaymentsDue(res.data);
-    });
+    if (!menuOpen) return;
+    fetchNotifications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen]);
 
@@ -48,6 +63,12 @@ export default function AdminShell({ children, title }: AdminShellProps) {
     if (days < 0) return { text: `Overdue by ${-days} day${-days === 1 ? "" : "s"}`, tone: "text-rose-600" };
     if (days === 0) return { text: "Due today", tone: "text-amber-600" };
     return { text: `Due in ${days} day${days === 1 ? "" : "s"}`, tone: "text-slate-500" };
+  };
+
+  const departureTone = (n: AdminCustomerDepartureDueNotification) => {
+    if (n.onTrip) return "text-teal-600";
+    if (n.daysUntilDeparture === 0) return "text-amber-600";
+    return "text-slate-500";
   };
 
   const handleLogout = () => {
@@ -102,12 +123,12 @@ export default function AdminShell({ children, title }: AdminShellProps) {
                   aria-label="Account menu"
                 >
                   {initial}
-                  {isAdmin && supplierPaymentsDue.length > 0 && (
+                  {notificationCount > 0 && (
                     <span
                       className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-slate-900"
-                      aria-label={`${supplierPaymentsDue.length} supplier payment${supplierPaymentsDue.length === 1 ? "" : "s"} due`}
+                      aria-label={`${notificationCount} notification${notificationCount === 1 ? "" : "s"}`}
                     >
-                      {supplierPaymentsDue.length}
+                      {notificationCount}
                     </span>
                   )}
                 </button>
@@ -153,6 +174,39 @@ export default function AdminShell({ children, title }: AdminShellProps) {
                                   </button>
                                 );
                               })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {canViewBookings && (
+                        <div className="border-b border-slate-100">
+                          <div className="flex items-center gap-1.5 px-4 pt-3 pb-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                            <Plane className="w-3.5 h-3.5" /> Customer Departures
+                          </div>
+                          {customerDeparturesDue.length === 0 ? (
+                            <div className="px-4 pb-3 text-xs text-slate-400">Nothing departing in the next 3 days.</div>
+                          ) : (
+                            <div className="max-h-64 overflow-y-auto pb-1">
+                              {customerDeparturesDue.map((n) => (
+                                <button
+                                  key={n.bookingId}
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuOpen(false);
+                                    router.push(`/admin/bookings/${n.bookingId}`);
+                                  }}
+                                  className="w-full flex items-start gap-2 px-4 py-2 text-left hover:bg-slate-50"
+                                >
+                                  <Plane className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block text-sm text-slate-800 truncate">
+                                      {n.bookingCode} · {n.customerName}
+                                    </span>
+                                    <span className="block text-xs text-slate-500 truncate">{n.destinationName}</span>
+                                    <span className={`block text-xs font-medium ${departureTone(n)}`}>{n.statusLabel}</span>
+                                  </span>
+                                </button>
+                              ))}
                             </div>
                           )}
                         </div>

@@ -49,6 +49,7 @@ import type {
   RosterStatus,
   AdminSalesUser,
   AdminSupplierPaymentDueNotification,
+  AdminCustomerDepartureDueNotification,
   AdminTransfer,
   AdminTransferType,
   ApiResponse,
@@ -1112,6 +1113,10 @@ export const notificationsApi = {
   supplierPaymentsDue: async (): Promise<ApiResponse<AdminSupplierPaymentDueNotification[]>> => {
     const res = await adminFetch(`/api/admin/notifications/supplier-payments-due`);
     return (await res.json()) as ApiResponse<AdminSupplierPaymentDueNotification[]>;
+  },
+  customerDeparturesDue: async (): Promise<ApiResponse<AdminCustomerDepartureDueNotification[]>> => {
+    const res = await adminFetch(`/api/admin/notifications/customer-departures-due`);
+    return (await res.json()) as ApiResponse<AdminCustomerDepartureDueNotification[]>;
   },
 };
 
