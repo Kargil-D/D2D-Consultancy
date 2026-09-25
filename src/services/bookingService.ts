@@ -70,9 +70,17 @@ function bookingSearchOr(search: string): Prisma.BookingWhereInput[] {
   return or;
 }
 
-/** Admin sees every Booking; everyone else only the ones where they're the bookingExecutive OR the customerSupport. */
+/** Admin sees every Booking; everyone else only the ones where they're the bookingExecutive, the customerSupport, or the Sales Executive on the linked Quotation. */
 export function bookingVisibilityScope(viewer: Viewer): Prisma.BookingWhereInput {
-  return viewer.isAdmin ? {} : { OR: [{ bookingExecutiveId: viewer.id }, { customerSupportId: viewer.id }] };
+  return viewer.isAdmin
+    ? {}
+    : {
+        OR: [
+          { bookingExecutiveId: viewer.id },
+          { customerSupportId: viewer.id },
+          { quotation: { salesExecutiveId: viewer.id } },
+        ],
+      };
 }
 
 /** Existence + ownership probe — throws 404 whether the Booking doesn't exist or isn't visible to this viewer. Used by the main Booking routes and every sub-resource route (flights/hotels/payments/etc.) before they touch booking-scoped data. */
@@ -84,11 +92,11 @@ export async function requireBookingAccess(id: string, viewer: Viewer) {
 
 export async function listBookings(query: ListQuery = {}, viewer: Viewer) {
   const { search = "", page = 1, pageSize = 10, filter = {} } = query;
-  const where: Prisma.BookingWhereInput = { isDeleted: false, ...bookingVisibilityScope(viewer), ...filter };
-
-  if (search.trim()) {
-    where.OR = bookingSearchOr(search.trim());
-  }
+  // Scope and search are both OR-groups, so they're combined under AND — spreading/assigning
+  // `OR` directly would let the search overwrite the visibility scope.
+  const and: Prisma.BookingWhereInput[] = [bookingVisibilityScope(viewer)];
+  if (search.trim()) and.push({ OR: bookingSearchOr(search.trim()) });
+  const where: Prisma.BookingWhereInput = { isDeleted: false, ...filter, AND: and };
 
   const total = await prisma.booking.count({ where });
   const items = await prisma.booking.findMany({
