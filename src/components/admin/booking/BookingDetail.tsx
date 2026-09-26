@@ -39,7 +39,7 @@ import { bookingTotalPrice, computeQuotationPricing } from "@/lib/quotationPrici
 import { trackingCode } from "@/lib/idCodes";
 import type {
   AdminBooking, AdminBookingActivity, AdminBookingFlight, AdminBookingHotel, AdminBookingInsurance,
-  AdminBookingPassenger, AdminBookingTransfer, AdminBookingVisa, AdminQuotation, AdminSalesUser, BookingDocumentType, BookingStatus,
+  AdminBookingPassenger, AdminBookingTransfer, AdminBookingVisa, AdminBookingQuotation, AdminSalesUser, BookingDocumentType, BookingStatus,
   CostSheetStatus, PaymentMode, SettlementStatus,
 } from "@/types/admin";
 
@@ -103,7 +103,7 @@ export default function BookingDetail({ id }: BookingDetailProps) {
   const [savingDmc, setSavingDmc] = useState(false);
 
   // Booking Details (merged in from the former standalone Edit Booking page/route).
-  const [quotations, setQuotations] = useState<AdminQuotation[]>([]);
+  const [quotations, setQuotations] = useState<AdminBookingQuotation[]>([]);
   const [bookingExecutives, setBookingExecutives] = useState<AdminSalesUser[]>([]);
   const [customerSupportUsers, setCustomerSupportUsers] = useState<AdminSalesUser[]>([]);
   const [detailQuotationId, setDetailQuotationId] = useState("");
@@ -860,14 +860,18 @@ export default function BookingDetail({ id }: BookingDetailProps) {
 
   // Margin/Deal Price mirror the linked Quotation's own pricing step (cost -> +margin -> +GST = grand total);
   // Payment Received is the Payments tab's Customer Payments total (same figure shown there).
+  // marginPercent is stripped server-side for viewers without BookingsMaster, so when it's absent the
+  // Deal Price comes from the server's own figure (booking.dealPrice) and Margin isn't available at all.
+  const pricedQuotation = selectedQuotation?.marginPercent !== undefined ? { ...selectedQuotation, marginPercent: selectedQuotation.marginPercent } : null;
   const quotePricing = selectedQuotation
     ? (() => {
-        const { marginValue, dealPrice } = computeQuotationPricing(selectedQuotation);
+        if (!pricedQuotation) return { marginValue: null, sellingPrice: booking.dealPrice ?? 0 };
+        const { marginValue, dealPrice } = computeQuotationPricing(pricedQuotation);
         return { marginValue, sellingPrice: dealPrice };
       })()
     : null;
   // Payments tab total price (= deal price) — the same figure the server caps payments at.
-  const totalPrice = bookingTotalPrice({ totalAmount: booking.totalAmount, quotation: selectedQuotation }) ?? undefined;
+  const totalPrice = (pricedQuotation ? bookingTotalPrice({ totalAmount: booking.totalAmount, quotation: pricedQuotation }) : booking.dealPrice) ?? undefined;
   const totalPaid = booking.customerPayments.reduce((sum, p) => sum + p.amount, 0);
   // Same figure the Supplier Payments tab totals up — shown read-only here so it can't drift from that ledger.
   const supplierTotalPaid = booking.supplierPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -939,11 +943,16 @@ export default function BookingDetail({ id }: BookingDetailProps) {
           </div>
           {quotePricing && (
             <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Margin</div>
-                <div className="text-lg font-bold text-slate-900">{formatINR(quotePricing.marginValue)}</div>
-              </div>
-              <div className="w-px h-9 bg-slate-200" />
+              {/* Margin is Bookings-Master-only, same as the supplier/cost figures. */}
+              {canViewMaster && quotePricing.marginValue !== null && (
+                <>
+                  <div className="text-right">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Margin</div>
+                    <div className="text-lg font-bold text-slate-900">{formatINR(quotePricing.marginValue)}</div>
+                  </div>
+                  <div className="w-px h-9 bg-slate-200" />
+                </>
+              )}
               <div className="text-right">
                 <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Deal Price</div>
                 <div className="text-lg font-bold text-slate-900">{formatINR(quotePricing.sellingPrice)}</div>

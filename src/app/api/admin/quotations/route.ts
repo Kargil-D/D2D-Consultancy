@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { listQuotations, listQuotationSummaries, createQuotation } from "@/services/quotationService";
 import { QuotationCreateSchema } from "@/lib/validation/quotation";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess, toViewer } from "@/lib/permissions";
+import { requireModuleAccess, hasModulePermission, toViewer } from "@/lib/permissions";
 import { perfTime } from "@/lib/perf";
 
 export async function GET(req: NextRequest) {
@@ -48,6 +48,8 @@ export async function POST(req: NextRequest) {
     if (!viewer.isAdmin && parsed.salesExecutiveId !== undefined && parsed.salesExecutiveId !== viewer.id) {
       delete parsed.salesExecutiveId;
     }
+    // Margin is Bookings-Master-only (Admin passes too) — anyone else's quotation starts at 0% until one of them sets it.
+    if (!hasModulePermission(user, "BookingsMaster", "canView")) parsed.marginPercent = 0;
     const created = await createQuotation(parsed);
     return NextResponse.json({ success: true, message: "Created", data: created });
   } catch (err) {

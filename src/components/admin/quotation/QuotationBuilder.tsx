@@ -37,6 +37,7 @@ import {
   packagesApi, quotationsApi, salesUsersApi, transferTypesApi, transfersApi,
 } from "@/lib/adminApi";
 import { useAuth } from "@/contexts/AuthContext";
+import { canViewModule, type PermissionMap } from "@/lib/adminModules";
 import QuotationItineraryDaysEditor, { newQuotationDay } from "@/components/admin/quotation/QuotationItineraryDaysEditor";
 import QuotationHotelOptionsEditor from "@/components/admin/quotation/QuotationHotelOptionsEditor";
 import QuotationTransfersEditor from "@/components/admin/quotation/QuotationTransfersEditor";
@@ -193,6 +194,7 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
   const searchParams = useSearchParams();
   const { notify } = useToast();
   const { user } = useAuth();
+  const canViewMaster = (user?.roles.includes("admin") ?? false) || canViewModule(user?.permissions as PermissionMap | undefined, "BookingsMaster");
 
   const [id, setId] = useState<string | undefined>(initialId);
   const [step, setStep] = useState(0);
@@ -1452,6 +1454,9 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
           <span className="text-slate-500">Total Cost</span>
           <span className="font-semibold text-slate-900">{formatINR(totalCost)}</span>
         </div>
+        {/* Margin is Bookings-Master-only (Admin passes too); the server also ignores margin changes from anyone else. */}
+        {canViewMaster && (
+        <>
         <Field label="Margin %">
           <input
             type="number"
@@ -1482,6 +1487,8 @@ export default function QuotationBuilder({ id: initialId }: QuotationBuilderProp
             onBlur={() => setMarginValueDraft(null)}
           />
         </Field>
+        </>
+        )}
         <Field label="GST %">
           <input type="number" min={0} step={0.5} className={inputCls} value={draft.gstPercent} onChange={(e) => patch({ gstPercent: Number(e.target.value) || 0 })} />
         </Field>

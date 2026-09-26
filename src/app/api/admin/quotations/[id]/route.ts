@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getQuotationForBuilder, updateQuotation, removeQuotation, requireQuotationAccess } from "@/services/quotationService";
 import { QuotationUpdateSchema } from "@/lib/validation/quotation";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess, toViewer } from "@/lib/permissions";
+import { requireModuleAccess, hasModulePermission, toViewer } from "@/lib/permissions";
 import { perfTime } from "@/lib/perf";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -34,6 +34,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!viewer.isAdmin && parsed.salesExecutiveId !== undefined && parsed.salesExecutiveId !== viewer.id) {
       delete parsed.salesExecutiveId;
     }
+    // Margin is Bookings-Master-only (Admin passes too) — anyone else keeps the quotation's existing margin.
+    if (!hasModulePermission(user, "BookingsMaster", "canView")) delete parsed.marginPercent;
     const updated = await updateQuotation(id, parsed);
     return NextResponse.json({ success: true, message: "Updated", data: updated });
   } catch (err) {

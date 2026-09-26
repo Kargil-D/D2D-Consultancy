@@ -9,6 +9,8 @@ import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
 import DateInput from "@/components/admin/ui/DateInput";
 import { useToast } from "@/components/admin/ui/Toast";
 import LoadingOverlay from "@/components/admin/ui/LoadingOverlay";
+import { useAuth } from "@/contexts/AuthContext";
+import { canViewModule, type PermissionMap } from "@/lib/adminModules";
 import { bookingsApi, leadsApi, quotationsApi, salesUsersApi } from "@/lib/adminApi";
 import { trackingCode } from "@/lib/idCodes";
 import type { AdminLead, AdminQuotation, AdminSalesUser, BookingStatus } from "@/types/admin";
@@ -25,6 +27,9 @@ const formatINR = (v: number) =>
 export default function BookingForm({ id }: BookingFormProps) {
   const router = useRouter();
   const { notify } = useToast();
+  const { user } = useAuth();
+  // Margin is Bookings-Master-only, same as the supplier/cost figures on the booking detail page.
+  const canViewMaster = (user?.roles.includes("admin") ?? false) || canViewModule(user?.permissions as PermissionMap | undefined, "BookingsMaster");
 
   const [wonLeads, setWonLeads] = useState<AdminLead[]>([]);
   const [quotations, setQuotations] = useState<AdminQuotation[]>([]);
@@ -358,10 +363,12 @@ export default function BookingForm({ id }: BookingFormProps) {
                   <span>Booking Price</span>
                   <span className="font-semibold text-slate-900">{formatINR(totalAmount)}</span>
                 </div>
-                <div className="flex justify-between text-slate-500">
-                  <span>Margin ({selectedQuotation.marginPercent}%)</span>
-                  <span>{formatINR(quotePricing.marginValue)}</span>
-                </div>
+                {canViewMaster && (
+                  <div className="flex justify-between text-slate-500">
+                    <span>Margin ({selectedQuotation.marginPercent}%)</span>
+                    <span>{formatINR(quotePricing.marginValue)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-slate-500">
                   <span>GST ({selectedQuotation.gstPercent}%)</span>
                   <span>{formatINR(quotePricing.gstValue)}</span>

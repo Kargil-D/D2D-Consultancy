@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { replacePassengers, requireBookingAccess } from "@/services/bookingService";
+import { replacePassengers, requireBookingAccess, toAdminBookingResponse } from "@/services/bookingService";
 import { BookingPassengerSchema } from "@/lib/validation/booking";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess, toViewer } from "@/lib/permissions";
+import { requireModuleAccess, hasModulePermission, toViewer } from "@/lib/permissions";
 import { z } from "zod";
 
 const BodySchema = z.object({ rows: z.array(BookingPassengerSchema) });
@@ -14,7 +14,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     await requireBookingAccess(id, toViewer(user));
     const { rows } = BodySchema.parse(await req.json());
     const updated = await replacePassengers(id, rows);
-    return NextResponse.json({ success: true, message: "Passengers saved", data: updated });
+    return NextResponse.json({ success: true, message: "Passengers saved", data: toAdminBookingResponse(updated, hasModulePermission(user, "BookingsMaster", "canView")) });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });
     console.error("[/api/admin/bookings/[id]/passengers] PUT", err);

@@ -1027,13 +1027,16 @@ export interface AdminBookingNote {
   createdDate?: string;
 }
 
+/** A booking's linked quotation — marginPercent is stripped server-side for viewers without BookingsMaster. */
+export type AdminBookingQuotation = Omit<AdminQuotation, "marginPercent"> & { marginPercent?: number };
+
 export interface AdminBooking {
   id: string;
   seq: number;
   leadId: string;
   lead?: AdminLead;
   quotationId?: string | null;
-  quotation?: AdminQuotation | null;
+  quotation?: AdminBookingQuotation | null;
   destinationId: string;
   destination?: AdminDestination;
   travelDate?: string | null;
@@ -1045,6 +1048,8 @@ export interface AdminBooking {
   customerSupportId?: string | null;
   customerSupport?: AdminSalesUser | null;
   totalAmount: number;
+  /** Server-computed: the linked quotation's deal price (cost + margin + GST), else Total Amount; null when neither is set. */
+  dealPrice?: number | null;
   status: BookingStatus;
   remarks?: string | null;
   supplierTrackId?: string | null;

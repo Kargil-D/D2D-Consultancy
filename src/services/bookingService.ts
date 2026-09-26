@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { trackingCode, parseTrackingCode } from "@/lib/idCodes";
 import { ApiError } from "@/lib/apiError";
-import { bookingTotalPrice } from "@/lib/quotationPricing";
+import { bookingTotalPrice, type QuotationPricingInput } from "@/lib/quotationPricing";
 import { quotationSyncHash } from "@/lib/quotationSyncHash";
 import type { Viewer } from "@/lib/permissions";
 import type { Paginated, QuotationActivityItem, QuotationHotelOptionGroup, QuotationTransferItem } from "@/types/admin";
@@ -149,6 +149,21 @@ export function redactMasterFields<T extends Record<string, unknown>>(booking: T
     supplierPayments: [],
     costSheet: [],
   };
+}
+
+type PricedBooking = { totalAmount: number; quotation: (QuotationPricingInput & Record<string, unknown>) | null };
+
+/** The one shape every admin Booking response goes out in. Deal Price is computed here, server-side,
+ * so the booking screen never needs the quotation's marginPercent to show it — which lets a viewer
+ * without BookingsMaster get the booking with marginPercent removed along with the other master fields. */
+export function toAdminBookingResponse<T extends PricedBooking>(booking: T, canViewMaster: boolean) {
+  const dealPrice = bookingTotalPrice(booking);
+  if (canViewMaster) return { ...booking, dealPrice };
+  const redacted = redactMasterFields(booking);
+  if (!redacted.quotation) return { ...redacted, dealPrice };
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured only to drop it from the payload
+  const { marginPercent, ...quotation } = redacted.quotation;
+  return { ...redacted, quotation, dealPrice };
 }
 
 interface BookingInput {

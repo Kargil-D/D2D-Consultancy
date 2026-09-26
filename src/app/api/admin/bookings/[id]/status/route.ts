@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateBookingStatus, requireBookingAccess } from "@/services/bookingService";
+import { updateBookingStatus, requireBookingAccess, toAdminBookingResponse } from "@/services/bookingService";
 import { BookingStatusUpdateSchema } from "@/lib/validation/booking";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess, toViewer } from "@/lib/permissions";
+import { requireModuleAccess, hasModulePermission, toViewer } from "@/lib/permissions";
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const payload = await req.json();
     const { status } = BookingStatusUpdateSchema.parse(payload);
     const updated = await updateBookingStatus(id, status);
-    return NextResponse.json({ success: true, message: "Status updated", data: updated });
+    return NextResponse.json({ success: true, message: "Status updated", data: toAdminBookingResponse(updated, hasModulePermission(user, "BookingsMaster", "canView")) });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });
     console.error("[/api/admin/bookings/[id]/status] POST", err);

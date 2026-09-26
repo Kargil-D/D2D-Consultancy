@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getBooking, updateBooking, removeBooking, requireBookingAccess, redactMasterFields, getQuotationChangeStatus } from "@/services/bookingService";
+import { getBooking, updateBooking, removeBooking, requireBookingAccess, toAdminBookingResponse, getQuotationChangeStatus } from "@/services/bookingService";
 import { getHotelVoucherMeta } from "@/services/hotelVoucherService";
 import { getPaymentReceiptMeta } from "@/services/paymentReceiptService";
 import { BookingUpdateSchema } from "@/lib/validation/booking";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       // Meta is computed from the un-redacted record (Trip ID = Supplier Track ID is master-only),
       // and the voucher snapshot itself never leaves the server — the UI only needs issued/stale.
       const meta = { ...getHotelVoucherMeta(rec), ...getPaymentReceiptMeta(rec), ...(await getQuotationChangeStatus(rec)) };
-      data = { ...(hasModulePermission(user, "BookingsMaster", "canView") ? rec : redactMasterFields(rec)), ...meta };
+      data = { ...toAdminBookingResponse(rec, hasModulePermission(user, "BookingsMaster", "canView")), ...meta };
       delete data.quotationSyncHash;
       delete data.hotelVoucher;
       delete data.hotelVoucherHash;
@@ -52,7 +52,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       delete parsed.supplierNotes;
     }
     const updated = await updateBooking(id, parsed);
-    return NextResponse.json({ success: true, message: "Updated", data: updated });
+    return NextResponse.json({ success: true, message: "Updated", data: toAdminBookingResponse(updated, hasModulePermission(user, "BookingsMaster", "canView")) });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ success: false, message: err.message, data: null }, { status: err.statusCode });
     console.error("[/api/admin/bookings/[id]] PUT", err);
