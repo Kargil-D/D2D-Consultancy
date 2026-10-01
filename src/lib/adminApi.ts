@@ -50,6 +50,9 @@ import type {
   AdminSalesUser,
   AdminSupplierPaymentDueNotification,
   AdminCustomerDepartureDueNotification,
+  AdminSheetSyncResult,
+  AdminSheetSyncStatus,
+  AdminSheetTarget,
   AdminTransfer,
   AdminTransferType,
   ApiResponse,
@@ -1117,6 +1120,25 @@ export const notificationsApi = {
   customerDeparturesDue: async (): Promise<ApiResponse<AdminCustomerDepartureDueNotification[]>> => {
     const res = await adminFetch(`/api/admin/notifications/customer-departures-due`);
     return (await res.json()) as ApiResponse<AdminCustomerDepartureDueNotification[]>;
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Google Sheet sync — Admin-only Leads + Customers mirror                   */
+/* -------------------------------------------------------------------------- */
+
+export const sheetSyncApi = {
+  status: async (): Promise<ApiResponse<AdminSheetSyncStatus>> => {
+    const res = await adminFetch(`/api/admin/sheet-sync`);
+    return (await res.json()) as ApiResponse<AdminSheetSyncStatus>;
+  },
+  sync: async (target: AdminSheetTarget): Promise<ApiResponse<AdminSheetSyncResult>> => {
+    const res = await adminFetch(`/api/admin/sheet-sync`, {
+      method: "POST",
+      body: JSON.stringify({ target }),
+      headers: { "Content-Type": "application/json" },
+    });
+    return (await res.json()) as ApiResponse<AdminSheetSyncResult>;
   },
 };
 

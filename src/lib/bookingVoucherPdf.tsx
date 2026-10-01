@@ -607,7 +607,7 @@ function HotelVoucherLogo() {
 
 const HV_CHECK_IN_TIME = "14:00";
 const HV_CHECK_OUT_TIME = "12:00";
-const HV_NOTES = "A security deposit is not required for this Hotel";
+const HV_NOTES = "A refundable deposit amount will be collected at the time of check-in.";
 
 /** One hotel = one page, in the same order as the approved sample: hotel/guest columns, ref bar,
  * stay box, line-item table, notes. The footer is `fixed` so it repeats if a hotel with many

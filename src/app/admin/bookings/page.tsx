@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Eye, Trash2 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
+import SheetSyncButtons from "@/components/admin/SheetSyncButtons";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DataTable, { type Column } from "@/components/admin/ui/DataTable";
 import Pagination from "@/components/admin/ui/Pagination";
@@ -178,12 +179,15 @@ export default function BookingsAdminPage() {
             All bookings, most created automatically when a lead is marked Won.
           </p>
         </div>
-        <Link
-          href="/admin/bookings/new"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Add Booking
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <SheetSyncButtons target="bookings" />
+          <Link
+            href="/admin/bookings/new"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Add Booking
+          </Link>
+        </div>
       </div>
 
       <DataTable<AdminBooking>

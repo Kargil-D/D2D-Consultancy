@@ -1014,6 +1014,20 @@ export interface AdminCustomerDepartureDueNotification {
   statusLabel: string;
 }
 
+/** Google Sheet mirrors of Leads + Bookings (see sheetSyncService). */
+export type AdminSheetTarget = "leads" | "bookings";
+
+export interface AdminSheetSyncStatus {
+  configured: boolean;
+  leadsSheetUrl: string | null;
+  bookingsSheetUrl: string | null;
+}
+
+export interface AdminSheetSyncResult {
+  syncedAt: string;
+  rows: Partial<Record<AdminSheetTarget, number>>;
+}
+
 export interface AdminBookingTimelineEvent {
   id: string;
   message: string;

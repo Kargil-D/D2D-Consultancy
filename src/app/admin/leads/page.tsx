@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Edit, Eye, Trash2 } from "lucide-react";
 import AdminShell from "@/components/admin/AdminShell";
+import SheetSyncButtons from "@/components/admin/SheetSyncButtons";
 import Breadcrumb from "@/components/admin/ui/Breadcrumb";
 import DataTable, { type Column } from "@/components/admin/ui/DataTable";
 import Pagination from "@/components/admin/ui/Pagination";
@@ -159,12 +160,15 @@ export default function LeadsAdminPage() {
             The working list of all enquiries from every source.
           </p>
         </div>
-        <Link
-          href="/admin/leads/new"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm"
-        >
-          <Plus className="w-4 h-4" /> Add Lead
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <SheetSyncButtons target="leads" />
+          <Link
+            href="/admin/leads/new"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Add Lead
+          </Link>
+        </div>
       </div>
 
       <DataTable<AdminLead>
