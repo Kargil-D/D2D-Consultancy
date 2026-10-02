@@ -53,13 +53,22 @@ export function buildTripReceiptData(booking: BookingWithRelations, variant: "vo
 
   // ---- trip date range: earliest/latest known dates across travel date + hotel stays ----
   const knownDates: Date[] = [];
-  if (booking.travelDate) knownDates.push(startOfDay(booking.travelDate));
+  const startDate = booking.travelDate ?? booking.quotation?.travelDate ?? null;
+  if (startDate) knownDates.push(startOfDay(startDate));
   for (const h of booking.hotels) {
     if (h.checkIn) knownDates.push(startOfDay(h.checkIn));
     if (h.checkOut) knownDates.push(startOfDay(h.checkOut));
   }
   const tripStart = knownDates.length ? new Date(Math.min(...knownDates.map((d) => d.getTime()))) : null;
-  const tripEnd = knownDates.length ? new Date(Math.max(...knownDates.map((d) => d.getTime()))) : null;
+  let tripEnd = knownDates.length ? new Date(Math.max(...knownDates.map((d) => d.getTime()))) : null;
+  // The quotation's trip length, counted from the booking's own start — without it, a booking with no
+  // hotel dates entered yet collapses to a single day ("22 – 22 Jan", 0N / 1D). Counting nights from
+  // tripStart (not the quotation's fixed end date) keeps it right if the booking's travel date moves.
+  const quotedNights = booking.quotation?.nights ?? 0;
+  if (tripStart && tripEnd && quotedNights > 0) {
+    const quotedEnd = new Date(tripStart.getFullYear(), tripStart.getMonth(), tripStart.getDate() + quotedNights);
+    if (quotedEnd > tripEnd) tripEnd = quotedEnd;
+  }
 
   let travelDatesLabel = "—";
   let durationLabel = "—";

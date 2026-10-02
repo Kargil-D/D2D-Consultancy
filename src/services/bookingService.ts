@@ -754,6 +754,7 @@ export async function listCustomerDeparturesDue(): Promise<CustomerDepartureDueN
       lead: { select: { customerName: true, seq: true } },
       destination: { select: { name: true } },
       hotels: { select: { checkIn: true, checkOut: true } },
+      quotation: { select: { nights: true } },
     },
     orderBy: { travelDate: "asc" },
   });
@@ -766,7 +767,8 @@ export async function listCustomerDeparturesDue(): Promise<CustomerDepartureDueN
         ...b.hotels.flatMap((h) => [h.checkIn, h.checkOut].filter((d): d is Date => !!d).map(utcDay)),
       ];
       const tripStartUtc = Math.min(...knownDates);
-      const tripEndUtc = Math.max(...knownDates);
+      // Quotation's trip length counted from the start — same rule as buildTripReceiptData.
+      const tripEndUtc = Math.max(...knownDates, tripStartUtc + (b.quotation?.nights ?? 0) * DAY_MS);
       const daysUntilDeparture = Math.round((tripStartUtc - todayUtc) / DAY_MS);
       const daysUntilEnd = Math.round((tripEndUtc - todayUtc) / DAY_MS);
       const onTrip = todayUtc >= tripStartUtc && todayUtc <= tripEndUtc;
