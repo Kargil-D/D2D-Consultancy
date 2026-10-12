@@ -29,6 +29,7 @@ import type {
   AdminEmployee,
   AdminEmployeeAuditLog,
   AdminEmployeeManagerOption,
+  AdminEmployeeSelfUpdate,
   AdminEnquiryConfig,
   AdminHeroConfig,
   AdminHotel,
@@ -891,9 +892,13 @@ export const employeesApi = {
     const res = await adminFetch(`/api/admin/employees/${id}`);
     return (await res.json()) as ApiResponse<AdminEmployee | null>;
   },
-  /** Resolves the Employee record linked to whoever is currently logged in — powers "Profile Settings". */
+  /** Resolves the Employee record linked to whoever is currently logged in — powers "My Profile". */
   me: async (): Promise<ApiResponse<AdminEmployee | null>> => {
     const res = await adminFetch(`/api/admin/employees/me`);
+    return (await res.json()) as ApiResponse<AdminEmployee | null>;
+  },
+  updateMe: async (payload: AdminEmployeeSelfUpdate): Promise<ApiResponse<AdminEmployee | null>> => {
+    const res = await adminFetch(`/api/admin/employees/me`, { method: "PATCH", body: JSON.stringify(payload), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminEmployee | null>;
   },
   create: async (payload: Partial<AdminEmployee>): Promise<ApiResponse<AdminEmployee>> => {

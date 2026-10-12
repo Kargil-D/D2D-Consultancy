@@ -297,6 +297,19 @@ export interface AdminEmployee extends AuditColumns {
   emergencyMobile: string;
 }
 
+/** Fields an employee may change on their own record ("My Profile") — mirrors EmployeeSelfUpdateSchema.
+ * aadhaarNumber/accountNumber are sent only when replacing the stored (encrypted) value. */
+export type AdminEmployeeSelfUpdate = Partial<
+  Pick<
+    AdminEmployee,
+    | "dateOfBirth" | "gender" | "mobileNumber" | "personalEmail" | "profilePhotoUrl"
+    | "currentAddress" | "permanentAddress" | "city" | "state" | "pinCode" | "country"
+    | "emergencyContactName" | "emergencyRelationship" | "emergencyMobile"
+    | "aadhaarNumber" | "panNumber" | "passportNumber" | "drivingLicenceNumber"
+    | "accountHolderName" | "bankName" | "bankBranchName" | "accountNumber" | "ifscCode" | "upiId"
+  >
+>;
+
 export interface AdminEmployeeAuditLog {
   id: string;
   employeeId: string;

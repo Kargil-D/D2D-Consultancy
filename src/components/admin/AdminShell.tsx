@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, LogOut, UserCog, AlertCircle, CalendarDays, Wallet, Bell, IndianRupee, Plane } from "lucide-react";
+import { ExternalLink, LogOut, UserCog, CalendarDays, Wallet, Bell, IndianRupee, Plane } from "lucide-react";
 import Logo from "@/components/common/Logo";
 import { ToastProvider } from "@/components/admin/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { employeesApi, notificationsApi } from "@/lib/adminApi";
+import { notificationsApi } from "@/lib/adminApi";
 import type { AdminSupplierPaymentDueNotification, AdminCustomerDepartureDueNotification } from "@/types/admin";
 import { formatINR } from "@/utils/format";
 
@@ -20,8 +20,6 @@ export default function AdminShell({ children, title }: AdminShellProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [resolvingProfile, setResolvingProfile] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
   const [supplierPaymentsDue, setSupplierPaymentsDue] = useState<AdminSupplierPaymentDueNotification[]>([]);
   const [customerDeparturesDue, setCustomerDeparturesDue] = useState<AdminCustomerDepartureDueNotification[]>([]);
 
@@ -74,24 +72,6 @@ export default function AdminShell({ children, title }: AdminShellProps) {
   const handleLogout = () => {
     logout();
     router.push("/admin/login");
-  };
-
-  // Resolves *your own* linked Employee record (never a picker — always "me") and jumps
-  // straight to its edit page, same page EmployeeForm disables self-editing on.
-  const openProfileSettings = async () => {
-    setProfileError(null);
-    setResolvingProfile(true);
-    try {
-      const res = await employeesApi.me();
-      if (res.success && res.data) {
-        setMenuOpen(false);
-        router.push(`/admin/employees/${res.data.id}/edit`);
-      } else {
-        setProfileError(res.message || "No employee profile is linked to your login account.");
-      }
-    } finally {
-      setResolvingProfile(false);
-    }
   };
 
   return (
@@ -211,16 +191,16 @@ export default function AdminShell({ children, title }: AdminShellProps) {
                           )}
                         </div>
                       )}
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          onClick={openProfileSettings}
-                          disabled={resolvingProfile}
-                          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                          <UserCog className="w-4 h-4" /> {resolvingProfile ? "Opening…" : "Profile Settings"}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          router.push("/admin/my-profile");
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                      >
+                        <UserCog className="w-4 h-4" /> My Profile
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -241,12 +221,6 @@ export default function AdminShell({ children, title }: AdminShellProps) {
                       >
                         <Wallet className="w-4 h-4" /> My Payslips
                       </button>
-                      {profileError && (
-                        <div className="flex items-start gap-1.5 px-4 py-2 text-xs text-rose-600 bg-rose-50 border-t border-rose-100">
-                          <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-                          <span>{profileError}</span>
-                        </div>
-                      )}
                       <button
                         type="button"
                         onClick={handleLogout}

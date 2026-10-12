@@ -4,7 +4,7 @@ import { encryptSensitive, decryptSensitive } from "@/lib/crypto";
 import { maskAadhaar, maskAccountNumber } from "@/lib/mask";
 import type { Paginated } from "@/types/admin";
 import type { Prisma } from "@/generated/prisma/client";
-import type { EmployeeCreate, EmployeeUpdate } from "@/lib/validation/employee";
+import type { EmployeeCreate, EmployeeSelfUpdate, EmployeeUpdate } from "@/lib/validation/employee";
 
 export interface ListQuery {
   search?: string;
@@ -143,6 +143,12 @@ export async function updateEmployee(id: string, input: EmployeeUpdate, updatedB
   if (accountNumber !== undefined) await logAudit(id, "UPDATED_SENSITIVE", updatedBy, "accountNumber");
 
   return toMasked(updated);
+}
+
+/** "My Profile" self-edit — same write path as an Admin edit, with the audit entries attributed as
+ * "<name> (self)" so a self-made change (especially to bank details) stands out in the Activity Log. */
+export function updateOwnEmployeeProfile(id: string, input: EmployeeSelfUpdate, performedBy: string) {
+  return updateEmployee(id, input, `${performedBy} (self)`);
 }
 
 export async function removeEmployee(id: string, performedBy: string) {
