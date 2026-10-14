@@ -16,10 +16,26 @@ export interface QuotationSyncSource {
   items: { sourceId: string | null; component: string; detail: string; qty: number; cost: number; currencyCode: string }[];
 }
 
+/** JSON-safe form of quotationSyncContent — what's stored as Booking.quotationSyncSnapshot (dates as ISO strings). */
+export interface QuotationSyncSnapshot {
+  departureDate: string | null;
+  travelDate: string | null;
+  adults: number;
+  children: number;
+  infants: number;
+  marginPercent: number;
+  gstPercent: number;
+  hotelOptions: unknown;
+  transfers: unknown;
+  activities: unknown;
+  items: { sourceId: string | null; component: string; detail: string; qty: number; cost: number; currencyCode: string }[];
+}
+
 /** Deliberately ignores status, share token, PDF timestamp, notes and the itinerary text: those change without
- * affecting anything the booking mirrors, and must not trigger the "quotation changed" prompt. */
-export function quotationSyncHash(q: QuotationSyncSource): string {
-  const content = {
+ * affecting anything the booking mirrors, and must not trigger the "quotation changed" prompt.
+ * Key order matters — quotationSyncHash hashes this object's JSON, and existing bookings store that hash. */
+function quotationSyncContent(q: QuotationSyncSource) {
+  return {
     departureDate: q.departureDate,
     travelDate: q.travelDate,
     adults: q.adults,
@@ -32,5 +48,12 @@ export function quotationSyncHash(q: QuotationSyncSource): string {
     activities: q.activities,
     items: q.items.map((i) => ({ sourceId: i.sourceId, component: i.component, detail: i.detail, qty: i.qty, cost: i.cost, currencyCode: i.currencyCode })),
   };
-  return crypto.createHash("sha256").update(JSON.stringify(content)).digest("hex");
+}
+
+export function quotationSyncHash(q: QuotationSyncSource): string {
+  return crypto.createHash("sha256").update(JSON.stringify(quotationSyncContent(q))).digest("hex");
+}
+
+export function quotationSyncSnapshot(q: QuotationSyncSource): QuotationSyncSnapshot {
+  return JSON.parse(JSON.stringify(quotationSyncContent(q))) as QuotationSyncSnapshot;
 }

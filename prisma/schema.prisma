@@ -961,6 +961,10 @@ model Booking {
   /// Content hash of the linked Quotation as of the last sync (or the user choosing to keep the booking as-is);
   /// a different hash on the live Quotation means it was edited since, which drives the "quotation changed — refresh?" prompt.
   quotationSyncHash      String?
+  /// The quotation content that hash was taken from (see quotationSyncContent) — kept so the "quotation
+  /// changed" prompt can list *what* changed. Holds margin % and item costs: omitted from every query by
+  /// default in src/lib/prisma.ts and only loaded explicitly by the quotation-change check.
+  quotationSyncSnapshot  Json?
 
   createdDate DateTime @default(now())
   updatedDate DateTime @updatedAt

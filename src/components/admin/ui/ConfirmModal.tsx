@@ -1,11 +1,14 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { AlertTriangle, X } from "lucide-react";
 
 interface ConfirmModalProps {
   open: boolean;
   title: string;
   message: string;
+  /** Optional detail shown under the message (e.g. a list of changes) — widens the dialog and scrolls if long. */
+  children?: ReactNode;
   confirmText?: string;
   cancelText?: string;
   tone?: "danger" | "primary";
@@ -18,6 +21,7 @@ export default function ConfirmModal({
   open,
   title,
   message,
+  children,
   confirmText = "Confirm",
   cancelText = "Cancel",
   tone = "danger",
@@ -33,7 +37,7 @@ export default function ConfirmModal({
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+      <div className={`w-full ${children ? "max-w-xl" : "max-w-md"} rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden`}>
         <div className="flex items-start gap-3 p-5">
           <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-5 h-5 text-rose-600" />
@@ -51,6 +55,7 @@ export default function ConfirmModal({
               </button>
             </div>
             <p className="mt-1 text-sm text-slate-600">{message}</p>
+            {children && <div className="mt-3 max-h-[50vh] overflow-y-auto">{children}</div>}
           </div>
         </div>
         <div className="flex items-center justify-end gap-2 px-5 py-3 bg-slate-50 border-t border-slate-100">

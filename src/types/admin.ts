@@ -1057,6 +1057,17 @@ export interface AdminBookingNote {
 /** A booking's linked quotation — marginPercent is stripped server-side for viewers without BookingsMaster. */
 export type AdminBookingQuotation = Omit<AdminQuotation, "marginPercent"> & { marginPercent?: number };
 
+/** One line of the "quotation has been updated" prompt on a booking. */
+export interface QuotationChange {
+  section: "Trip" | "Hotels" | "Activities" | "Transfers" | "Pricing" | "Other";
+  text: string;
+}
+
+export interface QuotationChangeStatus {
+  quotationChanged: boolean;
+  quotationChanges?: QuotationChange[] | null;
+}
+
 export interface AdminBooking {
   id: string;
   seq: number;
@@ -1099,6 +1110,8 @@ export interface AdminBooking {
   paymentReceiptStale?: boolean;
   /** True when the linked quotation was edited since this booking last synced to it (or chose to keep it as-is). */
   quotationChanged?: boolean;
+  /** What changed in the linked quotation since the last sync; null when unknown (synced before change tracking). */
+  quotationChanges?: QuotationChange[] | null;
   documents: AdminBookingDocument[];
   passengers: AdminBookingPassenger[];
   flights: AdminBookingFlight[];

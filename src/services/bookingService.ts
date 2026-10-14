@@ -3,10 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { trackingCode, parseTrackingCode } from "@/lib/idCodes";
 import { ApiError } from "@/lib/apiError";
 import { bookingTotalPrice, type QuotationPricingInput } from "@/lib/quotationPricing";
-import { quotationSyncHash } from "@/lib/quotationSyncHash";
+import { quotationSyncHash, quotationSyncSnapshot, type QuotationSyncSnapshot, type QuotationSyncSource } from "@/lib/quotationSyncHash";
+import { diffQuotationSnapshots, redactQuotationChanges, type QuotationChangeLine } from "@/lib/quotationChanges";
 import type { Viewer } from "@/lib/permissions";
-import type { Paginated, QuotationActivityItem, QuotationHotelOptionGroup, QuotationTransferItem } from "@/types/admin";
-import type { Prisma, BookingStatus, BookingDocumentType, BookingServiceType } from "@/generated/prisma/client";
+import type { Paginated, QuotationActivityItem, QuotationChangeStatus, QuotationHotelOptionGroup, QuotationTransferItem } from "@/types/admin";
+import { Prisma } from "@/generated/prisma/client";
+import type { BookingStatus, BookingDocumentType, BookingServiceType } from "@/generated/prisma/client";
 import type {
   BookingFlightInput,
   BookingHotelInput,
@@ -186,12 +188,19 @@ interface BookingInput {
   supplierNotes?: string | null;
 }
 
-/** Hash of the quotation as it stands right now — the baseline a booking is compared against to
- * detect later edits. null when there's no (live) quotation to track. */
-async function currentQuotationHash(db: Pick<Tx, "quotation">, quotationId: string | null | undefined): Promise<string | null> {
-  if (!quotationId) return null;
+/** The baseline a booking is compared against to detect later quotation edits: the hash (what changed?)
+ * plus the content snapshot (what *was* it?) — both cleared when there's no quotation to track. */
+function syncBaseline(q: QuotationSyncSource | null) {
+  return q
+    ? { quotationSyncHash: quotationSyncHash(q), quotationSyncSnapshot: quotationSyncSnapshot(q) as unknown as Prisma.InputJsonValue }
+    : { quotationSyncHash: null, quotationSyncSnapshot: Prisma.DbNull };
+}
+
+/** Baseline for the quotation as it stands right now. */
+async function currentQuotationBaseline(db: Pick<Tx, "quotation"> | typeof prisma, quotationId: string | null | undefined) {
+  if (!quotationId) return syncBaseline(null);
   const q = await db.quotation.findFirst({ where: { id: quotationId, isDeleted: false }, include: { items: { orderBy: { sortOrder: "asc" } } } });
-  return q ? quotationSyncHash(q) : null;
+  return syncBaseline(q);
 }
 
 export async function createBooking(input: BookingInput) {
@@ -200,7 +209,7 @@ export async function createBooking(input: BookingInput) {
       data: {
         leadId: input.leadId,
         quotationId: input.quotationId || null,
-        quotationSyncHash: await currentQuotationHash(tx, input.quotationId),
+        ...(await currentQuotationBaseline(tx, input.quotationId)),
         destinationId: input.destinationId,
         travelDate: input.travelDate ? new Date(input.travelDate) : null,
         adults: input.adults ?? 1,
@@ -229,11 +238,11 @@ export async function createBooking(input: BookingInput) {
 export async function updateBooking(id: string, input: Partial<BookingInput>) {
   // Only re-baseline when the booking is pointed at a *different* quotation — the details form re-sends
   // the current quotationId on every save, and that must not silently dismiss a pending "quotation changed" prompt.
-  let relinked: { quotationSyncHash: string | null } | null = null;
+  let relinked: ReturnType<typeof syncBaseline> | null = null;
   if (input.quotationId !== undefined) {
     const current = await prisma.booking.findUnique({ where: { id }, select: { quotationId: true } });
     if ((input.quotationId || null) !== (current?.quotationId ?? null)) {
-      relinked = { quotationSyncHash: await currentQuotationHash(prisma, input.quotationId) };
+      relinked = await currentQuotationBaseline(prisma, input.quotationId);
     }
   }
   return prisma.booking.update({
@@ -811,7 +820,7 @@ export async function createBookingFromWonLead(
     data: {
       leadId: lead.id,
       quotationId: latestQuotation?.id ?? null,
-      quotationSyncHash: latestQuotation ? quotationSyncHash(latestQuotation) : null,
+      ...syncBaseline(latestQuotation),
       destinationId: lead.destinationId,
       travelDate: lead.travelDate,
     },
@@ -821,38 +830,63 @@ export async function createBookingFromWonLead(
 }
 
 /**
- * Whether the linked Quotation was edited since the booking last synced to it. Bookings that predate
- * change tracking (no baseline hash yet) are baselined to the quotation as it is now rather than being
- * flagged, since there's no way to tell what they were last in sync with.
+ * Whether the linked Quotation was edited since the booking last synced to it, and what changed.
+ * - No baseline hash yet (predates change tracking): baselined to the quotation as it is now, not flagged.
+ * - Unchanged but no snapshot yet (synced before snapshots existed): snapshot stored now, so the next
+ *   change can be itemised.
+ * - Changed: the itemised list, with margin/cost lines removed unless the viewer has BookingsMaster.
+ *   null when there's no snapshot to compare against (the change happened before snapshots existed).
  */
-export async function getQuotationChangeStatus(booking: {
-  id: string;
-  quotationId: string | null;
-  quotationSyncHash: string | null;
-  quotation: Parameters<typeof quotationSyncHash>[0] | null;
-}): Promise<{ quotationChanged: boolean }> {
+async function getQuotationChangeStatus(
+  booking: {
+    id: string;
+    quotationId: string | null;
+    quotationSyncHash: string | null;
+    quotationSyncSnapshot: Prisma.JsonValue | null;
+    quotation: QuotationSyncSource | null;
+  },
+  canViewMaster: boolean,
+): Promise<QuotationChangeStatus> {
   if (!booking.quotationId || !booking.quotation) return { quotationChanged: false };
-  const current = quotationSyncHash(booking.quotation);
+  const current = syncBaseline(booking.quotation);
   if (!booking.quotationSyncHash) {
-    await prisma.booking.updateMany({ where: { id: booking.id, quotationSyncHash: null }, data: { quotationSyncHash: current } });
+    await prisma.booking.updateMany({ where: { id: booking.id, quotationSyncHash: null }, data: current });
     return { quotationChanged: false };
   }
-  return { quotationChanged: current !== booking.quotationSyncHash };
+  if (current.quotationSyncHash === booking.quotationSyncHash) {
+    if (!booking.quotationSyncSnapshot) {
+      await prisma.booking.updateMany({
+        where: { id: booking.id, quotationSyncHash: booking.quotationSyncHash, quotationSyncSnapshot: { equals: Prisma.DbNull } },
+        data: { quotationSyncSnapshot: current.quotationSyncSnapshot },
+      });
+    }
+    return { quotationChanged: false };
+  }
+
+  let lines: QuotationChangeLine[] | null = null;
+  if (booking.quotationSyncSnapshot) {
+    lines = diffQuotationSnapshots(booking.quotationSyncSnapshot as unknown as QuotationSyncSnapshot, quotationSyncSnapshot(booking.quotation));
+    // The hash also covers descriptions, images and notes on hotels/activities/transfers, which aren't itemised.
+    if (lines.length === 0) lines = [{ section: "Other", text: "Descriptions, images or notes were updated" }];
+  }
+  return { quotationChanged: true, quotationChanges: redactQuotationChanges(lines, canViewMaster) };
 }
 
-/** Light read for the detail page's focus re-check — same answer as the full booking GET without loading its 13 relations. */
-export async function getQuotationChangeStatusById(id: string) {
+/** Change status for one booking — used by the booking GET and the detail page's focus re-check. Loads
+ * only what the comparison needs (the snapshot is omitted from every other booking query). */
+export async function getQuotationChangeStatusById(id: string, canViewMaster: boolean) {
   const booking = await prisma.booking.findUnique({
     where: { id },
     select: {
       id: true,
       quotationId: true,
       quotationSyncHash: true,
+      quotationSyncSnapshot: true,
       quotation: { include: { items: { orderBy: { sortOrder: "asc" } } } },
     },
   });
   if (!booking) throw new ApiError(404, "Booking not found");
-  return getQuotationChangeStatus(booking);
+  return getQuotationChangeStatus(booking, canViewMaster);
 }
 
 const toDate = (v: string | null | undefined) => {
@@ -930,7 +964,7 @@ export async function resolveQuotationChange(id: string, action: "refresh" | "ke
       await logTimeline(tx, id, "Quotation changes reviewed — booking kept as-is");
     }
 
-    await tx.booking.update({ where: { id }, data: { quotationSyncHash: quotationSyncHash(q) } });
+    await tx.booking.update({ where: { id }, data: syncBaseline(q) });
     return { quotationChanged: false };
   }, { timeout: 20000 });
 }

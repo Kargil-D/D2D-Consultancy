@@ -60,6 +60,7 @@ import type {
   EmailRecipientType,
   LeadStatus,
   Paginated,
+  QuotationChangeStatus,
   QuotationCustomerInput,
 } from "@/types/admin";
 
@@ -515,9 +516,9 @@ export const bookingsApi = {
     const res = await adminFetch(`/api/admin/bookings/${id}/hotels`, { method: "PUT", body: JSON.stringify({ rows }), headers: { "Content-Type": "application/json" } });
     return (await res.json()) as ApiResponse<AdminBooking | null>;
   },
-  getQuotationChangeStatus: async (id: string): Promise<ApiResponse<{ quotationChanged: boolean } | null>> => {
+  getQuotationChangeStatus: async (id: string): Promise<ApiResponse<QuotationChangeStatus | null>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/quotation-sync`);
-    return (await res.json()) as ApiResponse<{ quotationChanged: boolean } | null>;
+    return (await res.json()) as ApiResponse<QuotationChangeStatus | null>;
   },
   resolveQuotationChange: async (id: string, action: "refresh" | "keep"): Promise<ApiResponse<{ quotationChanged: boolean } | null>> => {
     const res = await adminFetch(`/api/admin/bookings/${id}/quotation-sync`, { method: "POST", body: JSON.stringify({ action }), headers: { "Content-Type": "application/json" } });

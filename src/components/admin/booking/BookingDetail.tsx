@@ -31,6 +31,7 @@ import PaymentReceiptControl from "@/components/admin/booking/PaymentReceiptCont
 import BookingChatTab from "@/components/admin/booking/BookingChatTab";
 import BookingTimelineTab from "@/components/admin/booking/BookingTimelineTab";
 import SendMailMenu from "@/components/admin/booking/SendMailMenu";
+import QuotationChangeList from "@/components/admin/booking/QuotationChangeList";
 import UserSearchSelect from "@/components/admin/ui/UserSearchSelect";
 import { useAuth } from "@/contexts/AuthContext";
 import { canViewModule, type PermissionMap } from "@/lib/adminModules";
@@ -217,8 +218,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
     const recheck = async () => {
       if (document.visibilityState !== "visible") return;
       const res = await bookingsApi.getQuotationChangeStatus(id);
-      if (res.success && res.data?.quotationChanged) {
-        setBooking((prev) => (prev && !prev.quotationChanged ? { ...prev, quotationChanged: true } : prev));
+      const status = res.success ? res.data : null;
+      if (status?.quotationChanged) {
+        setBooking((prev) => (prev ? { ...prev, quotationChanged: true, quotationChanges: status.quotationChanges ?? null } : prev));
       }
     };
     window.addEventListener("focus", recheck);
@@ -914,7 +916,9 @@ export default function BookingDetail({ id }: BookingDetailProps) {
         loading={resolvingQuotation}
         onConfirm={() => resolveQuotationChange("refresh")}
         onCancel={() => resolveQuotationChange("keep")}
-      />
+      >
+        <QuotationChangeList changes={booking.quotationChanges} />
+      </ConfirmModal>
       {/* Identity + quick actions */}
       <div className="rounded-2xl bg-white border border-slate-200 p-6">
         <div className="flex items-center justify-between flex-wrap gap-3">

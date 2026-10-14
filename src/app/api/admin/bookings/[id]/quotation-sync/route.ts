@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getQuotationChangeStatusById, resolveQuotationChange, requireBookingAccess } from "@/services/bookingService";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess, toViewer } from "@/lib/permissions";
+import { hasModulePermission, requireModuleAccess, toViewer } from "@/lib/permissions";
 
 const ResolveSchema = z.object({ action: z.enum(["refresh", "keep"]) });
 
@@ -13,13 +13,15 @@ function failure(err: unknown, tag: string) {
   return NextResponse.json({ success: false, message: "Internal error", data: null }, { status: 500 });
 }
 
-/** Has the linked quotation been edited since this booking last synced to it? */
+/** Has the linked quotation been edited since this booking last synced to it — and if so, what changed?
+ * Margin/cost lines are only included for BookingsMaster viewers. */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireModuleAccess(req, "Bookings", "canView");
     const { id } = await ctx.params;
     await requireBookingAccess(id, toViewer(user));
-    return NextResponse.json({ success: true, message: "OK", data: await getQuotationChangeStatusById(id) });
+    const data = await getQuotationChangeStatusById(id, hasModulePermission(user, "BookingsMaster", "canView"));
+    return NextResponse.json({ success: true, message: "OK", data });
   } catch (err) {
     return failure(err, "[/api/admin/bookings/[id]/quotation-sync] GET");
   }
