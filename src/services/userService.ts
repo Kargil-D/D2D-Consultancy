@@ -83,9 +83,12 @@ export function updatePasswordHash(id: string, passwordHash: string) {
   return prisma.user.update({ where: { id }, data: { passwordHash } });
 }
 
+/** Staff-picker options for a role (Sales Executive, Booking Executive, Customer Support, …). Admins are
+ * always included too, so an Admin can be picked on any lead, quotation or booking. Lead auto-assignment
+ * does not use this list (see leadAssignmentService), so Admins never receive leads automatically. */
 export function listUsersByRole(roleName: string) {
   return prisma.user.findMany({
-    where: { role: { name: roleName }, isActive: true },
+    where: { role: { name: { in: [...new Set([roleName, "Admin"])] } }, isActive: true },
     select: { id: true, firstName: true, lastName: true, email: true },
     orderBy: { firstName: "asc" },
   });
