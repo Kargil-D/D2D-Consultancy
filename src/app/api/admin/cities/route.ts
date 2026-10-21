@@ -2,14 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { listCities, findOrCreateCity } from "@/services/cityService";
 import { CityCreateSchema } from "@/lib/validation/city";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess } from "@/lib/permissions";
+import { getCurrentUser } from "@/lib/auth";
+import { DESTINATION_LOOKUP_MODULES, hasModulePermission, requireAnyModuleAccess } from "@/lib/permissions";
 
-/** Backs the Destination form's City multi-select. Gated under the Destinations module — City
- * has no admin screen of its own yet, it's a lookup master shared by whichever entity forms
- * (Destinations today; Activities/Hotels/Transfers/Packages/Itinerary later) embed the select. */
+/** Backs the City multi-select (Destination and Activity forms) and the Activities city filter. City
+ * has no admin screen of its own — it's a lookup master, readable by any module whose screens pick a
+ * destination/city (DESTINATION_LOOKUP_MODULES). */
 export async function GET(req: NextRequest) {
   try {
-    await requireModuleAccess(req, "Destinations", "canView");
+    await requireAnyModuleAccess(req, DESTINATION_LOOKUP_MODULES, "canView");
 
     const url = new URL(req.url);
     const search = url.searchParams.get("search") ?? undefined;
@@ -26,10 +27,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** Find-or-create: used when the user types a city that isn't in the master yet. */
+/** Find-or-create: used when the user types a city that isn't in the master yet — from the Destination
+ * form, or the Activity form's City select (so Activities add/edit rights are enough there). */
 export async function POST(req: NextRequest) {
   try {
-    await requireModuleAccess(req, "Destinations", "canAdd");
+    const user = await getCurrentUser(req);
+    const canCreate =
+      hasModulePermission(user, "Destinations", "canAdd") ||
+      hasModulePermission(user, "Activities", "canAdd") ||
+      hasModulePermission(user, "Activities", "canEdit");
+    if (!canCreate) throw new ApiError(403, "You don't have permission to add cities");
 
     const payload = await req.json();
     const parsed = CityCreateSchema.parse(payload);

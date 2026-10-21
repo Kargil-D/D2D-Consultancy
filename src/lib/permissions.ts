@@ -53,6 +53,16 @@ export async function requireAdmin(req: NextRequest) {
   return user;
 }
 
+/** Modules whose screens pick a destination or city from the lookup lists (Hotel Master, Activities,
+ * lead form, quotation builder, campaign form, hero/reviews/enquiry config, dashboard stats). They may
+ * READ the destination + city lists — needed for the dropdowns to load at all; creating, editing and
+ * deleting destinations stays Destinations-only. Destinations are public on the website anyway. */
+export const DESTINATION_LOOKUP_MODULES: AdminModule[] = [
+  "Destinations", "Activities", "HotelMaster", "Campaigns", "TransferTypes",
+  "Leads", "Quotations", "Bookings", "BookingsMaster",
+  "Dashboard", "HeroSection", "Reviews", "EnquiryConfig",
+];
+
 /** Modules allowed to READ a campaign's itinerary/hotel/transfer plan: the Campaigns editor itself, the Quotation builder (pre-fills from it) and the dashboard stats page. Writes stay Campaigns-only. */
 export const CAMPAIGN_PLAN_READ_MODULES: AdminModule[] = ["Campaigns", "Quotations", "Dashboard"];
 

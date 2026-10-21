@@ -3,11 +3,13 @@ import { listDestinations, listDestinationOptions, createDestination } from "@/s
 import { DestinationCreateSchema } from "@/lib/validation/destination";
 import { toSlug } from "@/utils/slug";
 import { ApiError } from "@/lib/apiError";
-import { requireModuleAccess } from "@/lib/permissions";
+import { DESTINATION_LOOKUP_MODULES, requireAnyModuleAccess, requireModuleAccess } from "@/lib/permissions";
 
+/** Read-only lookup for every screen that picks a destination (see DESTINATION_LOOKUP_MODULES) — not just
+ * the Destinations module, or e.g. a Sales user's Hotel Master / Activities forms load an empty dropdown. */
 export async function GET(req: NextRequest) {
   try {
-    await requireModuleAccess(req, "Destinations", "canView");
+    await requireAnyModuleAccess(req, DESTINATION_LOOKUP_MODULES, "canView");
 
     const url = new URL(req.url);
 

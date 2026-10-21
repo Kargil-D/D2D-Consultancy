@@ -258,7 +258,8 @@ export const destinationsApi = {
   all: async (): Promise<ApiResponse<AdminDestination[]>> => {
     const res = await adminFetch(`/api/admin/destinations?page=1&pageSize=1000`);
     const json = await res.json();
-    return { success: json.success, message: json.message, data: json.data.items };
+    // On a refused/failed request `data` is null — return an empty list with the error instead of throwing.
+    return { success: !!json.success, message: json.message, data: json.data?.items ?? [] };
   },
   get: async (id: string): Promise<ApiResponse<AdminDestination | null>> => {
     const res = await adminFetch(`/api/admin/destinations/${id}`);
