@@ -7,6 +7,7 @@ import TrendChart from "@/components/admin/dashboard/TrendChart";
 import DonutChart from "@/components/admin/dashboard/DonutChart";
 import TopDestinations from "@/components/admin/dashboard/TopDestinations";
 import EmployeePerformance from "@/components/admin/dashboard/EmployeePerformance";
+import EmployeePointsLeague from "@/components/admin/dashboard/EmployeePointsLeague";
 import BookingsByMonthChart from "@/components/admin/dashboard/BookingsByMonthChart";
 import RecentActivity from "@/components/admin/dashboard/RecentActivity";
 import FollowUps from "@/components/admin/dashboard/FollowUps";
@@ -94,6 +95,9 @@ export default function Dashboard() {
           />
         </Section>
       </div>
+
+      {/* Monthly points leaderboard — loads separately so switching months doesn't refetch the dashboard */}
+      <EmployeePointsLeague />
 
       {/* Destinations + Employee performance + Bookings by month */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

@@ -25,6 +25,7 @@ import type {
   AdminCurrency,
   AdminCurrencyRateHistory,
   AdminDashboardOverview,
+  AdminEmployeePoints,
   AdminDestination,
   AdminEmployee,
   AdminEmployeeAuditLog,
@@ -997,6 +998,11 @@ export const dashboardApi = {
   get: async (): Promise<ApiResponse<AdminDashboardOverview>> => {
     const res = await adminFetch("/api/admin/dashboard");
     return (await res.json()) as ApiResponse<AdminDashboardOverview>;
+  },
+  /** Employee Points leaderboard for a month ("YYYY-MM"); omit for the current month. */
+  points: async (month?: string): Promise<ApiResponse<AdminEmployeePoints>> => {
+    const res = await adminFetch(`/api/admin/dashboard/points${month ? `?month=${encodeURIComponent(month)}` : ""}`);
+    return (await res.json()) as ApiResponse<AdminEmployeePoints>;
   },
 };
 

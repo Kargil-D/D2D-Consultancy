@@ -1169,6 +1169,18 @@ export interface AdminDashboardTrendPoint {
   count: number;
 }
 
+/** Dashboard "Employee Points" leaderboard — 1 point per ₹500 of booking margin, credited to the
+ * quotation's Sales Executive, for bookings created in `month` (YYYY-MM, India time). */
+export interface AdminEmployeePoints {
+  month: string;
+  /** The month `prevPoints` refers to (YYYY-MM). */
+  prevMonth: string;
+  pointValueInr: number;
+  rows: { userId: string; name: string; bookings: number; points: number; prevPoints: number }[];
+  /** Bookings that month with no quotation / Sales Executive — earn no one points. */
+  unassignedBookings: number;
+}
+
 export interface AdminDashboardOverview {
   kpis: {
     leads: AdminDashboardKpi;
