@@ -243,14 +243,9 @@ export default function EmployeePointsLeague() {
     <div className="rounded-2xl bg-white border border-slate-200 p-5">
       {/* Header + controls (one row, scoping everything below) */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-        <div>
-          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-            <Trophy className="w-4 h-4 text-slate-500" /> Employee Points League
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            1 point = ₹{(data?.pointValueInr ?? 500).toLocaleString("en-IN")} booking margin · credited to the quotation&apos;s Sales Executive · bookings created in the month
-          </p>
-        </div>
+        <h3 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+          <Trophy className="w-4 h-4 text-slate-500" /> Employee Points League
+        </h3>
         <div className="flex items-center gap-2">
           <select
             value={month}
