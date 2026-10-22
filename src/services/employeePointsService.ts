@@ -21,12 +21,6 @@ function istMonthRange(month: string) {
   };
 }
 
-/** "2026-10" → "2026-09" (and "2026-01" → "2025-12"). */
-function previousMonth(month: string): string {
-  const [y, m] = month.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7);
-}
-
 const toPoints = (margin: number) => Math.floor(Math.max(0, margin) / POINT_VALUE_INR);
 
 /** Margin and booking count per Sales Executive for one month, plus bookings no one gets credit for. */
@@ -61,23 +55,20 @@ export interface EmployeePointsRow {
   name: string;
   bookings: number;
   points: number;
-  /** Same employee's points the month before — powers the "vs last month" movement. */
-  prevPoints: number;
 }
 
 /**
  * Monthly points leaderboard. Each booking created in the month (Cancelled excluded) earns its
  * quotation's margin — the same "Margin" figure on the booking header — for the quotation's Sales
- * Executive; an employee's points are their month's total margin ÷ ₹500, rounded down.
+ * Executive; an employee's points are their month's total margin ÷ ₹500, rounded down. Every month
+ * starts from zero: nothing from earlier months is carried over or compared against.
  *
  * Deliberately returns points and booking counts only, never rupee amounts: the leaderboard is visible
  * to all staff, while booking margins themselves stay BookingsMaster-only.
  */
 export async function getMonthlyEmployeePoints(month: string) {
-  const prevMonth = previousMonth(month);
-  const [current, previous, staff] = await Promise.all([
+  const [current, staff] = await Promise.all([
     tallyMonth(month),
-    tallyMonth(prevMonth),
     // Every active staff member gets a row (zero points included), so the board shows the whole team.
     prisma.user.findMany({
       where: { isActive: true, role: { name: { not: "Customer" } } },
@@ -98,9 +89,8 @@ export async function getMonthlyEmployeePoints(month: string) {
       name: `${u.firstName} ${u.lastName}`.trim(),
       bookings: current.count.get(u.id) ?? 0,
       points: toPoints(current.margin.get(u.id) ?? 0),
-      prevPoints: toPoints(previous.margin.get(u.id) ?? 0),
     }))
     .sort((a, b) => b.points - a.points || b.bookings - a.bookings || a.name.localeCompare(b.name));
 
-  return { month, prevMonth, pointValueInr: POINT_VALUE_INR, rows, unassignedBookings: current.unassigned };
+  return { month, pointValueInr: POINT_VALUE_INR, rows, unassignedBookings: current.unassigned };
 }

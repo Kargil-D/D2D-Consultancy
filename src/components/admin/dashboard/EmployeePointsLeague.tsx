@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, BarChart3, Crown, Minus, Rocket, Table2, Trophy, UserRound } from "lucide-react";
-import { CATEGORICAL, CHART_INK, STATUS } from "@/components/admin/dashboard/dashboardColors";
+import { BarChart3, Crown, Table2, Trophy, UserRound } from "lucide-react";
+import { CATEGORICAL, CHART_INK } from "@/components/admin/dashboard/dashboardColors";
 import { useAuth } from "@/contexts/AuthContext";
 import { dashboardApi } from "@/lib/adminApi";
 import type { AdminEmployeePoints } from "@/types/admin";
@@ -13,7 +13,6 @@ const ACCENT = CATEGORICAL[0];
 /** De-emphasis gray for everyone-but-you bars (emphasis form). Low contrast by design, so every bar
  * also carries a visible value label and the table view — the palette validator's "relief" rule. */
 const DEEMPHASIS = CHART_INK.baseline;
-const DELTA_UP_TEXT = "#006300";
 
 const istNow = () => new Date(Date.now() + 5.5 * 60 * 60 * 1000);
 
@@ -23,37 +22,13 @@ function recentMonths(): string[] {
   return Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1)).toISOString().slice(0, 7));
 }
 
-function monthLabel(month: string, style: "long" | "short" = "long") {
+function monthLabel(month: string) {
   const [y, m] = month.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-IN", { month: style, year: style === "long" ? "numeric" : undefined, timeZone: "UTC" });
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("") || "?";
 const pts = (n: number) => `${n.toLocaleString("en-IN")} pt${n === 1 ? "" : "s"}`;
-
-/** Signed movement vs last month — always icon + sign + text, never color alone. */
-function Delta({ now, prev, prevLabel, compact = false }: { now: number; prev: number; prevLabel: string; compact?: boolean }) {
-  const d = now - prev;
-  if (d === 0) {
-    return (
-      <span className="inline-flex items-center gap-0.5 text-xs font-medium text-slate-400" aria-label={`No change vs ${prevLabel}`}>
-        <Minus className="w-3 h-3" />{compact ? "0" : "No change"}
-      </span>
-    );
-  }
-  const up = d > 0;
-  const Icon = up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span
-      className="inline-flex items-center gap-0.5 text-xs font-semibold whitespace-nowrap"
-      style={{ color: up ? DELTA_UP_TEXT : STATUS.critical }}
-      aria-label={`${up ? "Up" : "Down"} ${Math.abs(d)} points vs ${prevLabel}`}
-    >
-      <Icon className="w-3.5 h-3.5" />
-      {up ? "+" : "−"}{Math.abs(d).toLocaleString("en-IN")}{compact ? "" : ` vs ${prevLabel}`}
-    </span>
-  );
-}
 
 function Tile({ icon: Icon, label, children }: { icon: typeof Trophy; label: string; children: React.ReactNode }) {
   return (
@@ -108,7 +83,7 @@ function Podium({ top, meId }: { top: Row[]; meId?: string }) {
 }
 
 /** Ranked horizontal bars — one hue; "you" in the accent, everyone else de-emphasized gray. */
-function LeagueBars({ rows, meId, prevLabel }: { rows: Row[]; meId?: string; prevLabel: string }) {
+function LeagueBars({ rows, meId }: { rows: Row[]; meId?: string }) {
   const [active, setActive] = useState<string | null>(null);
   const max = Math.max(1, ...rows.map((r) => r.points));
   const emphasize = !!meId && rows.some((r) => r.userId === meId);
@@ -142,7 +117,9 @@ function LeagueBars({ rows, meId, prevLabel }: { rows: Row[]; meId?: string; pre
               />
               <span className="text-sm font-semibold text-slate-900 tabular-nums whitespace-nowrap">{pts(r.points)}</span>
             </span>
-            <Delta now={r.points} prev={r.prevPoints} prevLabel={prevLabel} compact />
+            <span className="text-xs text-slate-500 whitespace-nowrap tabular-nums">
+              {r.bookings} booking{r.bookings === 1 ? "" : "s"}
+            </span>
             {showTip && (
               <span
                 role="tooltip"
@@ -150,7 +127,7 @@ function LeagueBars({ rows, meId, prevLabel }: { rows: Row[]; meId?: string; pre
               >
                 <span className="block text-sm font-bold text-white">{pts(r.points)}</span>
                 <span className="block text-xs text-slate-300">
-                  {r.name} · {r.bookings} booking{r.bookings === 1 ? "" : "s"} · {prevLabel}: {pts(r.prevPoints)}
+                  {r.name} · {r.bookings} booking{r.bookings === 1 ? "" : "s"} this month
                 </span>
               </span>
             )}
@@ -161,18 +138,16 @@ function LeagueBars({ rows, meId, prevLabel }: { rows: Row[]; meId?: string; pre
   );
 }
 
-function LeagueTable({ rows, meId, prevLabel }: { rows: Row[]; meId?: string; prevLabel: string }) {
+function LeagueTable({ rows, meId }: { rows: Row[]; meId?: string }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm min-w-[480px]">
+      <table className="w-full text-sm min-w-[360px]">
         <thead>
           <tr className="text-left text-[11px] font-semibold text-slate-500 uppercase border-b border-slate-100">
             <th className="px-2 py-2">Rank</th>
             <th className="px-2 py-2">Employee</th>
             <th className="px-2 py-2 text-right">Bookings</th>
             <th className="px-2 py-2 text-right">Points</th>
-            <th className="px-2 py-2 text-right">{prevLabel}</th>
-            <th className="px-2 py-2 text-right">Change</th>
           </tr>
         </thead>
         <tbody className="tabular-nums">
@@ -182,8 +157,6 @@ function LeagueTable({ rows, meId, prevLabel }: { rows: Row[]; meId?: string; pr
               <td className="px-2 py-2 font-medium text-slate-800">{r.name}{r.userId === meId ? " (You)" : ""}</td>
               <td className="px-2 py-2 text-right text-slate-700">{r.bookings}</td>
               <td className="px-2 py-2 text-right font-semibold text-slate-900">{r.points.toLocaleString("en-IN")}</td>
-              <td className="px-2 py-2 text-right text-slate-500">{r.prevPoints.toLocaleString("en-IN")}</td>
-              <td className="px-2 py-2 text-right"><Delta now={r.points} prev={r.prevPoints} prevLabel={prevLabel} compact /></td>
             </tr>
           ))}
         </tbody>
@@ -227,13 +200,9 @@ export default function EmployeePointsLeague() {
 
   const meId = user?.id;
   const rows = data?.rows ?? [];
-  const prevLabel = data ? monthLabel(data.prevMonth, "short") : "last month";
   const teamPoints = rows.reduce((s, r) => s + r.points, 0);
-  const teamPrev = rows.reduce((s, r) => s + r.prevPoints, 0);
   const teamBookings = rows.reduce((s, r) => s + r.bookings, 0);
   const leader = rows[0] && rows[0].points > 0 ? rows[0] : null;
-  const mostImproved = [...rows].sort((a, b) => b.points - b.prevPoints - (a.points - a.prevPoints))[0];
-  const improvedBy = mostImproved ? mostImproved.points - mostImproved.prevPoints : 0;
   const myIndex = rows.findIndex((r) => r.userId === meId);
   const me = myIndex >= 0 ? rows[myIndex] : null;
   const above = myIndex > 0 ? rows[myIndex - 1] : null;
@@ -281,15 +250,12 @@ export default function EmployeePointsLeague() {
         // Refetch keeps the frame: the previous month stays on screen, dimmed, until the new one lands.
         <div className={`space-y-5 transition-opacity ${loading ? "opacity-50" : "opacity-100"}`} aria-busy={loading}>
           {/* Headline tiles */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-xl p-4 text-white bg-gradient-to-br from-blue-600 to-indigo-600 min-w-0">
               <div className="text-xs font-semibold text-blue-100">Team points · {monthLabel(month)}</div>
               <div className="mt-1 text-5xl font-bold leading-none">{teamPoints.toLocaleString("en-IN")}</div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-blue-100">
-                <span>{teamBookings} booking{teamBookings === 1 ? "" : "s"} credited</span>
-                <span className="rounded-full bg-white/95 px-1.5 py-px">
-                  <Delta now={teamPoints} prev={teamPrev} prevLabel={prevLabel} />
-                </span>
+              <div className="mt-2 text-xs text-blue-100">
+                {teamBookings} booking{teamBookings === 1 ? "" : "s"} credited this month
               </div>
             </div>
 
@@ -304,17 +270,6 @@ export default function EmployeePointsLeague() {
                 </>
               ) : (
                 <div className="text-sm text-slate-400">No points yet this month</div>
-              )}
-            </Tile>
-
-            <Tile icon={Rocket} label="Most improved">
-              {mostImproved && improvedBy > 0 ? (
-                <>
-                  <div className="text-base font-bold text-slate-900 truncate" title={mostImproved.name}>{mostImproved.name}</div>
-                  <Delta now={mostImproved.points} prev={mostImproved.prevPoints} prevLabel={prevLabel} />
-                </>
-              ) : (
-                <div className="text-sm text-slate-400">No one ahead of {prevLabel} yet</div>
               )}
             </Tile>
 
@@ -347,13 +302,13 @@ export default function EmployeePointsLeague() {
               <p className="text-xs text-slate-400 mt-0.5">Points appear as bookings are created from quotations with a Sales Executive and a margin.</p>
             </div>
           ) : view === "table" ? (
-            <LeagueTable rows={rows} meId={meId} prevLabel={prevLabel} />
+            <LeagueTable rows={rows} meId={meId} />
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-6">
               <div className="rounded-xl bg-gradient-to-b from-slate-50 to-white border border-slate-100 px-3 pt-8 min-h-[230px]">
                 <Podium top={podium} meId={meId} />
               </div>
-              <LeagueBars rows={rows} meId={meId} prevLabel={prevLabel} />
+              <LeagueBars rows={rows} meId={meId} />
             </div>
           )}
 

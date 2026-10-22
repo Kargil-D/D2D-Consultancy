@@ -1173,10 +1173,8 @@ export interface AdminDashboardTrendPoint {
  * quotation's Sales Executive, for bookings created in `month` (YYYY-MM, India time). */
 export interface AdminEmployeePoints {
   month: string;
-  /** The month `prevPoints` refers to (YYYY-MM). */
-  prevMonth: string;
   pointValueInr: number;
-  rows: { userId: string; name: string; bookings: number; points: number; prevPoints: number }[];
+  rows: { userId: string; name: string; bookings: number; points: number }[];
   /** Bookings that month with no quotation / Sales Executive — earn no one points. */
   unassignedBookings: number;
 }
